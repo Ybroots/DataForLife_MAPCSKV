@@ -51,7 +51,7 @@ const featureItems: Array<{
   },
   {
     id: 'assistant',
-    description: 'Hỏi đáp thủ tục, tìm trụ sở và hướng dẫn sử dụng.',
+    description: 'Tìm địa bàn, danh bạ và cảnh báo công khai trên bản đồ.',
     icon: Bot,
   },
 ];

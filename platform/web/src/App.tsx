@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { ContactRound, FileWarning, Map, MapPinned, Menu, Search, ShieldCheck, UserRound, UserRoundCheck, X } from 'lucide-react';
+import { ContactRound, FileWarning, Map, MapPinned, Menu, MessageSquareText, Search, ShieldCheck, UserRound, UserRoundCheck, X } from 'lucide-react';
 import { ApiError, getAreaOverview, getCitizenSession, getOfficerSession, listHotlines, lookupByCode, lookupByLocation, searchAreas, signOutCitizen, signOutOfficer } from './api';
 import { DirectoryPanel } from './components/DirectoryPanel';
 import { FeatureDrawer } from './components/FeatureDrawer';
@@ -16,6 +16,11 @@ import directoryLogoUrl from '../../../assets/images/logo-transparent.png';
 const MapPane = lazy(async () => {
   const module = await import('./components/MapPane');
   return { default: module.MapPane };
+});
+
+const MapAssistant = lazy(async () => {
+  const module = await import('./components/MapAssistant');
+  return { default: module.MapAssistant };
 });
 
 const FeaturePage = lazy(async () => {
@@ -108,7 +113,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (policePortalRequested || appView !== 'citizen' || activeFeature !== 'directory' || overview) return;
+    if (policePortalRequested || appView !== 'citizen' || (activeFeature !== 'directory' && activeFeature !== 'assistant') || overview) return;
     let cancelled = false;
     setOverviewError(false);
     void getAreaOverview().then(payload => {
@@ -309,13 +314,6 @@ export default function App() {
     setMapToolsOpen(false);
   };
 
-  const changeMapTools = useCallback((open: boolean) => {
-    setMapToolsOpen(open);
-    if (!open) return;
-    setSearchResultsOpen(false);
-    areaSearchRef.current?.blur();
-  }, []);
-
   const navigateToFeature = useCallback((feature: FeatureId) => {
     const url = new URL(window.location.href);
     if (feature === 'directory') url.searchParams.delete('feature');
@@ -323,7 +321,18 @@ export default function App() {
     window.history.pushState({}, '', url);
     setActiveFeature(feature);
     setFeatureMenuOpen(false);
+    if (feature === 'assistant') {
+      setMapRequested(true); setMobileView('map'); setMapToolsOpen(false); setSearchResultsOpen(false);
+    }
   }, []);
+
+  const changeMapTools = useCallback((open: boolean) => {
+    setMapToolsOpen(open);
+    if (!open) return;
+    setSearchResultsOpen(false);
+    areaSearchRef.current?.blur();
+    if (new URL(window.location.href).searchParams.get('feature') === 'assistant') navigateToFeature('directory');
+  }, [navigateToFeature]);
 
   const showAlertsOnMap = () => {
     setShowDemoAlerts(true);
@@ -385,7 +394,7 @@ export default function App() {
 
   return (
     <div className="app-shell" data-mobile-view={mobileView} data-active-feature={activeFeature}>
-      <a className="skip-link" href={activeFeature === 'directory' ? '#lookup-panel' : '#main-content'}>Đến nội dung chính</a>
+      <a className="skip-link" href={activeFeature === 'assistant' ? '#map-assistant-title' : activeFeature === 'directory' ? '#lookup-panel' : '#main-content'}>Đến nội dung chính</a>
       <header className="topbar">
         <div className="brand-mark" aria-hidden="true">
           <img src={directoryLogoUrl} alt="" width="44" height="44" />
@@ -395,6 +404,7 @@ export default function App() {
           <span>Công an tỉnh Lâm Đồng</span>
         </div>
         <div className="topbar-actions">
+          <button className="map-assistant-trigger" type="button" aria-label="Trợ lý bản đồ" aria-expanded={activeFeature === 'assistant'} aria-controls={activeFeature === 'assistant' ? 'map-assistant-title' : undefined} onClick={() => navigateToFeature(activeFeature === 'assistant' ? 'directory' : 'assistant')}><MessageSquareText size={20} aria-hidden="true" /><span>Trợ lý</span></button>
           <CitizenNotifications key={citizenSession?.id ?? 'guest'} sessionId={citizenSession?.id ?? null}
             onRequireLogin={() => { setCitizenSession(null); setCitizenLoginAction('xem thông báo xử lý hồ sơ'); setCitizenLoginOpen(true); }}
             onOpenCase={(notification) => {
@@ -424,7 +434,7 @@ export default function App() {
         </div>
       </header>
 
-      {activeFeature === 'directory' ? (
+      {activeFeature === 'directory' || activeFeature === 'assistant' ? (
         <main className="workspace">
           <aside ref={lookupPanelRef} className="lookup-panel" id="lookup-panel" aria-label="Tìm kiếm và danh bạ địa bàn">
             <div className="panel-intro">
@@ -448,7 +458,7 @@ export default function App() {
                   type="search"
                   autoComplete="off"
                   value={query}
-                  onFocus={() => { setSearchResultsOpen(true); setMapToolsOpen(false); }}
+                  onFocus={() => { setSearchResultsOpen(true); setMapToolsOpen(false); if (activeFeature === 'assistant') navigateToFeature('directory'); }}
                   onChange={(event) => updateSearch(event.target.value)}
                   placeholder="Tìm xã/phường hoặc mã địa bàn…"
                   aria-controls="area-suggestions"
@@ -461,7 +471,7 @@ export default function App() {
               </div>
               <div className="province-navigation">
                 <select aria-label="Chọn xã/phường" value={area?.code ?? ''} disabled={!overview}
-                  onFocus={() => setMapToolsOpen(false)}
+                  onFocus={() => { setMapToolsOpen(false); if (activeFeature === 'assistant') navigateToFeature('directory'); }}
                   onChange={event => { if (event.target.value) void selectAreaCode(event.target.value); else showProvince(); }}>
                   <option value="">{overview ? `Toàn tỉnh Lâm Đồng · ${overview.features.length} xã/phường` : overviewError ? 'Chưa tải được danh sách địa bàn' : 'Đang tải danh sách địa bàn…'}</option>
                   {overview?.features.map(feature => <option key={feature.id} value={feature.id}>{feature.properties.name}</option>)}
@@ -521,7 +531,7 @@ export default function App() {
               <MapPane
                 area={area}
                 overview={overview}
-                onAreaSelect={code => void selectAreaCode(code)}
+                onAreaSelect={code => { if (activeFeature === 'assistant') { navigateToFeature('directory'); void selectAreaCode(code, false); } else void selectAreaCode(code); }}
                 selectedPosition={selectedPosition}
                 onCoordinateSelect={handleCoordinateSelect}
                 showDemoAlerts={showDemoAlerts}
@@ -532,6 +542,12 @@ export default function App() {
               />
             </Suspense>
           )}
+          {activeFeature === 'assistant' && <Suspense fallback={<div className="map-assistant" role="status">Đang tải trợ lý bản đồ…</div>}>
+            <MapAssistant areaCode={area?.code ?? null} areaName={area?.name ?? null}
+              onAreaSelect={code => { navigateToFeature('directory'); setMobileView('map'); void selectAreaCode(code, false); }}
+              onClose={() => { navigateToFeature('directory'); window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.map-assistant-trigger')?.focus({ preventScroll: true })); }}
+              onOpenSos={() => navigateToFeature('sos')} />
+          </Suspense>}
         </main>
       ) : (
         <ScreenErrorBoundary key={`${activeFeature}:${caseNavigationVersion}`}>

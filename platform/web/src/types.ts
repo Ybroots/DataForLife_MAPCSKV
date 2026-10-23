@@ -5,6 +5,24 @@ export interface AreaSummary {
   provinceName: string | null;
 }
 
+export interface MapAssistantStatus {
+  configured: boolean;
+  provider: 'OpenAI' | 'Gemini' | null;
+  emergencyDispatchConnected: false;
+}
+
+export interface MapAssistantAnswer {
+  message: string;
+  intent: 'area' | 'directory' | 'alerts' | 'hotlines' | 'help' | 'emergency' | 'unsupported';
+  needsClarification: boolean;
+  areas: Array<Pick<AreaLookup, 'code' | 'name' | 'population' | 'areaKm2' | 'directory'> & {
+    station: { name: string; address: string | null } | null;
+    alerts: Array<Pick<PublicAlert, 'id' | 'title' | 'summary' | 'endsAt'>>;
+  }>;
+  hotlines: Hotline[];
+  meta: { provider: string; dataSource: string; retrievedAt: string; emergencyDispatchConnected: false };
+}
+
 export interface AreaOverview {
   type: 'FeatureCollection';
   features: Array<{ type: 'Feature'; id: string; properties: AreaSummary; geometry: NonNullable<AreaLookup['boundary']> }>;

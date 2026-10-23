@@ -93,6 +93,24 @@ function readSosDraft(): SosDraft | null {
   }
 }
 
+export function EmergencyCallStrip() {
+  return (
+    <div className="official-emergency-strip">
+      <div><ShieldAlert size={20} aria-hidden="true" /><span><strong>SOS trong ứng dụng là kênh pilot nội bộ</strong><small>Nếu nguy hiểm tức thời, hãy gọi số khẩn cấp phù hợp trên điện thoại.</small></span></div>
+      <nav className="emergency-call-actions" aria-label="Gọi số khẩn cấp chính thức">
+        <a href="tel:112" aria-label="Gọi Tổng đài khẩn cấp quốc gia 112">
+          <PhoneCall size={18} aria-hidden="true" />
+          <span><strong>Gọi 112</strong><small>Khẩn cấp quốc gia</small></span>
+        </a>
+        <a href="tel:113" aria-label="Gọi Công an 113">
+          <PhoneCall size={18} aria-hidden="true" />
+          <span><strong>Gọi 113</strong><small>Công an</small></span>
+        </a>
+      </nav>
+    </div>
+  );
+}
+
 export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPageProps) {
   const initialDraft = useMemo(readSosDraft, []);
   const [step, setStep] = useState<Step>(() => {
@@ -339,9 +357,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
   return (
     <section className="citizen-workflow sos-workflow" aria-labelledby="sos-workflow-title">
       <h1 className="sr-only" id="sos-workflow-title">SOS khẩn cấp</h1>
-      <div className="official-emergency-strip">
-        <div><ShieldAlert size={20} aria-hidden="true" /><span><strong>Trong tình huống khẩn cấp, hãy nhấn và giữ nút SOS</strong><small>Thả tay trước 3 giây sẽ hủy thao tác.</small></span></div>
-      </div>
+      <EmergencyCallStrip />
 
       {step === 'prepare' && (
         <div className="sos-emergency-screen">

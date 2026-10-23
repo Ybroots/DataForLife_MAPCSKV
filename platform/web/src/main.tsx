@@ -4,6 +4,7 @@ import App from './App';
 import { ScreenErrorBoundary } from './components/ScreenErrorBoundary';
 import './styles.css';
 import './product.css';
+import './components/map-assistant.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

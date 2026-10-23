@@ -22,7 +22,9 @@ Inherit the neutral surfaces and typography in `../MASTER.md`. Reserve the red
 accent for SOS and serious warnings. Use a solid hold control with functional
 progress, no decorative pulse or glowing shadow. Separate location and optional
 details with dividers instead of nested cards. Keep all safety instructions,
-GPS recovery and pilot limitations visible. Quick-call remains hidden.
+GPS recovery and pilot limitations visible. Quick-call remains available before
+authentication, opens the device dialer for 112/113 and must never imply that
+the application dispatches those calls.
 
 ## Interaction rules
 

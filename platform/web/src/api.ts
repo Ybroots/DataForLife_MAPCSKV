@@ -24,9 +24,21 @@ import type {
   WorkflowActor,
   WorkflowMeta,
   StatisticsPeriod,
+  MapAssistantStatus,
+  MapAssistantAnswer,
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export async function getMapAssistantStatus(signal?: AbortSignal): Promise<MapAssistantStatus> {
+  return (await request<{ data: MapAssistantStatus }>('/v1/assistant/status', { signal })).data;
+}
+
+export async function askMapAssistant(question: string, areaCode: string | null, signal?: AbortSignal): Promise<MapAssistantAnswer> {
+  return (await request<{ data: MapAssistantAnswer }>('/v1/assistant/query', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, areaCode }),
+  })).data;
+}
 
 export async function getAreaOverview(): Promise<{ data: AreaOverview; meta: { dataSource: 'postgres' | 'fixture' } }> {
   return request('/v1/areas/overview');

@@ -68,6 +68,10 @@ async function main() {
     await sosPage.locator('.map-sos-button').click();
     await sosPage.getByText('Bạn cần đăng nhập tài khoản người dân để sử dụng SOS.', { exact: true }).waitFor();
     await assertHidden(sosPage, ['.sos-emergency-screen', '.sos-hold-button', '.workflow-map-canvas']);
+    const call112 = sosPage.getByRole('link', { name: 'Gọi Tổng đài khẩn cấp quốc gia 112' });
+    const call113 = sosPage.getByRole('link', { name: 'Gọi Công an 113' });
+    if (await call112.getAttribute('href') !== 'tel:112') throw new Error('112 quick call must open the device dialer before login');
+    if (await call113.getAttribute('href') !== 'tel:113') throw new Error('113 quick call must open the device dialer before login');
     await sosPage.screenshot({ path: path.join(ARTIFACTS, '03-sos-login-gate.png'), fullPage: true });
     await loginFromGate(sosPage, credentials);
     await sosPage.locator('.sos-hold-button').waitFor();

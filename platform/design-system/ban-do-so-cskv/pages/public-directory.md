@@ -45,7 +45,8 @@ The existing six-step tour uses a static spotlight with legible instructions.
 Its location step points to the current location control, not the removed AI button.
 The SOS action opens the workflow; pressing it does not itself submit an emergency.
 Authentication and the deliberate three-second hold remain unchanged.
-Quick-call remains absent from the citizen SOS workflow.
+Quick-call in the citizen SOS workflow only opens the device dialer for 112/113;
+it is visually separated from the local three-second SOS submission.
 
 ## Responsive review
 

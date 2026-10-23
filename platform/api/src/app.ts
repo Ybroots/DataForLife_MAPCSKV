@@ -22,6 +22,8 @@ import {
   type CitizenCredential,
 } from './citizen-auth.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { registerMapAssistant } from './map-assistant-routes.js';
+import type { AssistantPlanner } from './map-assistant.js';
 
 interface AppOptions {
   corsOrigin: string;
@@ -33,6 +35,8 @@ interface AppOptions {
   citizenSessionSecret?: string;
   citizenCredentials?: readonly CitizenCredential[];
   releaseValidation?: boolean;
+  assistantPlanner?: AssistantPlanner;
+  assistantDailyLimit?: number;
 }
 
 const incidentCategories = new Set(['security', 'traffic', 'public_order', 'administrative', 'environment', 'other']);
@@ -141,6 +145,7 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 30 * 1024 * 1024, trustProxy: '127.0.0.1' });
   await app.register(cors, { origin: options.corsOrigin, credentials: true });
+  registerMapAssistant(app, repository, options.assistantPlanner, options.assistantDailyLimit);
   const registrationAttempts = new Map<string, number[]>();
 
   app.addHook('onSend', async (_request, reply) => {

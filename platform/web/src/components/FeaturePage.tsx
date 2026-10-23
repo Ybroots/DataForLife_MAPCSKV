@@ -2,12 +2,9 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   ArrowLeft,
-  Bot,
   ExternalLink,
   MapPinned,
-  MessageCircleQuestion,
   Navigation,
-  Send,
   ShieldAlert,
   Star,
 } from 'lucide-react';
@@ -16,13 +13,13 @@ import { ApiError, createSatisfactionRating, listCitizenIncidents, listPublicAle
 import type { Incident, PublicAlert } from '../types';
 import type { CitizenSession } from '../types';
 import { CitizenReportsPage } from './CitizenReportsPage';
-import { CitizenSosPage } from './CitizenSosPage';
+import { CitizenSosPage, EmergencyCallStrip } from './CitizenSosPage';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { CitizenAccountPage } from './CitizenAccountPage';
 import { CitizenFeatureAuthGate } from './CitizenFeatureAuthGate';
 
 interface FeaturePageProps {
-  feature: Exclude<FeatureId, 'directory'>;
+  feature: Exclude<FeatureId, 'directory' | 'assistant'>;
   onBack: () => void;
   onShowAlertsOnMap: () => void;
   selectedPosition: { latitude: number; longitude: number } | null;
@@ -36,12 +33,11 @@ interface FeaturePageProps {
   onStartTour: () => void;
 }
 
-const featureDescriptions: Record<Exclude<FeatureId, 'directory'>, string> = {
+const featureDescriptions: Record<Exclude<FeatureId, 'directory' | 'assistant'>, string> = {
   alerts: 'Cảnh báo đang hiệu lực do cán bộ địa bàn phát hành.',
   reports: 'Gửi phản ánh kèm vị trí, nhận mã tiếp nhận và theo dõi toàn bộ tiến trình xử lý.',
   sos: 'Luồng khẩn cấp local có bước kiểm tra cuối, mã tiếp nhận và đồng bộ trạng thái từ cổng CSKV.',
   feedback: 'Chỉ cho phép đánh giá sau khi mã vụ việc được xác nhận hoàn thành.',
-  assistant: 'Trợ lý chuyên ngành sẽ chỉ trả lời từ kho tài liệu đã được phê duyệt.',
   account: 'Quản lý phiên đăng nhập, phản ánh đã gửi và các tùy chọn hỗ trợ.',
 };
 
@@ -56,8 +52,6 @@ const alertCategoryLabels: Record<PublicAlert['category'], string> = {
 export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPosition, areaCode, areaName, isAuthenticated, onRequireLogin, citizenSession, onCitizenLogout, onNavigate, onStartTour }: FeaturePageProps) {
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState('');
-  const [assistantNotice, setAssistantNotice] = useState('');
-  const [assistantQuery, setAssistantQuery] = useState('');
   const [alerts, setAlerts] = useState<PublicAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsFailed, setAlertsFailed] = useState(false);
@@ -105,11 +99,6 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
     }
   };
 
-  const submitAssistantDemo = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAssistantNotice('Khung hội thoại đang ở chế độ demo và chưa kết nối mô hình AI hoặc kho tài liệu đã duyệt.');
-  };
-
   const featureNeedsCitizenLogin = !isAuthenticated && (feature === 'reports' || feature === 'sos');
 
   return (
@@ -125,8 +114,8 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
             <span>Về bản đồ</span>
           </a>
           {feature !== 'reports' && feature !== 'sos' && (
-            <span className={feature === 'assistant' ? 'mode-badge development' : 'mode-badge active'}>
-              {feature === 'assistant' ? 'Đang phát triển' : 'Hoạt động'}
+            <span className="mode-badge active">
+              Hoạt động
             </span>
           )}
         </header>
@@ -180,7 +169,7 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
         {feature === 'sos' && (
           isAuthenticated
             ? <CitizenSosPage isAuthenticated onRequireLogin={() => onRequireLogin('sử dụng SOS')} />
-            : <CitizenFeatureAuthGate feature="sos" onLogin={() => onRequireLogin('sử dụng SOS')} />
+            : <><EmergencyCallStrip /><CitizenFeatureAuthGate feature="sos" onLogin={() => onRequireLogin('sử dụng SOS')} /></>
         )}
 
         {feature === 'account' && <CitizenAccountPage session={citizenSession} areaName={areaName} onLogin={() => onRequireLogin('xem tài khoản')} onLogout={onCitizenLogout} onNavigate={onNavigate} onStartTour={onStartTour} />}
@@ -214,30 +203,6 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
           </section>
         )}
 
-        {feature === 'assistant' && (
-          <section className="feature-section assistant-section" aria-labelledby="assistant-title">
-            <div className="assistant-intro">
-              <span><Bot size={25} aria-hidden="true" /></span>
-              <div><h2 id="assistant-title">Trợ lý thủ tục</h2><p>Chỉ trả lời từ kho tài liệu đã duyệt khi API được kết nối.</p></div>
-            </div>
-            <p className="development-notice"><strong>Đang phát triển</strong><span>Chờ kết nối mô hình AI, kho tri thức được phê duyệt và cơ chế kiểm duyệt câu trả lời.</span></p>
-            <div className="assistant-message">
-              <MessageCircleQuestion size={20} aria-hidden="true" />
-              <p>Bạn có thể thử bố cục với câu hỏi về thủ tục trình báo, địa chỉ trụ sở hoặc cách theo dõi phản ánh.</p>
-            </div>
-            <div className="prompt-chips" aria-label="Câu hỏi gợi ý">
-              {['Cách gửi phản ánh?', 'Tìm trụ sở gần nhất', 'Theo dõi mã vụ việc'].map((prompt) => (
-                <button key={prompt} type="button" onClick={() => { setAssistantQuery(prompt); setAssistantNotice(''); }}>{prompt}</button>
-              ))}
-            </div>
-            <form className="assistant-form" onSubmit={submitAssistantDemo}>
-              <label className="sr-only" htmlFor="assistant-query">Nội dung câu hỏi</label>
-              <input id="assistant-query" name="assistant-query" type="text" autoComplete="off" value={assistantQuery} onChange={(event) => setAssistantQuery(event.target.value)} placeholder="Nhập câu hỏi của bạn…" required />
-              <button type="submit" aria-label="Gửi câu hỏi thử nghiệm"><Send size={19} aria-hidden="true" /></button>
-            </form>
-            {assistantNotice && <p className="inline-notice" role="status">{assistantNotice}</p>}
-          </section>
-        )}
       </div>
     </main>
   );

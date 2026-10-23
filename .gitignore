@@ -41,6 +41,7 @@ tmp/
 # local env files
 .env*.local
 /firebase.local.ts
+/DataForLife-officer-accounts-*.txt
 
 # typescript
 *.tsbuildinfo

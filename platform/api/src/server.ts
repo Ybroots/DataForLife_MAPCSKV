@@ -3,6 +3,7 @@ import { FixtureDirectoryRepository } from './fixture-repository.js';
 import { loadPlatformEnv } from './load-env.js';
 import { PostgresDirectoryRepository } from './postgres-repository.js';
 import type { DirectoryRepository } from './types.js';
+import { createAssistantPlanner } from './map-assistant.js';
 
 loadPlatformEnv();
 
@@ -36,6 +37,8 @@ const app = await buildApp(repository, {
     displayName: process.env.API_CITIZEN_DISPLAY_NAME || 'Người dân Xuân Hương',
   }],
   secureCookies: process.env.NODE_ENV === 'production',
+  assistantPlanner: createAssistantPlanner(process.env),
+  assistantDailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT || 200),
   releaseValidation: process.env.API_RELEASE_VALIDATION === 'true' && process.env.NODE_ENV !== 'production',
 });
 

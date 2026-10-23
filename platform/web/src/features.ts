@@ -47,6 +47,6 @@ export const featureDescriptions: Record<FeatureId, string> = {
   reports: 'Luồng gửi phản ánh có ghi nhận vị trí và hình ảnh hiện trường.',
   sos: 'Luồng khẩn cấp có bước kiểm tra cuối, mã tiếp nhận và đồng bộ trạng thái từ cổng CSKV.',
   feedback: 'Chỉ cho phép đánh giá sau khi mã vụ việc được xác nhận hoàn thành.',
-  assistant: 'Tra cứu thông tin và hướng dẫn thủ tục từ AI chuyên ngành.',
+  assistant: 'Tìm địa bàn, danh bạ và cảnh báo công khai bằng câu hỏi tự nhiên.',
   account: 'Quản lý phiên đăng nhập, phản ánh và các tùy chọn hỗ trợ người dân.',
 };
