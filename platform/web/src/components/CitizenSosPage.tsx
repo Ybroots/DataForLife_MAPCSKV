@@ -10,7 +10,7 @@ import {
   Siren,
   XCircle,
 } from 'lucide-react';
-import { ApiError, cancelCitizenSos, createSos, getCitizenSos, listCitizenSos } from '../api';
+import { ApiError, cancelCitizenSos, createSos, getCitizenSos, getDutyCoverage, listCitizenSos, lookupByLocation, reportCitizenSosSafe } from '../api';
 import type { SosEvent, SosStatus } from '../types';
 import { WorkflowTimeline } from './WorkflowTimeline';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
@@ -125,6 +125,9 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancelConfirmation, setCancelConfirmation] = useState(false);
+  const [safeBusy, setSafeBusy] = useState(false);
+  // 'uncovered' = locality known but no officer is on duty in this system; 'outside' = not inside any locality boundary.
+  const [duty, setDuty] = useState<{ state: 'unknown' | 'covered' | 'uncovered' | 'outside'; areaName: string }>({ state: 'unknown', areaName: '' });
   const [events, setEvents] = useState<SosEvent[]>([]);
   const [activeReceipt, setActiveReceipt] = useState<string | null>(() => new URL(window.location.href).searchParams.get('sosReceipt'));
   const [idempotencyKey, setIdempotencyKey] = useState(() => initialDraft?.idempotencyKey ?? createRequestId());
@@ -207,6 +210,26 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
     return () => window.clearInterval(timer);
   }, [activeReceipt, isAuthenticated]);
 
+  useEffect(() => {
+    if (!position) { setDuty({ state: 'unknown', areaName: '' }); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [codes, lookup] = await Promise.all([getDutyCoverage(), lookupByLocation(position.latitude, position.longitude)]);
+        if (!cancelled) setDuty({ state: codes.includes(lookup.data.code) ? 'covered' : 'uncovered', areaName: lookup.data.name });
+      } catch (caught) {
+        if (!cancelled) setDuty({ state: caught instanceof ApiError && caught.status === 404 ? 'outside' : 'unknown', areaName: '' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [position?.latitude, position?.longitude]);
+
+  const dutyBlockMessage = duty.state === 'uncovered'
+    ? `Địa bàn ${duty.areaName} chưa có cán bộ trực trên hệ thống này, nên SOS gửi từ đây sẽ không được xử lý. Hãy gọi 112 hoặc 113 ngay.`
+    : duty.state === 'outside'
+      ? 'Vị trí này nằm ngoài ranh giới các địa bàn của hệ thống (hoặc sát đường ranh). Hãy gọi 112 hoặc 113, hoặc lấy lại vị trí.'
+      : '';
+
   const locate = () => {
     setError('');
     if (!navigator.geolocation) {
@@ -238,6 +261,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
       locate();
       return false;
     }
+    if (dutyBlockMessage) { setError(dutyBlockMessage); return false; }
     if (!validPhone(contactPhone)) {
       setError('Số điện thoại phải có từ 8 đến 15 chữ số. Có thể dùng dấu cách hoặc dấu + ở đầu.');
       return false;
@@ -343,6 +367,20 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
     }
   };
 
+  const reportSafe = async () => {
+    if (!activeEvent || safeBusy) return;
+    setSafeBusy(true);
+    setError('');
+    try {
+      const updated = await reportCitizenSosSafe(activeEvent.receiptCode);
+      setEvents((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setSafeBusy(false);
+    }
+  };
+
   const startAnother = () => {
     changeStep('prepare');
     setNote('');
@@ -391,6 +429,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             </p>
           </div>
 
+          {dutyBlockMessage && <p className="inline-notice error sos-duty-warning" role="alert"><AlertTriangle size={18} aria-hidden="true" /> {dutyBlockMessage}</p>}
           {!isAuthenticated && <VneIdLoginPrompt action="sử dụng SOS" onLogin={onRequireLogin} />}
 
           <section className="sos-location-panel" aria-labelledby="sos-location-title">
@@ -452,6 +491,11 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
           )}
           <div className="receipt-actions">
             <button type="button" onClick={() => void loadEvents()}><RefreshCw size={17} aria-hidden="true" /> Cập nhật trạng thái</button>
+            {['acknowledged', 'responding', 'escalated'].includes(activeEvent.status) && (
+              activeEvent.history.some((entry) => entry.actorRole === 'citizen' && entry.fromStatus === entry.toStatus)
+                ? <p className="inline-notice success" role="status"><CheckCircle2 size={17} aria-hidden="true" /> Đã báo an toàn. Cán bộ sẽ xác minh trước khi đóng yêu cầu.</p>
+                : <button type="button" disabled={safeBusy} onClick={() => void reportSafe()}><CheckCircle2 size={17} aria-hidden="true" /> {safeBusy ? 'Đang gửi…' : 'Tôi đã an toàn'}</button>
+            )}
             {['triggered', 'dispatched'].includes(activeEvent.status) && <button className="danger-outline" type="button" onClick={() => void cancel()}><XCircle size={17} aria-hidden="true" /> {cancelConfirmation ? 'Xác nhận hủy' : 'Hủy thao tác nhầm'}</button>}
           </div>
           <button className="text-action" type="button" onClick={startAnother}>Tạo một yêu cầu khác</button>

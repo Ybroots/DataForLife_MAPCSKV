@@ -28,7 +28,7 @@ import type {
   CitizenAccountRecord,
   OfficerAccountRecord,
 } from './types.js';
-import { assertIncidentTransition, assertSosTransition, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
+import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
 
 const demoArea: AreaLookupResponse = {
   code: 'DEMO-DA-LAT',
@@ -342,6 +342,40 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     return publicSos(item);
   }
 
+  async reportCitizenSosSafe(citizenId: string, receiptCode: string, note: string): Promise<SosResponse> {
+    const item = [...this.sosEvents.values()].find(
+      (candidate) => candidate.citizenId === citizenId && candidate.receiptCode === receiptCode,
+    );
+    if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS này.');
+    if (!['dispatched', 'acknowledged', 'responding', 'escalated'].includes(item.status)) {
+      throw new WorkflowError('INVALID_TRANSITION', 'Chỉ báo an toàn được khi yêu cầu SOS đang được xử lý.');
+    }
+    const already = item.history.some((entry) => entry.actorRole === 'citizen' && entry.fromStatus === entry.toStatus);
+    if (!already) {
+      const now = new Date().toISOString();
+      item.updatedAt = now;
+      item.history.push({ fromStatus: item.status, toStatus: item.status, actorId: citizenId, actorRole: 'citizen', note, publicMessage: true, createdAt: now });
+    }
+    return publicSos(item);
+  }
+
+  async withdrawCitizenIncident(citizenId: string, receiptCode: string, note: string): Promise<IncidentResponse> {
+    const item = [...this.incidents.values()].find(
+      (candidate) => candidate.citizenId === citizenId && candidate.receiptCode === receiptCode,
+    );
+    if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
+    if (!['submitted', 'received'].includes(item.status)) {
+      throw new WorkflowError('INVALID_TRANSITION', 'Phản ánh đã được phân công xử lý, không thể tự rút. Hãy nhắn cho cán bộ phụ trách.');
+    }
+    assertIncidentTransition(item.status, 'closed');
+    this.pushIncidentHistory(item, 'closed', citizenId, 'citizen', note, true);
+    return publicIncident(item);
+  }
+
+  async listDutyLocalityCodes(): Promise<string[]> {
+    return ['DEMO-DA-LAT'];
+  }
+
   async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
     this.requireActor(actorId);
     const sos: OfficerQueueItemResponse[] = [...this.sosEvents.values()]
@@ -509,7 +543,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const item = this.incidents.get(id);
     if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
     assertIncidentTransition(item.status, toStatus);
-    this.authorizeIncidentTransition(actor, toStatus, assignedOfficerId);
+    assertCaseOwnership(actor.id, item.assignedOfficer?.id, assignedOfficerId, 'hồ sơ');
     const assigneeId = assignedOfficerId ?? (toStatus === 'assigned' ? actorId : item.assignedOfficer?.id);
     if (assigneeId) {
       const assignee = this.requireActor(assigneeId);
@@ -532,7 +566,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const item = this.sosEvents.get(id);
     if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS.');
     assertSosTransition(item.status, toStatus);
-    this.authorizeSosTransition(actor, toStatus, assignedOfficerId);
+    assertCaseOwnership(actor.id, item.assignedOfficer?.id, assignedOfficerId, 'SOS');
     const assigneeId = assignedOfficerId ?? (['acknowledged', 'responding'].includes(toStatus) ? actorId : item.assignedOfficer?.id);
     if (assigneeId) {
       const assignee = this.requireActor(assigneeId);
@@ -656,18 +690,6 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const actor = this.actors.find((candidate) => candidate.id === actorId);
     if (!actor) throw new WorkflowError('FORBIDDEN', 'Tài khoản cán bộ local không hợp lệ.');
     return actor;
-  }
-
-  private authorizeIncidentTransition(actor: WorkflowActorResponse, _toStatus: IncidentStatus, assignedOfficerId?: string | null): void {
-    if (assignedOfficerId && assignedOfficerId !== actor.id) {
-      throw new WorkflowError('FORBIDDEN', 'Pilot Xuân Hương chỉ cho phép CSKV đang đăng nhập trực tiếp nhận và xử lý hồ sơ.');
-    }
-  }
-
-  private authorizeSosTransition(actor: WorkflowActorResponse, _toStatus: SosStatus, assignedOfficerId?: string | null): void {
-    if (assignedOfficerId && assignedOfficerId !== actor.id) {
-      throw new WorkflowError('FORBIDDEN', 'Pilot Xuân Hương chỉ cho phép CSKV đang đăng nhập trực tiếp nhận và xử lý SOS.');
-    }
   }
 
   private pushIncidentHistory(

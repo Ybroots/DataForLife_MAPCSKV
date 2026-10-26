@@ -12,6 +12,7 @@ import type {
   WorkflowLocationResponse,
 } from './types.js';
 import {
+  assertCaseOwnership,
   assertIncidentTransition,
   assertSosTransition,
   WorkflowError,
@@ -283,6 +284,13 @@ export class PostgresWorkflowStore {
     try {
       await client.query('BEGIN');
       const location = await this.resolveLocation(client, input.latitude, input.longitude);
+      const duty = await client.query(
+        `SELECT 1 FROM workflow_actors WHERE locality_id = $1 AND actor_type = 'officer' AND active = true LIMIT 1`,
+        [location.locality_id],
+      );
+      if (!duty.rows[0]) {
+        throw new WorkflowError('NO_DUTY_OFFICER', `Địa bàn ${location.locality_name} chưa có cán bộ trực trên hệ thống này. Vui lòng gọi 112 hoặc 113.`);
+      }
       await client.query(
         `INSERT INTO sos_events (
            id, receipt_code, idempotency_key, citizen_external_id, contact_phone,
@@ -392,6 +400,89 @@ export class PostgresWorkflowStore {
       client.release();
     }
     return this.requireSos(id, citizenId);
+  }
+
+  async reportCitizenSosSafe(citizenId: string, receiptCode: string, note: string): Promise<SosResponse> {
+    const client = await this.pool.connect();
+    let id = '';
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<{ id: string; status: SosStatus }>(
+        `SELECT id::text, status FROM sos_events
+         WHERE citizen_external_id = $1 AND receipt_code = $2 FOR UPDATE`,
+        [citizenId, receiptCode],
+      );
+      const row = result.rows[0];
+      if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS này.');
+      if (!['dispatched', 'acknowledged', 'responding', 'escalated'].includes(row.status)) {
+        throw new WorkflowError('INVALID_TRANSITION', 'Chỉ báo an toàn được khi yêu cầu SOS đang được xử lý.');
+      }
+      id = row.id;
+      const already = await client.query(
+        `SELECT 1 FROM sos_status_history WHERE sos_event_id = $1 AND actor_role = 'citizen' AND from_status = to_status LIMIT 1`,
+        [id],
+      );
+      if (!already.rows[0]) {
+        // The status is NOT changed: only an officer may close a case, after verifying (coercion/duress is possible).
+        await client.query(`UPDATE sos_events SET updated_at = now() WHERE id = $1`, [id]);
+        await this.recordSosChange(client, {
+          id, from: row.status, to: row.status, actorId: citizenId, actorRole: 'citizen',
+          note: note.trim(), publicMessage: true, eventType: 'citizen_safe',
+        });
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return this.requireSos(id, citizenId);
+  }
+
+  async withdrawCitizenIncident(citizenId: string, receiptCode: string, note: string): Promise<IncidentResponse> {
+    const client = await this.pool.connect();
+    let id = '';
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<{ id: string; status: IncidentStatus }>(
+        `SELECT id::text, status FROM incident_reports
+         WHERE citizen_external_id = $1 AND receipt_code = $2 FOR UPDATE`,
+        [citizenId, receiptCode],
+      );
+      const row = result.rows[0];
+      if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
+      if (!['submitted', 'received'].includes(row.status)) {
+        throw new WorkflowError('INVALID_TRANSITION', 'Phản ánh đã được phân công xử lý, không thể tự rút. Hãy nhắn cho cán bộ phụ trách.');
+      }
+      assertIncidentTransition(row.status, 'closed');
+      id = row.id;
+      await client.query(
+        `UPDATE incident_reports SET status = 'closed', closed_at = now(), updated_at = now() WHERE id = $1`,
+        [id],
+      );
+      await this.recordIncidentChange(client, {
+        id, from: row.status, to: 'closed', actorId: citizenId, actorRole: 'citizen', note: note.trim(), publicMessage: true,
+      });
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return this.requireIncident(id, citizenId);
+  }
+
+  async listDutyLocalityCodes(): Promise<string[]> {
+    const result = await this.pool.query<{ code: string }>(
+      `SELECT DISTINCT l.code
+       FROM workflow_actors a
+       JOIN localities l ON l.id = a.locality_id
+       WHERE a.actor_type = 'officer' AND a.active = true AND l.visibility = 'public'
+       ORDER BY l.code`,
+    );
+    return result.rows.map((row) => row.code);
   }
 
   async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
@@ -504,7 +595,7 @@ export class PostgresWorkflowStore {
       if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
       if (row.locality_id !== actor.locality_id) throw new WorkflowError('FORBIDDEN', 'Phản ánh nằm ngoài phạm vi địa bàn.');
       assertIncidentTransition(row.status, toStatus);
-      this.authorizeIncidentTransition(actor, toStatus, assignedOfficerId);
+      assertCaseOwnership(actor.id, row.assigned_officer_id, assignedOfficerId, 'hồ sơ');
 
       let assignee = assignedOfficerId ?? row.assigned_officer_id;
       if (toStatus === 'assigned' && !assignee) assignee = actorId;
@@ -564,7 +655,7 @@ export class PostgresWorkflowStore {
       if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS.');
       if (row.locality_id !== actor.locality_id) throw new WorkflowError('FORBIDDEN', 'SOS nằm ngoài phạm vi địa bàn.');
       assertSosTransition(row.status, toStatus);
-      this.authorizeSosTransition(actor, toStatus, assignedOfficerId);
+      assertCaseOwnership(actor.id, row.assigned_officer_id, assignedOfficerId, 'SOS');
 
       let assignee = assignedOfficerId ?? row.assigned_officer_id;
       if ((toStatus === 'acknowledged' || toStatus === 'responding') && !assignee) assignee = actorId;
@@ -676,7 +767,9 @@ export class PostgresWorkflowStore {
         try {
           const status = String(event.payload.status ?? event.event_type.split('.').at(-1) ?? 'updated');
           const subject = event.aggregate_type === 'sos' ? 'SOS' : 'Phản ánh';
-          const message = `${subject} ${event.receipt_code} đã chuyển sang trạng thái ${status}.`;
+          const message = event.event_type.endsWith('.citizen_safe')
+            ? `${subject} ${event.receipt_code}: người gửi báo đã an toàn, cần cán bộ xác minh trước khi đóng.`
+            : `${subject} ${event.receipt_code} đã chuyển sang trạng thái ${status}.`;
           await client.query(
             `INSERT INTO workflow_notifications
                (outbox_id, locality_id, aggregate_type, aggregate_id, event_type, message, payload)
@@ -755,18 +848,6 @@ export class PostgresWorkflowStore {
     const row = result.rows[0];
     if (!row) throw new WorkflowError('INVALID_INPUT', 'Vị trí nằm ngoài phạm vi hoặc đúng trên đường ranh chưa thể định tuyến tự động. Vui lòng chọn điểm rõ hơn.');
     return row;
-  }
-
-  private authorizeIncidentTransition(actor: ActorRow, _toStatus: IncidentStatus, assignedOfficerId?: string | null): void {
-    if (assignedOfficerId && assignedOfficerId !== actor.id) {
-      throw new WorkflowError('FORBIDDEN', 'Pilot Xuân Hương chỉ cho phép CSKV đang đăng nhập trực tiếp nhận và xử lý hồ sơ.');
-    }
-  }
-
-  private authorizeSosTransition(actor: ActorRow, _toStatus: SosStatus, assignedOfficerId?: string | null): void {
-    if (assignedOfficerId && assignedOfficerId !== actor.id) {
-      throw new WorkflowError('FORBIDDEN', 'Pilot Xuân Hương chỉ cho phép CSKV đang đăng nhập trực tiếp nhận và xử lý SOS.');
-    }
   }
 
   private async requireOfficer(client: Pool | PoolClient, actorId: string): Promise<ActorRow> {
@@ -955,6 +1036,8 @@ export class PostgresWorkflowStore {
     actorRole: string;
     note: string;
     publicMessage?: boolean;
+    /** Overrides the outbox/audit event name for notes that do not change the status (e.g. citizen_safe). */
+    eventType?: string;
   }): Promise<void> {
     const publicMessage = change.publicMessage ?? ['citizen', 'system'].includes(change.actorRole);
     await client.query(
@@ -966,13 +1049,13 @@ export class PostgresWorkflowStore {
     await client.query(
       `INSERT INTO workflow_audit_events
          (aggregate_type, aggregate_id, action, actor_id, actor_role, before_data, after_data)
-       VALUES ('sos', $1, 'status_changed', $2, $3, jsonb_build_object('status', $4::text), jsonb_build_object('status', $5::text))`,
-      [change.id, change.actorId, change.actorRole, change.from, change.to],
+       VALUES ('sos', $1, $6, $2, $3, jsonb_build_object('status', $4::text), jsonb_build_object('status', $5::text))`,
+      [change.id, change.actorId, change.actorRole, change.from, change.to, change.eventType ?? 'status_changed'],
     );
     await client.query(
       `INSERT INTO workflow_outbox (aggregate_type, aggregate_id, event_type, payload)
        VALUES ('sos', $1, $2, jsonb_build_object('status', $3::text, 'actorId', $4::text, 'publicMessage', $5::boolean))`,
-      [change.id, `sos.${change.to}`, change.to, change.actorId, publicMessage],
+      [change.id, `sos.${change.eventType ?? change.to}`, change.to, change.actorId, publicMessage],
     );
   }
 }

@@ -22,6 +22,7 @@ import {
   type CitizenCredential,
 } from './citizen-auth.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { AttemptWindow, LoginGuard } from './rate-limit.js';
 import { registerMapAssistant } from './map-assistant-routes.js';
 import type { AssistantPlanner } from './map-assistant.js';
 
@@ -37,6 +38,13 @@ interface AppOptions {
   releaseValidation?: boolean;
   assistantPlanner?: AssistantPlanner;
   assistantDailyLimit?: number;
+  /** Test hooks and tuning for the in-process abuse limits. Defaults are pilot proposals, not policy. */
+  limits?: {
+    clock?: () => number;
+    loginAccountFailures?: number;
+    sosPerWindow?: number;
+    incidentsPerWindow?: number;
+  };
 }
 
 const incidentCategories = new Set(['security', 'traffic', 'public_order', 'administrative', 'environment', 'other']);
@@ -147,6 +155,25 @@ export async function buildApp(
   await app.register(cors, { origin: options.corsOrigin, credentials: true });
   registerMapAssistant(app, repository, options.assistantPlanner, options.assistantDailyLimit);
   const registrationAttempts = new Map<string, number[]>();
+  const clock = options.limits?.clock ?? Date.now;
+  const loginGuard = new LoginGuard({ accountFailures: options.limits?.loginAccountFailures, clock });
+  const sosWindow = new AttemptWindow(options.limits?.sosPerWindow ?? 5, 10 * 60_000, clock);
+  const incidentWindow = new AttemptWindow(options.limits?.incidentsPerWindow ?? 10, 60 * 60_000, clock);
+  let dummyHash: Promise<string> | undefined;
+  /** Burns the same scrypt time for unknown usernames so response time does not reveal which accounts exist. */
+  const burnPasswordCheck = async (password: string) => {
+    dummyHash ??= hashPassword('khong-co-tai-khoan-nay');
+    await verifyPassword(password, await dummyHash);
+  };
+  const loginLocked = (request: FastifyRequest, reply: FastifyReply, username: string) => {
+    const wait = loginGuard.retryAfterSeconds(request.ip, username);
+    if (!wait) return null;
+    reply.header('Retry-After', String(wait));
+    return reply.code(429).send({
+      error: 'LOGIN_RATE_LIMITED',
+      message: `Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ${Math.max(1, Math.ceil(wait / 60))} phút.`,
+    });
+  };
 
   app.addHook('onSend', async (_request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
@@ -249,14 +276,19 @@ export async function buildApp(
     if (!username || !password) {
       return reply.code(400).send({ error: 'INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không hợp lệ.' });
     }
+    const locked = loginLocked(request, reply, username);
+    if (locked) return locked;
     const configuredCredential = authenticateOfficer(options.officerCredentials ?? [], username, password);
     const storedCredential = configuredCredential ? null : await repository.findOfficerAccountByUsername(username);
+    if (!configuredCredential && !storedCredential) await burnPasswordCheck(password);
     const credential = configuredCredential ?? (storedCredential && await verifyPassword(password, storedCredential.passwordHash)
       ? { username: storedCredential.username, password: '', actorId: storedCredential.actorId }
       : null);
     if (!credential) {
+      loginGuard.recordFailure(request.ip, username);
       return reply.code(401).send({ error: 'INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
     }
+    loginGuard.recordSuccess(request.ip, username);
     const actors = await repository.listWorkflowActors(credential.actorId);
     const actor = actors.find((candidate) => candidate.id === credential.actorId);
     if (!actor) return reply.code(403).send({ error: 'ACTOR_DISABLED', message: 'Tài khoản cán bộ không còn hiệu lực.' });
@@ -289,12 +321,19 @@ export async function buildApp(
     const username = text(request.body?.username, 3, 100);
     const password = passwordText(request.body?.password, 8, 200);
     if (!username || !password) return reply.code(400).send({ error: 'INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không hợp lệ.' });
+    const locked = loginLocked(request, reply, username);
+    if (locked) return locked;
     const configuredCredential = authenticateCitizen(options.citizenCredentials ?? [], username, password);
     const storedCredential = configuredCredential ? null : await repository.findCitizenAccountByUsername(username);
+    if (!configuredCredential && !storedCredential) await burnPasswordCheck(password);
     const credential = configuredCredential ?? (storedCredential && await verifyPassword(password, storedCredential.passwordHash)
       ? { username: storedCredential.username, password: '', citizenId: storedCredential.id, displayName: storedCredential.displayName }
       : null);
-    if (!credential) return reply.code(401).send({ error: 'INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
+    if (!credential) {
+      loginGuard.recordFailure(request.ip, username);
+      return reply.code(401).send({ error: 'INVALID_CREDENTIALS', message: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
+    }
+    loginGuard.recordSuccess(request.ip, username);
     const token = createCitizenSession(credential.citizenId, options.citizenSessionSecret);
     reply.header('Set-Cookie', citizenSessionCookie(token, options.secureCookies === true));
     reply.header('Cache-Control', 'no-store');
@@ -403,6 +442,17 @@ export async function buildApp(
       accuracyM,
       attachments,
     };
+    if (!incidentWindow.has(citizenId, clientRequestId)) {
+      const wait = incidentWindow.retryAfterSeconds(citizenId);
+      if (wait) {
+        reply.header('Retry-After', String(wait));
+        return reply.code(429).send({
+          error: 'INCIDENT_RATE_LIMITED',
+          message: 'Tài khoản đã gửi quá nhiều phản ánh trong 1 giờ. Vui lòng thử lại sau hoặc gọi hotline của địa bàn.',
+        });
+      }
+      incidentWindow.record(citizenId, clientRequestId);
+    }
     const result = await repository.createIncident(citizenId, input);
     return reply.code(201).send({ data: result, meta: localWorkflowMeta });
   });
@@ -487,6 +537,17 @@ export async function buildApp(
       accuracyM,
       deviceTimestamp,
     };
+    if (!sosWindow.has(citizenId, idempotencyKey)) {
+      const wait = sosWindow.retryAfterSeconds(citizenId);
+      if (wait) {
+        reply.header('Retry-After', String(wait));
+        return reply.code(429).send({
+          error: 'SOS_RATE_LIMITED',
+          message: 'Tài khoản đã gửi quá nhiều yêu cầu SOS trong thời gian ngắn. Nếu đang nguy hiểm, hãy gọi trực tiếp 112 hoặc 113.',
+        });
+      }
+      sosWindow.record(citizenId, idempotencyKey);
+    }
     const result = await repository.createSos(citizenId, input);
     return reply.code(201).send({ data: result, meta: localWorkflowMeta });
   });
@@ -511,6 +572,25 @@ export async function buildApp(
     if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
     const note = text(request.body?.note, 3, 300) ?? 'Người dân hủy trước khi cán bộ xác nhận tiếp nhận.';
     return { data: await repository.cancelCitizenSos(citizenId, request.params.receiptCode, note), meta: localWorkflowMeta };
+  });
+
+  app.post<{ Params: { receiptCode: string }; Body: { note?: unknown } }>('/v1/citizen/sos/:receiptCode/safe', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    const note = text(request.body?.note, 3, 300) ?? 'Người gửi báo đã an toàn. Cán bộ cần xác minh trước khi đóng.';
+    return reply.code(201).send({ data: await repository.reportCitizenSosSafe(citizenId, request.params.receiptCode, note), meta: localWorkflowMeta });
+  });
+
+  app.post<{ Params: { receiptCode: string }; Body: { note?: unknown } }>('/v1/citizen/incidents/:receiptCode/withdraw', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    const note = text(request.body?.note, 3, 300) ?? 'Người dân rút phản ánh trước khi được phân công xử lý.';
+    return { data: await repository.withdrawCitizenIncident(citizenId, request.params.receiptCode, note), meta: localWorkflowMeta };
+  });
+
+  app.get('/v1/public/duty-coverage', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=60');
+    return { data: { localityCodes: await repository.listDutyLocalityCodes() } };
   });
 
   app.get<{ Querystring: { kind?: string } }>('/v1/officer/queue', { preHandler: workflowDisabled }, async (request, reply) => {
@@ -733,7 +813,7 @@ export async function buildApp(
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof WorkflowError) {
-      const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' ? 409 : 400;
+      const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' || error.code === 'NO_DUTY_OFFICER' ? 409 : 400;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     app.log.error(error);

@@ -379,6 +379,9 @@ export interface DirectoryRepository {
   listCitizenSos(citizenId: string): Promise<SosResponse[]>;
   getCitizenSos(citizenId: string, receiptCode: string): Promise<SosResponse | null>;
   cancelCitizenSos(citizenId: string, receiptCode: string, note: string): Promise<SosResponse>;
+  reportCitizenSosSafe(citizenId: string, receiptCode: string, note: string): Promise<SosResponse>;
+  withdrawCitizenIncident(citizenId: string, receiptCode: string, note: string): Promise<IncidentResponse>;
+  listDutyLocalityCodes(): Promise<string[]>;
   listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]>;
   getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null>;
   getOfficerSos(actorId: string, id: string): Promise<SosResponse | null>;

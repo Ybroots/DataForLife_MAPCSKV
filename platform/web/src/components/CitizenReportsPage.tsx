@@ -10,7 +10,7 @@ import {
   Send,
   ShieldCheck,
 } from 'lucide-react';
-import { addCitizenIncidentAttachment, addCitizenIncidentMessage, ApiError, createIncident, getCitizenIncident, listCitizenIncidentMessages, listCitizenIncidents } from '../api';
+import { addCitizenIncidentAttachment, addCitizenIncidentMessage, ApiError, createIncident, getCitizenIncident, listCitizenIncidentMessages, listCitizenIncidents, withdrawCitizenIncident } from '../api';
 import type { Incident, IncidentAttachment, IncidentMessage, IncidentStatus } from '../types';
 import { WorkflowTimeline } from './WorkflowTimeline';
 import { IncidentMediaGallery } from './IncidentMediaGallery';
@@ -237,6 +237,19 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     } catch (caught) { setError(message(caught)); } finally { setThreadBusy(false); }
   };
 
+  const [withdrawConfirmation, setWithdrawConfirmation] = useState(false);
+  const withdraw = async () => {
+    if (!selectedIncident) return;
+    if (!withdrawConfirmation) { setWithdrawConfirmation(true); return; }
+    setThreadBusy(true); setError('');
+    try {
+      const updated = await withdrawCitizenIncident(selectedIncident.receiptCode);
+      setIncidents((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setWithdrawConfirmation(false);
+      setNotice('Đã rút phản ánh. Hồ sơ được đóng và lưu lại trong lịch sử.');
+    } catch (caught) { setError(message(caught)); } finally { setThreadBusy(false); }
+  };
+
   const uploadSupplement = async () => {
     if (!selectedIncident || !supplementFile) return;
     const invalidMedia = mediaError(supplementFile);
@@ -356,6 +369,14 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 <div><dt>Phụ trách</dt><dd>{selectedIncident.assignedOfficer?.displayName ?? 'Chưa phân công'}</dd></div>
                 <div><dt>Minh chứng</dt><dd>{selectedIncident.attachments.length ? `${selectedIncident.attachments.length} tệp đã lưu` : 'Chưa có tệp'}</dd></div>
               </dl>
+              {['submitted', 'received'].includes(selectedIncident.status) && (
+                <div className="case-withdraw">
+                  {withdrawConfirmation && <p className="inline-notice error" role="alert">Rút phản ánh sẽ đóng hồ sơ và không thể hoàn tác. Bạn chắc chắn chứ?</p>}
+                  <button type="button" className="danger-outline" disabled={threadBusy} onClick={() => void withdraw()}>
+                    {withdrawConfirmation ? 'Xác nhận rút phản ánh' : 'Rút phản ánh'}
+                  </button>
+                </div>
+              )}
               <section className="case-subsection" aria-labelledby="citizen-media-title">
                 <h3 id="citizen-media-title"><Paperclip size={18} aria-hidden="true" /> Minh chứng hồ sơ</h3>
                 <IncidentMediaGallery scope="citizen" incidentKey={selectedIncident.receiptCode} attachments={selectedIncident.attachments} />

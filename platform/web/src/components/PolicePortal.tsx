@@ -27,6 +27,8 @@ import {
   Star,
   UserRoundCheck,
   X,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import {
   ApiError,
@@ -47,6 +49,7 @@ import type {
   SosStatus,
   WorkflowActor,
 } from '../types';
+import { useSosAlerts } from '../officer-alerts';
 import { WorkflowTimeline } from './WorkflowTimeline';
 import { IncidentCollaboration } from './IncidentCollaboration';
 import { PoliceOperations } from './PoliceOperations';
@@ -77,15 +80,16 @@ const categoryLabels: Record<string, string> = {
   other_emergency: 'Tình huống nguy cấp khác',
 };
 
+// Keep in sync with api/src/workflow.ts (the API is the authority; this only decides which buttons to show).
 const incidentNext: Record<IncidentStatus, IncidentStatus[]> = {
-  submitted: ['received'], received: ['assigned', 'rejected'], assigned: ['verifying', 'processing'],
-  verifying: ['processing', 'rejected'], processing: ['resolved'], resolved: ['closed', 'processing'],
+  submitted: ['received', 'closed'], received: ['assigned', 'rejected', 'closed'], assigned: ['verifying', 'processing', 'rejected'],
+  verifying: ['processing', 'rejected'], processing: ['resolved', 'rejected'], resolved: ['closed', 'processing'],
   closed: [], rejected: ['closed'],
 };
 
 const sosNext: Record<SosStatus, SosStatus[]> = {
   triggered: ['dispatched', 'cancelled_by_citizen'], dispatched: ['acknowledged', 'escalated', 'cancelled_by_citizen'],
-  acknowledged: ['responding', 'escalated'], responding: ['resolved', 'escalated'], escalated: ['acknowledged', 'responding'],
+  acknowledged: ['responding', 'escalated', 'resolved'], responding: ['resolved', 'escalated'], escalated: ['acknowledged', 'responding'],
   resolved: ['closed', 'responding'], closed: [], cancelled_by_citizen: [],
 };
 
@@ -229,6 +233,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const requiredNoteLength = terminalStatuses.has(targetStatus) ? 20 : 8;
   const detailFlow = detail ? (detail.kind === 'incident' ? incidentFlow : sosFlow) : [];
   const detailFlowIndex = detail ? detailFlow.indexOf(detail.status as never) : -1;
+
+  const alerts = useSosAlerts(queue, lastUpdated !== null);
 
   const loadQueue = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -457,7 +463,18 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             <article><span><strong>{unassignedCount}</strong><small>Chưa phân công</small></span></article>
             <article className={overdueCount ? 'warning' : ''}><span><strong>{overdueCount || activeCount}</strong><small>{overdueCount ? 'Quá SLA' : 'Đang xử lý'}</small></span></article>
           </div>
+          <div className="sos-alert-control">
+            <button type="button" className={alerts.enabled ? 'sos-alert-toggle on' : 'sos-alert-toggle'} aria-pressed={alerts.enabled} onClick={alerts.enabled ? alerts.disable : () => void alerts.enable()}>
+              {alerts.enabled ? <Bell size={17} aria-hidden="true" /> : <BellOff size={17} aria-hidden="true" />}
+              <span>Cảnh báo SOS: {alerts.enabled ? 'Bật' : 'Tắt'}</span>
+            </button>
+            {alerts.enabled && alerts.permission !== 'granted' && <small>Chưa cấp quyền thông báo trình duyệt: chỉ có âm thanh khi tab đang mở.</small>}
+            {!alerts.enabled && <small>Bật để nghe chuông và nhận thông báo khi có SOS mới.</small>}
+          </div>
         </section>
+        {alerts.pendingCount > 0 && (
+          <p className="sos-alert-banner" role="alert"><Siren size={18} aria-hidden="true" /> Có {alerts.pendingCount} SOS đang chờ tiếp nhận.</p>
+        )}
 
         <div className="police-workspace">
           <aside className="police-queue-pane" aria-label="Hàng đợi địa bàn">

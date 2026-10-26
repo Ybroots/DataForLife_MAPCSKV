@@ -274,6 +274,18 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.workflows.cancelCitizenSos(citizenId, receiptCode, note);
   }
 
+  reportCitizenSosSafe(citizenId: string, receiptCode: string, note: string): Promise<SosResponse> {
+    return this.workflows.reportCitizenSosSafe(citizenId, receiptCode, note);
+  }
+
+  withdrawCitizenIncident(citizenId: string, receiptCode: string, note: string): Promise<IncidentResponse> {
+    return this.workflows.withdrawCitizenIncident(citizenId, receiptCode, note);
+  }
+
+  listDutyLocalityCodes(): Promise<string[]> {
+    return this.workflows.listDutyLocalityCodes();
+  }
+
   listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
     return this.workflows.listOfficerQueue(actorId, kind);
   }

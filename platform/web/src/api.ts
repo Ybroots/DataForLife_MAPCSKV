@@ -256,6 +256,26 @@ export async function cancelCitizenSos(receiptCode: string, note: string): Promi
   });
 }
 
+export async function reportCitizenSosSafe(receiptCode: string): Promise<SosEvent> {
+  const payload = await request<{ data: SosEvent }>(`/v1/citizen/sos/${encodeURIComponent(receiptCode)}/safe`, {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({}),
+  });
+  return payload.data;
+}
+
+export async function withdrawCitizenIncident(receiptCode: string): Promise<Incident> {
+  const payload = await request<{ data: Incident }>(`/v1/citizen/incidents/${encodeURIComponent(receiptCode)}/withdraw`, {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({}),
+  });
+  return payload.data;
+}
+
+/** Locality codes that currently have at least one active officer account able to receive SOS. */
+export async function getDutyCoverage(): Promise<string[]> {
+  const payload = await request<{ data: { localityCodes: string[] } }>('/v1/public/duty-coverage');
+  return payload.data.localityCodes;
+}
+
 export async function listOfficerQueue(kind?: 'incident' | 'sos'): Promise<{ data: OfficerQueueItem[]; meta: WorkflowMeta }> {
   return request(`/v1/officer/queue${kind ? `?kind=${kind}` : ''}`, { headers: officerHeaders() });
 }
