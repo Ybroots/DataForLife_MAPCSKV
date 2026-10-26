@@ -24,7 +24,7 @@ export function WorkflowTimeline({ history, statusLabels, compact = false }: Wor
           </span>
           <div>
             <div className="timeline-heading">
-              <strong>{statusLabels[entry.toStatus] ?? entry.toStatus}{!entry.publicMessage && <small className="internal-note-badge">Nội bộ</small>}</strong>
+              <strong>{entry.actorRole === 'citizen' && entry.fromStatus === entry.toStatus ? 'Người gửi báo đã an toàn' : (statusLabels[entry.toStatus] ?? entry.toStatus)}{!entry.publicMessage && <small className="internal-note-badge">Nội bộ</small>}</strong>
               <time dateTime={entry.createdAt}>{dateFormatter.format(new Date(entry.createdAt))}</time>
             </div>
             {entry.note && <p>{entry.note}</p>}

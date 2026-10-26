@@ -471,10 +471,10 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             {alerts.enabled && alerts.permission !== 'granted' && <small>Chưa cấp quyền thông báo trình duyệt: chỉ có âm thanh khi tab đang mở.</small>}
             {!alerts.enabled && <small>Bật để nghe chuông và nhận thông báo khi có SOS mới.</small>}
           </div>
+          {alerts.pendingCount > 0 && (
+            <p className="sos-alert-banner" role="alert"><Siren size={18} aria-hidden="true" /> Có {alerts.pendingCount} SOS đang chờ tiếp nhận.</p>
+          )}
         </section>
-        {alerts.pendingCount > 0 && (
-          <p className="sos-alert-banner" role="alert"><Siren size={18} aria-hidden="true" /> Có {alerts.pendingCount} SOS đang chờ tiếp nhận.</p>
-        )}
 
         <div className="police-workspace">
           <aside className="police-queue-pane" aria-label="Hàng đợi địa bàn">
