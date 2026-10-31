@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import {
   CheckCircle2,
   FilePlus2,
@@ -159,12 +160,12 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
 
   const locate = () => {
     setError('');
-    if (!navigator.geolocation) {
+    if (!supportsDeviceLocation()) {
       setError('Thiết bị không hỗ trợ GPS. Hãy chọn một điểm trên bản đồ trước khi tạo phản ánh.');
       return;
     }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
+    readDevicePosition(
       (result) => {
         setPosition({ latitude: result.coords.latitude, longitude: result.coords.longitude });
         setAccuracyM(Number.isFinite(result.coords.accuracy) ? result.coords.accuracy : null);

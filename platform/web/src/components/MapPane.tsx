@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import { Building2, ChevronRight, CircleDotDashed, Info, Layers3, LoaderCircle, LocateFixed, MapPin, Phone, Shield, ShieldAlert, Siren, TriangleAlert, X } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
@@ -767,9 +768,9 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           disabled={locating}
           onClick={() => {
             setLocationError('');
-            if (!navigator.geolocation) { setLocationError('Trình duyệt chưa hỗ trợ vị trí. Hãy tìm theo tên địa bàn.'); return; }
+            if (!supportsDeviceLocation()) { setLocationError('Thiết bị chưa hỗ trợ vị trí. Hãy tìm theo tên địa bàn.'); return; }
             setLocating(true);
-            navigator.geolocation.getCurrentPosition((pos) => {
+            readDevicePosition((pos) => {
               setLocating(false);
               onCoordinateSelectRef.current(pos.coords.latitude, pos.coords.longitude);
               mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260 });

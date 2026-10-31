@@ -1,0 +1,26 @@
+{
+  "appId": "com.bandosocskv.mobile",
+  "appName": "Bản đồ CSKV",
+  "webDir": "dist-android",
+  "loggingBehavior": "none",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  },
+  "android": {
+    "path": "android-native",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    },
+    "CapacitorCookies": {
+      "enabled": false
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}

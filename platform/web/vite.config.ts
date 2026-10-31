@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  build: { outDir: mode.startsWith('android') ? 'dist-android' : 'dist' },
   plugins: [react()],
   optimizeDeps: {
     exclude: ['maplibre-gl'],
@@ -17,4 +18,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

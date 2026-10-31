@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
 import { BarChart3, BellRing, Bot, Camera, CheckCircle2, ClipboardCheck, Database, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
 import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
 import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
@@ -58,8 +59,8 @@ export function PoliceOperations() {
     setBusy(true); setNotice('');
     try {
       if (action === 'checkin') {
-        if (!navigator.geolocation) throw new Error('Thiết bị không hỗ trợ GPS.');
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12_000 }));
+        if (!supportsDeviceLocation()) throw new Error('Thiết bị không hỗ trợ GPS.');
+        const position = await new Promise<DevicePosition>((resolve, reject) => readDevicePosition(resolve, reject, { enableHighAccuracy: true, timeout: 12_000 }));
         await updatePatrolSession(patrol.id, action, position.coords.latitude, position.coords.longitude);
       } else await updatePatrolSession(patrol.id, action);
       setNotice(action === 'checkin' ? 'Đã check-in vị trí hiện trường.' : 'Đã cập nhật lịch tuần tra.'); await refresh();

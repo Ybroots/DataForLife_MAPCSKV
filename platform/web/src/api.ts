@@ -28,6 +28,8 @@ import type {
   MapAssistantAnswer,
 } from './types';
 
+import { apiFetch } from './native-api';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export async function getMapAssistantStatus(signal?: AbortSignal): Promise<MapAssistantStatus> {
@@ -72,7 +74,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await apiFetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
     headers: { Accept: 'application/json', ...init.headers },
@@ -379,10 +381,10 @@ export async function getIncidentAttachmentUrl(scope: 'citizen' | 'officer', inc
   const path = scope === 'citizen'
     ? `/v1/citizen/incidents/${encodeURIComponent(incidentKey)}/attachments/${encodeURIComponent(attachmentId)}/content`
     : `/v1/officer/incidents/${encodeURIComponent(incidentKey)}/attachments/${encodeURIComponent(attachmentId)}/content`;
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await apiFetch(`${API_BASE}${path}`, {
     credentials: 'include',
     headers: undefined,
-  });
+  }, true);
   if (!response.ok) throw new ApiError('Không thể tải tệp minh chứng.', response.status, 'ATTACHMENT_LOAD_FAILED');
   return URL.createObjectURL(await response.blob());
 }

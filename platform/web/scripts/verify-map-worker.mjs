@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile, stat } from 'node:fs/promises';
 
-const assets = new URL('../dist/assets/', import.meta.url);
+const assets = new URL(`../${process.argv[2] === 'dist-android' ? 'dist-android' : 'dist'}/assets/`, import.meta.url);
 const files = await readdir(assets);
 const workers = files.filter(name => /^maplibre-gl-worker-.*\.js$/.test(name));
 assert.equal(workers.length, 1, 'Build must emit the self-contained MapLibre worker');

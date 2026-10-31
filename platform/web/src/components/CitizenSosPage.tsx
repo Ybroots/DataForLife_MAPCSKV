@@ -1,4 +1,5 @@
 import { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -232,12 +233,12 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
 
   const locate = () => {
     setError('');
-    if (!navigator.geolocation) {
+    if (!supportsDeviceLocation()) {
       setError('Thiết bị không hỗ trợ GPS. Hãy gọi số khẩn cấp chính thức nếu đang gặp nguy hiểm.');
       return;
     }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
+    readDevicePosition(
       (result) => {
         setPosition({ latitude: result.coords.latitude, longitude: result.coords.longitude });
         setAccuracyM(Number.isFinite(result.coords.accuracy) ? result.coords.accuracy : null);

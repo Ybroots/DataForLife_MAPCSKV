@@ -5,3 +5,5 @@ e2e/__pycache__/
 backups/
 test-results/
 web/*.png
+web/dist-android/
+android-artifacts/
