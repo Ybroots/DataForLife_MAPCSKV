@@ -24,12 +24,12 @@ const CommuneDetailScreen = () => {
 
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Dân số:</Text>
-                        <Text style={styles.infoValue}>{communeInfo.dan_so.toLocaleString()} người</Text>
+                        <Text style={styles.infoValue}>{communeInfo.dan_so != null ? `${communeInfo.dan_so.toLocaleString('vi-VN')} người` : 'Đang cập nhật'}</Text>
                     </View>
 
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Diện tích:</Text>
-                        <Text style={styles.infoValue}>{communeInfo.dtich_km2.toLocaleString()} km²</Text>
+                        <Text style={styles.infoValue}>{communeInfo.dtich_km2 != null ? `${communeInfo.dtich_km2.toLocaleString('vi-VN')} km²` : 'Đang cập nhật'}</Text>
                     </View>
 
                     <View style={styles.infoRow}>

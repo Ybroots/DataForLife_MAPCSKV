@@ -14,5 +14,5 @@ export * from './LocationService';
 
 // ─── Re-export tương thích ngược để các màn hình cũ không bị lỗi compile ─────
 // TODO: Xóa sau khi ContactsScreen được viết lại hoàn toàn
-export { getAllContactsWithCommunes, deleteContact } from './ContactCombinedService';
+export { getAllContactsWithCommunes, loadAreaContacts, deleteContact } from './ContactCombinedService';
 

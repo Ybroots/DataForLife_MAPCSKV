@@ -6,7 +6,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Contacts from 'expo-contacts';
-import { getAllContactsWithCommunes, deleteContact } from '../services';
+import { getAllContactsWithCommunes, loadAreaContacts, deleteContact } from '../services';
 import type { ContactWithCommune } from '../models';
 import { APP_VERSION } from '../config/constants';
 
@@ -24,8 +24,11 @@ const ContactsScreen = () => {
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [contacts, setContacts] = useState<ContactWithCommune[]>([]);
     const [loading, setLoading] = useState(true);
+    // Địa bàn đã/đang tải đầu mối (mục giữ chỗ chỉ có tên địa bàn)
+    const [loadedAreas, setLoadedAreas] = useState<Set<string>>(new Set());
+    const [loadingAreas, setLoadingAreas] = useState<Set<string>>(new Set());
 
-    // Load contacts từ Firebase
+    // Load contacts từ API
     useEffect(() => {
         loadContacts();
     }, []);
@@ -174,7 +177,7 @@ const ContactsScreen = () => {
         try {
             await Contacts.addContactAsync({
                 [Contacts.Fields.FirstName]: finalName,
-                [Contacts.Fields.Notes]: contact.communeInfo?.ten_tinh
+                note: contact.communeInfo?.ten_tinh
                     ? `Công an ${contact.communeInfo.ten_tinh}`
                     : 'Liên hệ Công an địa phương',
                 [Contacts.Fields.PhoneNumbers]: [
@@ -194,9 +197,18 @@ const ContactsScreen = () => {
         Linking.openURL(`tel:${phoneNumber}`);
     }, [normalizePhone]);
 
-    const handleToggleExpand = useCallback((itemId: string | null) => {
+    const handleToggleExpand = useCallback((itemId: string | null, placeholderCode?: string) => {
         setExpandedId(prev => prev === itemId ? null : itemId);
-    }, []);
+        if (!placeholderCode || loadedAreas.has(placeholderCode) || loadingAreas.has(placeholderCode)) return;
+        setLoadingAreas(prev => new Set(prev).add(placeholderCode));
+        loadAreaContacts(placeholderCode)
+            .then((areaContacts) => {
+                setContacts(prev => [...prev, ...areaContacts]);
+                setLoadedAreas(prev => new Set(prev).add(placeholderCode));
+            })
+            .catch(() => Alert.alert('Lỗi', 'Không thể tải liên hệ của địa bàn này. Kiểm tra kết nối và thử lại.'))
+            .finally(() => setLoadingAreas(prev => { const next = new Set(prev); next.delete(placeholderCode); return next; }));
+    }, [loadedAreas, loadingAreas]);
 
     const renderItem = useCallback(({ item, isInCategory = false }: { item: ContactWithCommune; isInCategory?: boolean }) => {
         const isExpanded = item.id === expandedId;
@@ -239,7 +251,7 @@ const ContactsScreen = () => {
             <TouchableOpacity
                 style={[styles.card, isInCategory && styles.cardInCategory]}
                 activeOpacity={1}
-                onPress={() => handleToggleExpand(item.id || null)}
+                onPress={() => handleToggleExpand(item.id || null, item.placeholder ? item.ma_xa : undefined)}
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.nameContainer}>
@@ -257,7 +269,7 @@ const ContactsScreen = () => {
                         </View>
                     </View>
                     {/* Chỉ hiển thị nút xem chi tiết cho cấp xã (cap === 2) */}
-                    {hasCommuneInfo && cap === 2 && (
+                    {hasCommuneInfo && cap === 2 && item.placeholder && (
                         <View style={styles.rightActions}>
                             <TouchableOpacity onPress={handleViewDetail}>
                                 <AntDesign name="right-circle" size={24} color="red" />
@@ -269,9 +281,15 @@ const ContactsScreen = () => {
                 {isExpanded && (
                     <View style={styles.infoContainer}>
                         {/* Hiển thị tất cả contacts có cùng ma_xa */}
-                        {sameMaXaContacts.length > 0 && (
+                        {loadingAreas.has(maXa) && (
+                            <ActivityIndicator size="small" color="#dc3545" style={{ marginVertical: 8 }} />
+                        )}
+                        {!loadingAreas.has(maXa) && item.placeholder && loadedAreas.has(maXa) && sameMaXaContacts.every(c => c.placeholder) && (
+                            <Text style={styles.noPhoneText}>Địa bàn này chưa có đầu mối công khai.</Text>
+                        )}
+                        {sameMaXaContacts.some(c => !c.placeholder) && (
                             <>
-                                {[...sameMaXaContacts]
+                                {[...sameMaXaContacts.filter(c => !c.placeholder)]
                                     .sort((a, b) => {
                                         const getRank = (name: string) => {
                                             const n = name.toLowerCase();
@@ -319,7 +337,7 @@ const ContactsScreen = () => {
                 )}
             </TouchableOpacity>
         );
-    }, [expandedId, contactsByMaXa, handleCall, handleSaveContact, handleToggleExpand, navigation]);
+    }, [expandedId, contactsByMaXa, handleCall, handleSaveContact, handleToggleExpand, navigation, loadedAreas, loadingAreas]);
 
     if (loading) {
         return (

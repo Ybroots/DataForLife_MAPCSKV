@@ -28,6 +28,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import * as Clipboard from "expo-clipboard";
 import { lookupByCode } from "../services/DirectoryService";
+import { communeFromLookup } from "../services/DirectoryAdapter";
 import { Commune } from "../models/Commune";
 // @ts-ignore – cho phép import file GeoJSON lớn (dùng cho polygon offline, sẽ thay bằng API trong bước sau)
 import mapData from "../../map34.json";
@@ -371,28 +372,21 @@ const MapScreen = () => {
       setLoadingCommune(true);
       // Gọi API thay thế Firestore
       const envelope = await lookupByCode(maXa);
-      if (envelope.locality) {
-        // Ánh xạ LocalityResult -> Commune model để UI dùng tiếp
-        const commune: Commune = {
-          id: envelope.locality.code,
-          ma_xa: envelope.locality.code,
-          ten_xa: envelope.locality.name,
-          name: envelope.locality.name,
-          loai: envelope.locality.type,
-          cap: 2,
-          ma_tinh: 'LDG',
-          ten_tinh: envelope.locality.provinceName || 'Lâm Đồng',
-          dan_so: envelope.locality.population ?? 0,
-          dtich_km2: envelope.locality.areaKm2 ?? 0,
-          matdo_km2: 0,
-          address: envelope.locality.address ?? '',
-          tru_so: envelope.locality.stationAddress ?? envelope.locality.address ?? '',
-          sap_nhap: '',
-        };
-        setCommuneData(commune);
-      } else {
-        setCommuneData(null);
-      }
+      const api = communeFromLookup(envelope.data);
+      // Số liệu từ API được ưu tiên; thiếu thì dùng thuộc tính của bản đồ đóng gói (map34.json).
+      // Không bao giờ dùng 0 thay cho số liệu chưa có.
+      const local = (selectedCommune?.properties ?? {}) as Record<string, any>;
+      setCommuneData({
+        ...api,
+        loai: api.loai || local.loai || '',
+        ma_tinh: local.ma_tinh ?? '',
+        dan_so: api.dan_so ?? local.dan_so ?? null,
+        dtich_km2: api.dtich_km2 ?? local.dtich_km2 ?? null,
+        matdo_km2: api.matdo_km2 ?? local.matdo_km2 ?? null,
+        address: api.address || local.address || '',
+        tru_so: api.tru_so || local.tru_so || '',
+        sap_nhap: local.sap_nhap ?? '',
+      });
     } catch (error) {
       console.error('Error fetching commune data from API:', error);
       setCommuneData(null);

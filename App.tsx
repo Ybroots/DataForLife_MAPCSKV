@@ -77,7 +77,7 @@ const HeaderRightButton = ({ navigation }: { navigation: any }) => {
     return <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />;
   }
 
-  const displayName = session ? (session.displayName || session.username) : null;
+  const displayName = session ? session.displayName : null;
 
   return (
     <Pressable onPress={handlePress} style={{ padding: 8, flexDirection: 'row', alignItems: 'center' }}>

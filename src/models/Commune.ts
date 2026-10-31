@@ -7,9 +7,10 @@ export interface Commune {
   cap: number;
   ma_tinh: string;
   ten_tinh: string;
-  dan_so: number;
-  dtich_km2: number;
-  matdo_km2: number;
+  /** null = API/nguồn chưa có số liệu; UI phải hiển thị "đang cập nhật", không được dùng 0. */
+  dan_so: number | null;
+  dtich_km2: number | null;
+  matdo_km2: number | null;
   address: string;
   tru_so: string;
   sap_nhap: string;

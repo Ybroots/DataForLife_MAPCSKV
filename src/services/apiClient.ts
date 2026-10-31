@@ -8,7 +8,20 @@
  * - Không nhúng credentials, secret hoặc API key ở đây
  */
 
-export const API_BASE_URL = 'https://bandosocskv.com/api';
+const PRODUCTION_API = 'https://bandosocskv.com/api';
+
+/**
+ * EXPO_PUBLIC_API_BASE_URL chỉ dùng để thử với API cục bộ/emulator (ví dụ http://10.0.2.2:3001).
+ * Bản phát hành (không phải __DEV__) luôn dùng HTTPS production: giá trị khác bị bỏ qua.
+ */
+function resolveApiBase(): string {
+  const override = (typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL : undefined)?.trim();
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : true;
+  if (override && (isDev || override.startsWith('https://'))) return override.replace(/\/$/, '');
+  return PRODUCTION_API;
+}
+
+export const API_BASE_URL = resolveApiBase();
 
 export class ApiError extends Error {
   constructor(

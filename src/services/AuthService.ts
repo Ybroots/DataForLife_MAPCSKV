@@ -52,8 +52,8 @@ export async function signOutOfficer(): Promise<void> {
 // ─── Công dân ─────────────────────────────────────────────────────────────────
 
 /**
- * Đăng nhập công dân bằng username + password (mock OTP ở giai đoạn 1).
- * VNeID thật là gate cho phản ánh và SOS ở giai đoạn sau.
+ * Đăng nhập công dân (tên đăng nhập là số điện thoại 10 số) bằng mật khẩu.
+ * VNeID chính thức chưa được kết nối; đây không phải xác thực VNeID.
  */
 export async function signInCitizen(
   username: string,
