@@ -16,6 +16,16 @@ Cập nhật: 31/10/2026. Bổ sung cho `android-apk-feasibility.md` (phương �
 
 Kết quả chạy: `tsc -b` sạch; `tsc -p test/tsconfig.json` sạch; `vitest` 30/30 đạt; `vite build --mode android` thành công và `verify-map-worker.mjs` xác nhận worker MapLibre có trong gói.
 
+## 1b. Phạm vi bản Android: chỉ chức năng của người dân
+
+Bản Android (mode `android*`) có đủ chức năng người dân như bandosocskv.com: bản đồ và danh bạ 124 địa bàn, hotline, tìm kiếm và định vị GPS, cảnh báo khu vực, phản ánh (kèm ảnh/video, theo dõi, bổ sung, đánh giá), SOS, trợ lý AI (theo trạng thái kết nối thực tế), tài khoản/đăng ký, thông báo trong app, hướng dẫn sử dụng. **Không có** đăng nhập cán bộ, thẻ "Cán bộ Công an", nút "Đăng nhập CSKV" và cổng nghiệp vụ (`?portal=police`).
+
+- Cơ chế: `vite.config.ts` đặt `__CITIZEN_ONLY__` (luôn `true` ở mode `android*`; website chỉ bật khi `VITE_AUDIENCE=citizen`). Vite thay thế hằng số tại chỗ dùng nên bundler loại hẳn mã cán bộ. Hằng số xuyên module (`export const`) **không** được gấp, đã thử và bị `verify-citizen-bundle.mjs` bắt lỗi.
+- `npm run build:android` tự chạy `scripts/verify-citizen-bundle.mjs`: thất bại nếu gói có chunk `PolicePortal/PoliceOperations/PoliceDutyMap` hoặc các chuỗi dành riêng cho cán bộ.
+- Còn lại trong gói một nhánh đường dẫn `/v1/officer/...` nằm trong hàm tải tệp đính kèm dùng chung; không có giao diện nào của bản người dân gọi tới. Quyền cán bộ vẫn do API kiểm soát phía máy chủ.
+- Website bandosocskv.com không đổi: build thường vẫn có cổng cán bộ (đã kiểm).
+- `src/audience.ts` không còn dùng, có thể xóa.
+
 ## 2. Điều đã xác minh bằng đọc mã nguồn Capacitor 8.6.0 (chưa phải bằng thiết bị)
 
 - `CapacitorCookies.load()` gọi `CookieHandler.setDefault(...)` **không phụ thuộc** cờ `enabled` (cờ này chỉ điều khiển việc patch phía JS). Vì vậy `CapacitorHttp.request` chạy qua `HttpURLConnection` dùng chung cookie manager gắn với `android.webkit.CookieManager`.
@@ -55,6 +65,7 @@ Kết quả nằm ở `platform/android-artifacts/` (đã gitignore): `.apk` đ�
 
 Dùng bản `ban-do-cskv-preview.apk` (API production, **chỉ đọc**) hoặc bản QA trên emulator với API/database tách biệt. Không tạo SOS/sự cố thử trên production.
 
+0. **Phạm vi người dân:** màn đầu chỉ có thẻ "Người dân"; menu tính năng không có "Đăng nhập CSKV"; mở `…/?portal=police` không vào được cổng cán bộ.
 1. **Phiên:** đăng nhập công dân → đóng hẳn app (vuốt khỏi danh sách gần đây) → mở lại: còn đăng nhập. Đăng xuất → mở lại: không còn. Lặp lại với cán bộ. Chờ hết hạn/đổi tài khoản: không lộ phiên cũ.
 2. **Ảnh minh chứng:** mở tệp đính kèm bảo vệ (`getIncidentAttachmentUrl`) sau khi đăng nhập.
 3. **Tải lên:** ảnh 5 MB và video 20 MB trên máy cấu hình thấp: không treo/văng app; thử mất mạng giữa chừng và thử lại (khóa idempotency của sự cố/SOS chống gửi trùng).

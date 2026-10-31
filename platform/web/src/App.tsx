@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps, ComponentType } from 'react';
 import { ContactRound, FileWarning, Map, MapPinned, Menu, MessageSquareText, Search, ShieldCheck, UserRound, UserRoundCheck, X } from 'lucide-react';
 import { ApiError, getAreaOverview, getCitizenSession, getOfficerSession, listHotlines, lookupByCode, lookupByLocation, searchAreas, signOutCitizen, signOutOfficer } from './api';
 import { DirectoryPanel } from './components/DirectoryPanel';
 import { FeatureDrawer } from './components/FeatureDrawer';
 import { PoliceLoginDialog, PoliceLoginScreen } from './components/PoliceLogin';
+import type { PolicePortal as PolicePortalComponent } from './components/PolicePortal';
 import { LoginScreen } from './components/LoginScreen';
 import { CitizenAuthSheet } from './components/CitizenAuthSheet';
 import { CitizenOnboardingTour } from './components/CitizenOnboardingTour';
@@ -28,10 +30,13 @@ const FeaturePage = lazy(async () => {
   return { default: module.FeaturePage };
 });
 
-const PolicePortal = lazy(async () => {
-  const module = await import('./components/PolicePortal');
-  return { default: module.PolicePortal };
-});
+// Bản dành cho người dân không đóng gói cổng nghiệp vụ (nhánh `import()` bị loại khi build).
+const PolicePortal: ComponentType<ComponentProps<typeof PolicePortalComponent>> = __CITIZEN_ONLY__
+  ? () => null
+  : lazy(async () => {
+    const module = await import('./components/PolicePortal');
+    return { default: module.PolicePortal };
+  });
 
 type LookupState = 'idle' | 'loading' | 'success' | 'error';
 const COMPACT_LAYOUT_QUERY = '(max-width: 1023px)';
@@ -58,7 +63,7 @@ function useCompactLayout(): boolean {
 }
 
 export default function App() {
-  const policePortalRequested = new URL(window.location.href).searchParams.get('portal') === 'police';
+  const policePortalRequested = !__CITIZEN_ONLY__ && new URL(window.location.href).searchParams.get('portal') === 'police';
   const isCompactLayout = useCompactLayout();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AreaSummary[]>([]);
@@ -385,7 +390,7 @@ export default function App() {
     );
   }
 
-  if (appView === 'officer') {
+  if (!__CITIZEN_ONLY__ && appView === 'officer') {
     if (policeSessionChecking) return <main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang kiểm tra phiên đăng nhập…</div></main>;
     return policeSession
       ? <Suspense fallback={<main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang tải cổng nghiệp vụ…</div></main>}><PolicePortal sessionActor={policeSession} onSignOut={() => { void handlePoliceLogout(); setAppView('landing'); }} /></Suspense>
@@ -617,8 +622,8 @@ export default function App() {
         </button>
       </nav>
 
-      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onOfficerLogin={() => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
-      <PoliceLoginDialog open={policeLoginOpen} onSuccess={handlePoliceLoginSuccess} onClose={() => setPoliceLoginOpen(false)} />
+      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onOfficerLogin={__CITIZEN_ONLY__ ? undefined : () => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
+      {!__CITIZEN_ONLY__ && <PoliceLoginDialog open={policeLoginOpen} onSuccess={handlePoliceLoginSuccess} onClose={() => setPoliceLoginOpen(false)} />}
       <CitizenAuthSheet open={citizenLoginOpen && !citizenSession} action={citizenLoginAction} onClose={() => setCitizenLoginOpen(false)} onSuccess={(session) => { setCitizenSession(session); setCitizenLoginOpen(false); setCitizenLoginNotice('Đăng nhập tài khoản thành công.'); }} />
       {citizenLoginNotice && <div className="citizen-login-success" role="status" aria-live="polite"><ShieldCheck size={20} aria-hidden="true" /><span>{citizenLoginNotice}</span></div>}
       <CitizenOnboardingTour open={tourOpen} onClose={(completed) => { setTourOpen(false); window.localStorage.setItem(CITIZEN_TOUR_KEY, completed ? 'completed' : 'skipped'); }} />

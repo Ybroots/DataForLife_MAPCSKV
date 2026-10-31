@@ -21,7 +21,8 @@ interface FeatureDrawerProps {
   onClose: () => void;
   onSelect: (feature: FeatureId) => void;
   onStartTour: () => void;
-  onOfficerLogin: () => void;
+  /** Bỏ trống ở bản dành cho người dân: không hiện nút đăng nhập cán bộ. */
+  onOfficerLogin?: () => void;
 }
 
 const featureItems: Array<{
@@ -158,7 +159,7 @@ export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartT
 
         <div className="feature-utilities">
           <button type="button" onClick={onStartTour}><HelpCircle size={20} aria-hidden="true" /> Hướng dẫn sử dụng</button>
-          <button type="button" onClick={onOfficerLogin}><LogIn size={20} aria-hidden="true" /> Đăng nhập CSKV</button>
+          {!__CITIZEN_ONLY__ && onOfficerLogin && <button type="button" onClick={onOfficerLogin}><LogIn size={20} aria-hidden="true" /> Đăng nhập CSKV</button>}
         </div>
 
         <details className="legal-responsibility-note">

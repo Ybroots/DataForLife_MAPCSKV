@@ -1,7 +1,10 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Bản Android (mode android*) luôn chỉ có chức năng người dân; website giữ cả hai cổng trừ khi đặt VITE_AUDIENCE=citizen.
+// Dùng `define` để bundler loại hẳn mã cán bộ (hằng số xuyên module không được gấp).
 export default defineConfig(({ mode }) => ({
+  define: { __CITIZEN_ONLY__: JSON.stringify(mode.startsWith('android') || loadEnv(mode, process.cwd(), 'VITE_').VITE_AUDIENCE === 'citizen') },
   build: { outDir: mode.startsWith('android') ? 'dist-android' : 'dist' },
   plugins: [react()],
   optimizeDeps: {

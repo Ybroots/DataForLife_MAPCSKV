@@ -29,6 +29,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (__CITIZEN_ONLY__) return;
     setSubmitting(true);
     try {
       const actor = await signInOfficer(username, password);
@@ -99,7 +100,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
         {view === 'roles' && (
           <>
             <section className="login-role-section" aria-labelledby="role-heading">
-              <p id="role-heading" className="login-role-heading">Bạn đang truy cập với tư cách?</p>
+              <p id="role-heading" className="login-role-heading">{__CITIZEN_ONLY__ ? 'Bắt đầu sử dụng' : 'Bạn đang truy cập với tư cách?'}</p>
               <div className="login-role-cards">
 
                 <button className="login-role-card citizen" type="button" onClick={onEnterAsCitizen}>
@@ -111,14 +112,14 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
                   <div className="role-card-arrow"><ArrowRight size={20} aria-hidden="true" /></div>
                 </button>
 
-                <button className="login-role-card officer" type="button" onClick={() => setView('officer-login')}>
+                {!__CITIZEN_ONLY__ && <button className="login-role-card officer" type="button" onClick={() => setView('officer-login')}>
                   <div className="role-card-icon"><ShieldCheck size={30} aria-hidden="true" /></div>
                   <div className="role-card-body">
                     <strong>Cán bộ Công an</strong>
                     <span>Cổng nghiệp vụ địa bàn CSKV</span>
                   </div>
                   <div className="role-card-arrow"><ArrowRight size={20} aria-hidden="true" /></div>
-                </button>
+                </button>}
 
               </div>
             </section>
@@ -181,7 +182,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
           </div>
         )}
 
-        {view === 'officer-login' && (
+        {!__CITIZEN_ONLY__ && view === 'officer-login' && (
           <div className="officer-login-panel">
             <button
               className="officer-login-back"
