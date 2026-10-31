@@ -10,43 +10,63 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useAuth } from '../context/AuthContext';
+import { ApiError } from '../services/apiClient';
+import { APP_VERSION } from '../config/constants';
 
 const PRIMARY_COLOR = '#dc3545';
-
-import { useAuth } from '../context/AuthContext';
 
 interface LoginScreenProps {
   navigation: any;
 }
 
+type LoginMode = 'officer' | 'citizen';
+
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login } = useAuth();
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const { loginOfficer, loginCitizen } = useAuth();
+  const [mode, setMode] = useState<LoginMode>('officer');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (!phoneNumber || !password) {
-      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ số điện thoại và mật khẩu');
+  const handleLogin = async () => {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
+      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ tài khoản và mật khẩu.');
       return;
     }
 
     setLoading(true);
-
-    // Mock login delay
-    setTimeout(() => {
-      setLoading(false);
-      // Mock validation (accept any input for now, or specific credentials if needed)
-      // In a real app, you would call an API here.
-      if (phoneNumber.length > 0 && password.length > 0) {
-        login();
-        navigation.goBack();
+    try {
+      if (mode === 'officer') {
+        await loginOfficer(trimmedUsername, trimmedPassword);
       } else {
-        Alert.alert('Lỗi', 'Thông tin đăng nhập không chính xác');
+        await loginCitizen(trimmedUsername, trimmedPassword);
       }
-    }, 1500);
+      navigation.goBack();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          Alert.alert('Đăng nhập thất bại', 'Tài khoản hoặc mật khẩu không đúng.');
+        } else if (error.status === 0) {
+          Alert.alert(
+            'Lỗi kết nối',
+            'Không thể kết nối máy chủ. Kiểm tra kết nối Internet và thử lại.',
+          );
+        } else {
+          Alert.alert('Lỗi', error.message || 'Đã xảy ra lỗi. Vui lòng thử lại.');
+        }
+      } else {
+        Alert.alert('Lỗi', 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,6 +76,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     >
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Logo */}
         <View style={styles.logoContainer}>
           <Image
             source={require('../../assets/images/logo.png')}
@@ -63,18 +84,43 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             resizeMode="contain"
           />
           <Text style={styles.appName}>DANH BẠ CÔNG AN LÂM ĐỒNG</Text>
-
         </View>
 
+        {/* Chọn loại tài khoản */}
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            style={[styles.modeButton, mode === 'officer' && styles.modeButtonActive]}
+            onPress={() => setMode('officer')}
+          >
+            <Text style={[styles.modeButtonText, mode === 'officer' && styles.modeButtonTextActive]}>
+              Cán bộ
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeButton, mode === 'citizen' && styles.modeButtonActive]}
+            onPress={() => setMode('citizen')}
+          >
+            <Text style={[styles.modeButtonText, mode === 'citizen' && styles.modeButtonTextActive]}>
+              Công dân
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Form đăng nhập */}
         <View style={styles.formContainer}>
-          <Text style={styles.label}>Số điện thoại</Text>
+          <Text style={styles.label}>
+            {mode === 'officer' ? 'Tên đăng nhập' : 'Số điện thoại / tên đăng nhập'}
+          </Text>
           <TextInput
             style={styles.input}
-            placeholder="Nhập số điện thoại"
-            keyboardType="phone-pad"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
+            placeholder={mode === 'officer' ? 'Nhập tên đăng nhập' : 'Nhập số điện thoại'}
+            keyboardType={mode === 'citizen' ? 'phone-pad' : 'default'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={username}
+            onChangeText={setUsername}
             placeholderTextColor="#999"
+            editable={!loading}
           />
 
           <Text style={styles.label}>Mật khẩu</Text>
@@ -85,24 +131,30 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             value={password}
             onChangeText={setPassword}
             placeholderTextColor="#999"
+            editable={!loading}
+            onSubmitEditing={handleLogin}
+            returnKeyType="done"
           />
 
           <TouchableOpacity
-            style={styles.loginButton}
+            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
             onPress={handleLogin}
             disabled={loading}
           >
-            <Text style={styles.loginButtonText}>
-              {loading ? 'Đang đăng nhập...' : 'ĐĂNG NHẬP'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>ĐĂNG NHẬP</Text>
+            )}
           </TouchableOpacity>
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
           <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
             <Text style={styles.privacyLink}>Điều khoản và Chính sách bảo mật</Text>
           </TouchableOpacity>
-          <Text style={styles.versionFooter}>Phiên bản 2.0.0</Text>
+          <Text style={styles.versionFooter}>Phiên bản {APP_VERSION}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -121,7 +173,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   logo: {
     width: 120,
@@ -132,26 +184,46 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   appName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 8,
     textTransform: 'uppercase',
   },
-  appVersion: {
+  modeToggle: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  modeButtonActive: {
+    backgroundColor: PRIMARY_COLOR,
+  },
+  modeButtonText: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '600',
+    color: PRIMARY_COLOR,
+  },
+  modeButtonTextActive: {
+    color: '#fff',
   },
   formContainer: {
     width: '100%',
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: '#333',
-    marginBottom: 8,
-    marginLeft: 4,
+    marginBottom: 6,
+    marginLeft: 2,
   },
   input: {
     height: 50,
@@ -159,9 +231,10 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 18,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+    color: '#333',
   },
   loginButton: {
     height: 50,
@@ -169,33 +242,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
     shadowColor: PRIMARY_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
+  loginButtonDisabled: {
+    opacity: 0.6,
+  },
   loginButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   footer: {
-    marginTop: 40,
+    marginTop: 36,
     alignItems: 'center',
     marginBottom: 20,
   },
   privacyLink: {
-    color: '#dc3545',
+    color: PRIMARY_COLOR,
     textDecorationLine: 'underline',
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: 8,
   },
   versionFooter: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#999',
     fontStyle: 'italic',
-  }
+  },
 });

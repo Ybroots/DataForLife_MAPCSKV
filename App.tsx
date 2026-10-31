@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Pressable, StatusBar, View, Text, Image, Dimensions, Alert } from 'react-native';
+import { Pressable, StatusBar, View, Text, Image, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -55,21 +55,37 @@ const PRIMARY_COLOR = '#dc3545';
 
 // Button Login/Logout logic reused
 const HeaderRightButton = ({ navigation }: { navigation: any }) => {
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, isLoading, session, logout } = useAuth();
 
   const handlePress = () => {
     if (isLoggedIn) {
       Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
         { text: 'Hủy', style: 'cancel' },
-        { text: 'Đồng ý', onPress: logout }
+        {
+          text: 'Đồng ý',
+          onPress: () => {
+            logout().catch(() => {});
+          }
+        }
       ]);
     } else {
       navigation.navigate('Login');
     }
   };
 
+  if (isLoading) {
+    return <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />;
+  }
+
+  const displayName = session ? (session.displayName || session.username) : null;
+
   return (
     <Pressable onPress={handlePress} style={{ padding: 8, flexDirection: 'row', alignItems: 'center' }}>
+      {displayName && (
+        <Text style={{ color: '#fff', fontSize: 12, marginRight: 4 }} numberOfLines={1}>
+          {displayName}
+        </Text>
+      )}
       <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', marginRight: 5 }}>
         {isLoggedIn ? 'Đăng xuất' : 'Đăng nhập'}
       </Text>

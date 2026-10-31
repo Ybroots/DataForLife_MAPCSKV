@@ -27,9 +27,9 @@ import Entypo from "@expo/vector-icons/Entypo";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import * as Clipboard from "expo-clipboard";
-import { CommuneService } from "../services/CommuneService";
+import { lookupByCode } from "../services/DirectoryService";
 import { Commune } from "../models/Commune";
-// @ts-ignore – cho phép import file GeoJSON lớn
+// @ts-ignore – cho phép import file GeoJSON lớn (dùng cho polygon offline, sẽ thay bằng API trong bước sau)
 import mapData from "../../map34.json";
 
 const styles = StyleSheet.create({
@@ -369,10 +369,32 @@ const MapScreen = () => {
   const fetchCommuneData = async (maXa: string) => {
     try {
       setLoadingCommune(true);
-      const commune = await CommuneService.getByMaXa(maXa);
-      setCommuneData(commune);
+      // Gọi API thay thế Firestore
+      const envelope = await lookupByCode(maXa);
+      if (envelope.locality) {
+        // Ánh xạ LocalityResult -> Commune model để UI dùng tiếp
+        const commune: Commune = {
+          id: envelope.locality.code,
+          ma_xa: envelope.locality.code,
+          ten_xa: envelope.locality.name,
+          name: envelope.locality.name,
+          loai: envelope.locality.type,
+          cap: 2,
+          ma_tinh: 'LDG',
+          ten_tinh: envelope.locality.provinceName || 'Lâm Đồng',
+          dan_so: envelope.locality.population ?? 0,
+          dtich_km2: envelope.locality.areaKm2 ?? 0,
+          matdo_km2: 0,
+          address: envelope.locality.address ?? '',
+          tru_so: envelope.locality.stationAddress ?? envelope.locality.address ?? '',
+          sap_nhap: '',
+        };
+        setCommuneData(commune);
+      } else {
+        setCommuneData(null);
+      }
     } catch (error) {
-      console.error('Error fetching commune data:', error);
+      console.error('Error fetching commune data from API:', error);
       setCommuneData(null);
     } finally {
       setLoadingCommune(false);
