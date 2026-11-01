@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { FixtureDirectoryRepository } from '../src/fixture-repository.js';
-import { answerMapQuestion, createAssistantPlanner, type AssistantPlanner, type AssistantPlan } from '../src/map-assistant.js';
+import { answerMapQuestion, createAssistantPlanner, createKeywordPlanner, MapAssistantError, type AssistantPlanner, type AssistantPlan } from '../src/map-assistant.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => { await app?.close(); app = undefined; vi.restoreAllMocks(); });
@@ -12,13 +12,49 @@ function planner(result: unknown = plan): AssistantPlanner {
 }
 
 describe('map assistant: public data boundary', () => {
-  it('keeps an unconfigured AI explicitly unavailable', async () => {
+  it('answers by name lookup, labelled as not using AI, when no provider is configured', async () => {
     app = await buildApp(new FixtureDirectoryRepository());
     const status = await app.inject({ method: 'GET', url: '/v1/assistant/status' });
-    expect(status.json().data).toMatchObject({ configured: false, provider: null, emergencyDispatchConnected: false });
-    const response = await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Tìm Xuân Hương' } });
-    expect(response.statusCode).toBe(503);
-    expect(response.json().error).toBe('AI_NOT_CONFIGURED');
+    expect(status.json().data).toMatchObject({ configured: false, provider: null, lookupAvailable: true, emergencyDispatchConnected: false });
+    const response = await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Cho tôi số liên hệ phường Xuân Hương' } });
+    expect(response.statusCode).toBe(200);
+    const data = response.json().data;
+    expect(data.meta.provider).toBe('keyword');
+    expect(data.intent).toBe('directory');
+    expect(data.areas[0].code).toBe('DEMO-DA-LAT');
+    const emergency = await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Cứu tôi với, nhà tôi đang cháy' } });
+    expect(emergency.json().data.intent).toBe('emergency');
+  });
+
+  it('falls back to name lookup when the AI provider fails or is over its daily budget', async () => {
+    const failing: AssistantPlanner = { provider: 'Gemini', plan: vi.fn().mockRejectedValue(new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'down')) };
+    app = await buildApp(new FixtureDirectoryRepository(), { corsOrigin: 'http://localhost', assistantPlanner: failing, assistantDailyLimit: 1 });
+    const first = await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Tìm phường Xuân Hương' }, remoteAddress: '10.0.0.1' });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().data.meta.provider).toBe('keyword');
+    const second = await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Tìm phường Xuân Hương' }, remoteAddress: '10.0.0.2' });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().data.meta.provider).toBe('keyword');
+    expect(failing.plan).toHaveBeenCalledTimes(1);
+  });
+
+  it('keyword planner: never guesses an unknown place and picks the longest matching name', async () => {
+    const planner = createKeywordPlanner();
+    const areas = [
+      { code: 'A', name: 'Xã Đức Trọng', localityType: 'Xã', provinceName: null },
+      { code: 'B', name: 'Xã Trọng', localityType: 'Xã', provinceName: null },
+      { code: 'C', name: 'Phường 1 - Đà Lạt', localityType: 'Phường', provinceName: null },
+      { code: 'D', name: 'Phường 10 - Đà Lạt', localityType: 'Phường', provinceName: null },
+    ];
+    const ask = (q: string, currentAreaCode: string | null = null) => planner.plan(q, { areas, hotlines: [{ id: 'h1', categoryLabel: 'Y tế', label: 'Cấp cứu 115' }, { id: 'h2', categoryLabel: 'An ninh', label: 'Công an 113' }], currentAreaCode });
+    expect(await ask('địa chỉ trụ sở xã Đức Trọng')).toMatchObject({ intent: 'directory', areaCodes: ['A'], needsClarification: false });
+    expect(await ask('cảnh báo ở phường 10')).toMatchObject({ intent: 'alerts', areaCodes: ['D'] });
+    expect(await ask('số liên hệ phường 1')).toMatchObject({ areaCodes: ['C'] });
+    expect(await ask('số liên hệ ở đây', 'C')).toMatchObject({ intent: 'directory', areaCodes: ['C'] });
+    expect(await ask('số liên hệ xã Không Có')).toMatchObject({ areaCodes: [], needsClarification: true });
+    expect(await ask('thời tiết hôm nay thế nào')).toMatchObject({ intent: 'unsupported', areaCodes: [] });
+    expect(await ask('đường dây nóng cấp cứu')).toMatchObject({ intent: 'hotlines', hotlineIds: ['h1'] });
+    expect(await ask('cách gửi phản ánh')).toMatchObject({ intent: 'help' });
   });
 
   it('hydrates only canonical facts, ignoring model-invented addresses, coordinates and answers', async () => {
@@ -150,7 +186,10 @@ describe('map assistant limits', () => {
     expect(limit.statusCode).toBe(429);
     expect(limit.headers['retry-after']).toBeDefined();
     expect((await query('192.0.2.2')).statusCode).toBe(200);
-    expect((await query('192.0.2.3')).statusCode).toBe(429);
+    // Past the daily AI budget the question is answered by name lookup instead of being refused.
+    const overBudget = await query('192.0.2.3');
+    expect(overBudget.statusCode).toBe(200);
+    expect(overBudget.json().data.meta.provider).toBe('keyword');
     expect(model.plan).toHaveBeenCalledTimes(7);
   });
 

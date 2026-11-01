@@ -18,7 +18,7 @@ Trong môi trường của API, đặt `AI_PROVIDER=openai` hoặc `AI_PROVIDER=
 
 Các biến chỉ đọc trong `api/src/server.ts`; tuyệt đối không thêm tiền tố `VITE_` cho key, commit `.env` hoặc đưa key vào trình duyệt/chat. Ví dụ tên biến có trong `platform/.env.example`.
 
-`GET /v1/assistant/status` chỉ xác nhận **đã cấu hình**, không khẳng định provider đang hoạt động hoặc key còn hạn mức. Thiếu cấu hình: giao diện ghi AI chưa được kết nối và khóa gửi câu hỏi. Provider lỗi, từ chối hoặc trả dữ liệu không hợp lệ: thông báo rõ, không thay bằng câu trả lời AI giả lập.
+`GET /v1/assistant/status` chỉ xác nhận **đã cấu hình**, không khẳng định provider đang hoạt động hoặc key còn hạn mức. Thiếu cấu hình: trợ lý chạy ở chế độ tra cứu theo tên (`createKeywordPlanner`, không gọi dịch vụ ngoài, `meta.provider = "keyword"`, giao diện ghi "chưa dùng AI"). Provider lỗi, từ chối, trả dữ liệu không hợp lệ hoặc hết `AI_DAILY_REQUEST_LIMIT`: máy chủ trả lời bằng cùng cách tra cứu theo tên và ghi rõ nguồn, không bao giờ giả làm câu trả lời của AI.
 
 API adapters sử dụng structured outputs theo tài liệu chính thức: [OpenAI Responses](https://developers.openai.com/api/docs/guides/structured-outputs), [Gemini generateContent](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig). Không thêm SDK bên thứ ba.
 

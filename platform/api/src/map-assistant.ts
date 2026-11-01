@@ -8,7 +8,7 @@ export interface AssistantPlan {
   needsClarification: boolean;
 }
 export interface AssistantPlanner {
-  readonly provider: 'OpenAI' | 'Gemini';
+  readonly provider: 'OpenAI' | 'Gemini' | 'keyword';
   plan(question: string, context: { areas: AreaSummary[]; hotlines: Array<Pick<HotlineResponse, 'id' | 'categoryLabel' | 'label'>>; currentAreaCode: string | null }): Promise<unknown>;
 }
 export interface MapAssistantAnswer {
@@ -157,6 +157,58 @@ export async function answerMapQuestion(repository: DirectoryRepository, planner
     : answer.areas.length ? 'Kết quả đối chiếu từ dữ liệu công khai của hệ thống. Chọn địa bàn để xem ranh giới trên bản đồ.'
       : 'Chưa tìm thấy địa bàn phù hợp trong danh mục. Hãy thử tên xã/phường hoặc mã địa bàn.';
   return answer;
+}
+
+/** Matches the question against names in the public catalog. No model, no external call; used when AI is off or fails. */
+export function createKeywordPlanner(): AssistantPlanner {
+  const typeWords = ['thi tran', 'phuong', 'xa', 'dac khu', 'thanh pho', 'huyen', 'quan'];
+  const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordMatch = (text: string, phrase: string) => phrase.length > 0 && new RegExp(`(^|[^a-z0-9])${escapeRegExp(phrase)}($|[^a-z0-9])`).test(text);
+  return {
+    provider: 'keyword',
+    async plan(question, context) {
+      const text = plainText(question).replace(/\s+/g, ' ');
+      const candidates = context.areas.map(area => {
+        const base = plainText(area.name).split(' - ')[0]!.trim();
+        const type = typeWords.find(word => base.startsWith(`${word} `)) ?? null;
+        const core = type ? base.slice(type.length + 1).trim() : base;
+        return { code: area.code, core, type, hit: (core.length >= 2 || /^\d+$/.test(core)) && wordMatch(text, core) };
+      }).filter(item => item.hit);
+      // "Đức Trọng" must win over "Trọng": drop a name that is contained in a longer matched name.
+      let matched = candidates.filter(item => !candidates.some(other => other !== item && other.core.length > item.core.length && other.core.includes(item.core)));
+      if (matched.length > 1) {
+        const typed = matched.filter(item => item.type && wordMatch(text, `${item.type} ${item.core}`));
+        if (typed.length > 0) matched = typed;
+      }
+      const sameCore = matched.length > 1 && new Set(matched.map(item => item.core)).size < matched.length;
+      let areaCodes = matched.slice(0, 3).map(item => item.code);
+      let needsClarification = matched.length > 3 || sameCore || (matched.length > 1 && new Set(matched.map(item => item.core)).size === 1);
+      const here = /\b(o day|noi nay|khu vuc nay|dia ban nay|hien tai|dang xem|dia ban hien tai)\b/.test(text);
+      if (areaCodes.length === 0 && here && context.currentAreaCode) areaCodes = [context.currentAreaCode];
+      if (matched.length > 3) areaCodes = [];
+
+      const wantsAlerts = /\b(canh bao|bao dong|tin bao|thong bao khan)\b/.test(text);
+      const wantsHotline = /\b(duong day nong|hotline|tong dai|so khan)\b/.test(text);
+      const wantsContact = /\b(so (lien he|dien thoai|may)|lien he|dien thoai|dia chi|tru so|can bo|dau moi|danh ba|goi cho|cong an|ban chi huy)\b/.test(text);
+      const wantsHelp = /\b(huong dan|cach (dung|su dung|gui|bao)|phan anh|lam sao|lam the nao|su dung ung dung)\b/.test(text);
+
+      if (wantsHotline) {
+        const words = text.split(' ').filter(word => word.length >= 3 && !['duong', 'day', 'nong', 'hotline', 'tong', 'dai', 'khan', 'cho', 'toi', 'can', 'tim', 'xem', 'cac', 'nao'].includes(word));
+        const scored = context.hotlines.map(item => {
+          const label = plainText(`${item.categoryLabel} ${item.label}`);
+          return { id: item.id, score: words.filter(word => label.includes(word)).length };
+        });
+        const best = scored.filter(item => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
+        const ids = (best.length > 0 ? best : scored.slice(0, 8)).map(item => item.id);
+        return { intent: 'hotlines', areaCodes: [], hotlineIds: ids, needsClarification: false } satisfies AssistantPlan;
+      }
+      if (wantsHelp && areaCodes.length === 0) return { intent: 'help', areaCodes: [], hotlineIds: [], needsClarification: false } satisfies AssistantPlan;
+      const intent: AssistantIntent = wantsAlerts ? 'alerts' : wantsContact ? 'directory' : areaCodes.length > 0 ? 'area' : 'unsupported';
+      if (areaCodes.length === 0 && intent !== 'unsupported') needsClarification = true;
+      // Nothing recognised in the catalog: say so and hand over to a person, never guess a locality.
+      return { intent, areaCodes, hotlineIds: [], needsClarification } satisfies AssistantPlan;
+    },
+  };
 }
 
 /** No implicit provider or model selection: an unconfigured integration stays unavailable. */

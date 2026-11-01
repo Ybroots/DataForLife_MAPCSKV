@@ -55,10 +55,10 @@ def main():
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Map has horizontal overflow'
 
             page.get_by_role('button', name='Trợ lý bản đồ', exact=True).click()
-            expect(page.get_by_role('heading', name='AI chưa được kết nối')).to_be_visible()
+            expect(page.get_by_text('Chưa dùng AI')).to_be_visible()
             assert page.evaluate("window.qaMapCanvas === document.querySelector('.maplibregl-canvas')"), 'Opening AI must not recreate the map'
             expect(page.locator('.map-canvas')).to_have_attribute('data-overview-count', '1')
-            expect(page.get_by_label('Câu hỏi của bạn', exact=True)).to_be_disabled()
+            expect(page.get_by_label('Câu hỏi của bạn', exact=True)).to_be_enabled()
             page.get_by_role('button', name='Đóng trợ lý bản đồ').click()
             expect(page.get_by_role('button', name='Trợ lý bản đồ', exact=True)).to_be_focused()
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowUp, Hammer, LoaderCircle, MapPinned, MessageSquareText, X } from 'lucide-react';
+import { ArrowUp, LoaderCircle, MapPinned, MessageSquareText, X } from 'lucide-react';
 import { ApiError, askMapAssistant, getMapAssistantStatus } from '../api';
 import type { MapAssistantAnswer, MapAssistantStatus } from '../types';
 
@@ -34,6 +34,8 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<AbortController | null>(null);
+  const ready = Boolean(status && (status.configured || status.lookupAvailable !== false));
+  const usesAi = Boolean(status?.configured);
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -63,7 +65,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const value = question.trim();
-    if (!status?.configured || pending || value.length < 3) return;
+    if (!ready || pending || value.length < 3) return;
     const controller = new AbortController();
     requestRef.current = controller;
     setPending(true); setError('');
@@ -92,8 +94,8 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>
         {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối AI…</p>}
         {statusFailed && <div role="alert"><p>Chưa kiểm tra được kết nối trợ lý.</p><button className="map-assistant-text-button" type="button" onClick={() => setStatusAttempt(value => value + 1)}>Thử lại</button></div>}
-        {status && !status.configured && <div className="map-assistant-soon" role="status"><span aria-hidden="true"><Hammer size={24} /></span><h3>Trợ lý AI đang được phát triển</h3><p>Chức năng này đang trong quá trình phát triển và hoàn thiện, sẽ sớm có trong phiên bản tới.</p><p>Trong lúc chờ, bạn vẫn có thể tìm xã/phường, xem danh bạ và gọi đầu mối ngay trên bản đồ.</p><button className="map-assistant-text-button" type="button" onClick={onClose}>Quay lại bản đồ</button></div>}
-        {status?.configured && turns.length === 0 && <div className="map-assistant-welcome">
+        {ready && !usesAi && <p className="map-assistant-mode" role="status">Trợ lý đang tra cứu theo tên xã/phường, danh bạ và cảnh báo công khai. Chưa dùng AI, nên hãy ghi rõ tên địa bàn.</p>}
+        {ready && turns.length === 0 && <div className="map-assistant-welcome">
           <h3>Bạn cần tìm gì trên bản đồ?</h3>
           <p>Tìm xã/phường, địa chỉ trụ sở, đầu mối liên hệ hoặc cảnh báo công khai tại Lâm Đồng.</p>
           <div className="map-assistant-prompts">
@@ -128,7 +130,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
             {areaCode && <button className="map-assistant-text-button" type="button" onClick={() => onAreaSelect(areaCode)}><MapPinned size={16} aria-hidden="true" />Xem đầu mối {areaName ?? 'địa bàn đang xem'}</button>}
             <button className="map-assistant-text-button" type="button" onClick={onOpenReports}>Gửi câu hỏi cho cán bộ (mục Phản ánh)</button>
           </div>}
-          <small className="map-assistant-source">Nguồn: danh bạ, địa bàn và cảnh báo công khai · {new Date(answer.meta.retrievedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{answer.meta.dataSource === 'fixture' && ' · Dữ liệu kiểm thử, không dùng thực tế'}</small>
+          <small className="map-assistant-source">Nguồn: danh bạ, địa bàn và cảnh báo công khai{answer.meta.provider === 'keyword' ? ' · tra cứu theo tên, không dùng AI' : answer.intent === 'emergency' ? '' : ` · ${answer.meta.provider} chỉ phân loại câu hỏi`} · {new Date(answer.meta.retrievedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{answer.meta.dataSource === 'fixture' && ' · Dữ liệu kiểm thử, không dùng thực tế'}</small>
         </article>)}
         <div role="status" aria-live="polite" aria-atomic="true" className={pending ? 'map-assistant-progress' : 'sr-only'}>{pending ? <><LoaderCircle size={16} className="spin" aria-hidden="true" /> Đang đối chiếu dữ liệu…</> : turns.length > 0 ? 'Đã trả kết quả tra cứu.' : ''}</div>
         {error && <p role="alert" className="map-assistant-error">{error}</p>}
@@ -138,13 +140,13 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
         <p className="map-assistant-context">{areaName ? `Đang xem: ${areaName}` : 'Phạm vi: tỉnh Lâm Đồng'}</p>
         <label htmlFor="map-ai-question">Câu hỏi của bạn</label>
         <div className="map-assistant-input">
-          <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!status?.configured || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
-          <button type="submit" disabled={!status?.configured || pending || question.trim().length < 3} aria-label="Gửi câu hỏi"
+          <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!ready || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
+          <button type="submit" disabled={!ready || pending || question.trim().length < 3} aria-label="Gửi câu hỏi"
             // Keep focus in the field: on phones a blur hides the keyboard and shifts the sheet before the tap
             // completes, so the click would land outside the button and the question would not be sent.
             onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}><ArrowUp size={20} aria-hidden="true" /></button>
         </div>
-        <small>{status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Không nhập thông tin cá nhân. Không tiếp nhận SOS.</small>
+        <small>{usesAi && status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Không nhập thông tin cá nhân. Không tiếp nhận SOS.</small>
       </form>
     </section>
   );

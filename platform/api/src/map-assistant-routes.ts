@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { answerMapQuestion, MapAssistantError, type AssistantPlanner } from './map-assistant.js';
+import { answerMapQuestion, createKeywordPlanner, MapAssistantError, type AssistantPlanner } from './map-assistant.js';
 import type { DirectoryRepository } from './types.js';
 
 export function registerMapAssistant(app: FastifyInstance, repository: DirectoryRepository, planner?: AssistantPlanner, dailyLimit = 200) {
@@ -7,11 +7,13 @@ export function registerMapAssistant(app: FastifyInstance, repository: Directory
   let day = '';
   let dailyCount = 0;
   let inFlight = 0;
+  const keyword = createKeywordPlanner();
   const cap = Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 200;
 
   app.get('/v1/assistant/status', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return { data: { configured: Boolean(planner), provider: planner?.provider ?? null,
+    // `configured` means an AI provider is set up. Name lookup works without it, so the box is never locked.
+    return { data: { configured: Boolean(planner), provider: planner?.provider ?? null, lookupAvailable: true,
       capabilities: ['area', 'directory', 'alerts', 'hotlines'], emergencyDispatchConnected: false } };
   });
 
@@ -23,7 +25,6 @@ export function registerMapAssistant(app: FastifyInstance, repository: Directory
     },
   }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    if (!planner) return reply.code(503).send({ error: 'AI_NOT_CONFIGURED', message: 'Trợ lý AI chưa được kết nối. Hãy dùng tìm kiếm xã/phường để tra cứu.' });
     const { question, areaCode } = request.body ?? {};
     if (typeof question !== 'string' || question.trim().length < 3 || question.trim().length > 600
       || (areaCode !== undefined && areaCode !== null && (typeof areaCode !== 'string' || !/^[\w-]{3,80}$/.test(areaCode)))) {
@@ -35,13 +36,27 @@ export function registerMapAssistant(app: FastifyInstance, repository: Directory
     if (day !== today) { day = today; dailyCount = 0; }
     const bucket = attempts.get(request.ip) ?? { start: now, count: 0 };
     // Bounded memory, per-IP quota, global daily spend cap and concurrency cap for this API process.
-    if (bucket.count >= 6 || dailyCount >= cap || inFlight >= 3 || (!attempts.has(request.ip) && attempts.size >= 2000)) {
-      reply.header('Retry-After', dailyCount >= cap ? String(Math.ceil((Date.parse(`${today}T00:00:00Z`) + 86_400_000 - now) / 1000)) : '60');
+    if (bucket.count >= 6 || inFlight >= 3 || (!attempts.has(request.ip) && attempts.size >= 2000)) {
+      reply.header('Retry-After', '60');
       return reply.code(429).send({ error: 'AI_RATE_LIMITED', message: 'Trợ lý đã đạt giới hạn tra cứu. Hãy thử lại sau hoặc dùng tìm kiếm xã/phường.' });
     }
-    bucket.count++; attempts.set(request.ip, bucket); dailyCount++; inFlight++;
+    bucket.count++; attempts.set(request.ip, bucket);
+    // Past the daily AI budget the question is still answered by name lookup, which costs nothing.
+    const ai = planner && dailyCount < cap ? planner : undefined;
+    if (ai) dailyCount++;
+    inFlight++;
     try {
-      return { data: await answerMapQuestion(repository, planner, question.trim(), typeof areaCode === 'string' ? areaCode : null) };
+      const area = typeof areaCode === 'string' ? areaCode : null;
+      if (!ai) return { data: await answerMapQuestion(repository, keyword, question.trim(), area) };
+      try {
+        return { data: await answerMapQuestion(repository, ai, question.trim(), area) };
+      } catch (error) {
+        // AI down or unusable: answer by name lookup instead of a dead end. The answer says it did not use AI.
+        if (error instanceof MapAssistantError && (error.code === 'AI_PROVIDER_UNAVAILABLE' || error.code === 'AI_INVALID_RESULT')) {
+          return { data: await answerMapQuestion(repository, keyword, question.trim(), area) };
+        }
+        throw error;
+      }
     } catch (error) {
       if (error instanceof MapAssistantError) return reply.code(error.status).send({ error: error.code, message: error.message });
       return reply.code(503).send({ error: 'AI_DATA_UNAVAILABLE', message: 'Chưa thể đối chiếu dữ liệu địa bàn. Hãy thử lại sau.' });
