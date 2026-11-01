@@ -64,7 +64,7 @@ describe('local operational workflows', () => {
   const citizenHeaders = { 'x-citizen-id': 'citizen-test-001' };
   const officerHeaders = { 'x-officer-id': 'officer-demo-xuan-huong' };
   const incidentAttachments = [{
-    fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 4, dataBase64: 'dGVzdA==',
+    fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 68, dataBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4N8AAAAASUVORK5CYII=',
   }];
 
   it('creates an incident idempotently and isolates it by citizen identity', async () => {
@@ -85,7 +85,7 @@ describe('local operational workflows', () => {
     expect(first.statusCode).toBe(201);
     expect(repeated.statusCode).toBe(201);
     expect(repeated.json().data.id).toBe(first.json().data.id);
-    expect(first.json().data.attachments).toMatchObject([{ fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 4 }]);
+    expect(first.json().data.attachments).toMatchObject([{ fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 68 }]);
     expect(first.json().meta.emergencyDispatchConnected).toBe(false);
 
     const hiddenFromAnotherCitizen = await app.inject({
@@ -308,13 +308,13 @@ describe('local operational workflows', () => {
 
     const supplement = await app.inject({
       method: 'POST', url: `/v1/citizen/incidents/${incident.receiptCode}/attachments`, headers: citizenHeaders,
-      payload: { attachment: { fileName: 'bo-sung.webp', mimeType: 'image/webp', sizeBytes: 4, dataBase64: 'dGVzdA==' } },
+      payload: { attachment: { fileName: 'bo-sung.webp', mimeType: 'image/webp', sizeBytes: 12, dataBase64: 'UklGRi4uLi5XRUJQ' } },
     });
     expect(supplement.statusCode).toBe(201);
     expect(supplement.json().data.purpose).toBe('supplemental');
     const content = await app.inject({ method: 'GET', url: `/v1/citizen/incidents/${incident.receiptCode}/attachments/${supplement.json().data.id}/content`, headers: citizenHeaders });
     expect(content.statusCode).toBe(200);
-    expect(content.rawPayload.toString()).toBe('test');
+    expect(content.rawPayload.toString()).toBe('RIFF....WEBP');
 
     const ratingBeforeResult = await app.inject({
       method: 'POST', url: `/v1/citizen/incidents/${incident.receiptCode}/rating`, headers: citizenHeaders,
@@ -349,6 +349,20 @@ describe('local operational workflows', () => {
     expect(alert.statusCode).toBe(201);
     const publicAlerts = await app.inject({ method: 'GET', url: '/v1/public/alerts?areaCode=DEMO-DA-LAT' });
     expect(publicAlerts.json().data).toHaveLength(1);
+    // Không truyền areaCode: trả cảnh báo toàn tỉnh để người dân thấy ngay khi chưa chọn địa bàn.
+    const provinceAlerts = await app.inject({ method: 'GET', url: '/v1/public/alerts' });
+    expect(provinceAlerts.statusCode).toBe(200);
+    expect(provinceAlerts.json().data.length).toBeGreaterThanOrEqual(1);
+    expect((await app.inject({ method: 'GET', url: '/v1/public/alerts?areaCode=x' })).statusCode).toBe(400);
+    // Lưu trữ hồ sơ đã đóng và báo cáo chi tiết theo kỳ.
+    const archive = await app.inject({ method: 'GET', url: '/v1/officer/archive', headers: officerHeaders });
+    expect(archive.statusCode).toBe(200);
+    expect(Array.isArray(archive.json().data)).toBe(true);
+    expect((await app.inject({ method: 'GET', url: '/v1/officer/archive?from=not-a-date', headers: officerHeaders })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: '/v1/officer/archive' })).statusCode).toBe(401);
+    const reportCases = await app.inject({ method: 'GET', url: '/v1/officer/reports/cases?period=month', headers: officerHeaders });
+    expect(reportCases.statusCode).toBe(200);
+    expect(Array.isArray(reportCases.json().data)).toBe(true);
 
     const patrol = await app.inject({
       method: 'POST', url: '/v1/officer/patrols', headers: officerHeaders,

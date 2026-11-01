@@ -47,9 +47,11 @@ export function registerPublicRoutes({ app, repository, options }: RouteContext)
   app.get('/v1/directory/units', async () => ({ data: await repository.listUnitContacts() }));
 
   app.get<{ Querystring: { areaCode?: string } }>('/v1/public/alerts', async (request, reply) => {
-    const areaCode = text(request.query.areaCode, 3, 80);
-    if (!areaCode) return reply.code(400).send({ error: 'INVALID_AREA_CODE', message: 'Thiếu mã địa bàn.' });
-    return { data: await repository.listPublicAlerts(areaCode) };
+    // Không truyền areaCode: trả các cảnh báo công khai đang hiệu lực toàn tỉnh (bản đồ khi chưa chọn địa bàn).
+    const raw = request.query.areaCode;
+    const areaCode = raw === undefined ? undefined : text(raw, 3, 80);
+    if (raw !== undefined && !areaCode) return reply.code(400).send({ error: 'INVALID_AREA_CODE', message: 'Mã địa bàn không hợp lệ.' });
+    return { data: await repository.listPublicAlerts(areaCode ?? undefined) };
   });
 
   app.get('/v1/public/duty-coverage', async (_request, reply) => {

@@ -1,6 +1,6 @@
 {
   "appId": "com.bandosocskv.mobile",
-  "appName": "Bản đồ CSKV",
+  "appName": "Bản đồ số Cảnh sát khu vực",
   "webDir": "dist-android",
   "loggingBehavior": "none",
   "server": {

@@ -89,6 +89,15 @@ export function registerOfficerOperationsRoutes({ app, repository, localWorkflow
     return { data: await repository.getOfficerStatistics(officerId, period, anchorDate), meta: localWorkflowMeta };
   });
 
+  app.get<{ Querystring: { period?: string; date?: string } }>('/v1/officer/reports/cases', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const period = request.query.period && statisticsPeriods.has(request.query.period) ? request.query.period as import('./types.js').StatisticsPeriod : 'day';
+    const anchorDate = typeof request.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(request.query.date) && Number.isFinite(Date.parse(`${request.query.date}T00:00:00Z`))
+      ? request.query.date : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    return { data: await repository.listReportCases(officerId, period, anchorDate), meta: localWorkflowMeta };
+  });
+
   app.get('/v1/officer/map-points', { preHandler: workflowDisabled }, async (request, reply) => {
     const officerId = officerIdentity(request);
     if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });

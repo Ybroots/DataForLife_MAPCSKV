@@ -99,10 +99,24 @@ export function parseIncidentAttachments(value: unknown): IncidentAttachmentInpu
   if (!fileName || !mimeType || !sizeBytes || !dataBase64) return null;
   const decoded = Buffer.from(dataBase64, 'base64');
   if (decoded.length !== sizeBytes) return null;
+  if (!matchesDeclaredMedia(decoded, mimeType)) return null;
   return [{ fileName, mimeType, sizeBytes, dataBase64 }];
 }
 
 /** Chuỗi thời gian hợp lệ (ISO hoặc bất kỳ dạng Date.parse đọc được) thành ISO UTC; null nếu không đọc được. */
 export function parseIsoTimestamp(value: unknown): string | null {
   return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
+}
+
+/** Kiểm tra byte đầu của tệp khớp loại khai báo, để không nhận tệp HTML/script đội lốt ảnh hoặc video. */
+export function matchesDeclaredMedia(data: Buffer, mimeType: IncidentAttachmentInput['mimeType']): boolean {
+  const startsWith = (...bytes: number[]) => bytes.every((byte, index) => data[index] === byte);
+  switch (mimeType) {
+    case 'image/jpeg': return startsWith(0xff, 0xd8, 0xff);
+    case 'image/png': return startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+    case 'image/webp': return data.length >= 12 && data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP';
+    case 'video/mp4': return data.length >= 12 && data.toString('ascii', 4, 8) === 'ftyp';
+    case 'video/webm': return startsWith(0x1a, 0x45, 0xdf, 0xa3);
+    default: return false;
+  }
 }

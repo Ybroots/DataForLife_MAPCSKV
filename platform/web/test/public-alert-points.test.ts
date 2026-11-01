@@ -16,3 +16,11 @@ describe('published map alerts', () => {
     expect(buildPublicAlertPoints(null, [alert])).toEqual([]);
   });
 });
+
+describe('buildProvinceAlertPoints', () => {
+  it('dựng điểm cho mọi cảnh báo có tọa độ khi chưa chọn địa bàn', async () => {
+    const { buildProvinceAlertPoints } = await import('../src/citizen-map-points');
+    const base = { id: 'a1', areaCode: 'X1', title: 'T', summary: 'S', latitude: 11.9, longitude: 108.4 } as never;
+    expect(buildProvinceAlertPoints([base, { ...(base as object), id: 'a2', latitude: null } as never])).toMatchObject([{ id: 'alert:a1', serviceAreaCode: 'X1', kind: 'alert' }]);
+  });
+});

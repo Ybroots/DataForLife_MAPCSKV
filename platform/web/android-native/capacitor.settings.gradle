@@ -10,3 +10,6 @@ project(':capacitor-geolocation').projectDir = new File('../../node_modules/@cap
 
 include ':capacitor-keyboard'
 project(':capacitor-keyboard').projectDir = new File('../../node_modules/@capacitor/keyboard/android')
+
+include ':capacitor-push-notifications'
+project(':capacitor-push-notifications').projectDir = new File('../../node_modules/@capacitor/push-notifications/android')

@@ -172,6 +172,49 @@ export function registerAuthRoutes({ app, repository, options, localWorkflowMeta
     return { data: { id: citizenId, displayName: configuredCredential?.displayName ?? storedCredential?.displayName ?? 'Người dân kiểm thử' } };
   });
 
+  /** Đổi mật khẩu cho tài khoản lưu trong CSDL; tài khoản cấu hình bằng biến môi trường phải đổi ở máy chủ. */
+  async function changePassword(
+    request: FastifyRequest, reply: FastifyReply,
+    who: { id: string; username: string; passwordHash: string } | null,
+    save: (hash: string) => Promise<boolean>,
+    minimumLength: number,
+  ) {
+    const body = (request.body ?? {}) as { currentPassword?: unknown; newPassword?: unknown };
+    const current = passwordText(body.currentPassword, 8, 200);
+    const next = typeof body.newPassword === 'string' ? body.newPassword : '';
+    if (!who) return reply.code(400).send({ error: 'PASSWORD_MANAGED_BY_ADMIN', message: 'Tài khoản này do quản trị hệ thống cấp, vui lòng liên hệ quản trị để đổi mật khẩu.' });
+    if (!current) return reply.code(400).send({ error: 'INVALID_CREDENTIALS', message: 'Vui lòng nhập mật khẩu hiện tại.' });
+    const locked = loginLocked(request, reply, who.username);
+    if (locked) return locked;
+    if (next.length < minimumLength || next.length > 200 || !/[A-Za-z]/.test(next) || !/\d/.test(next)) {
+      return reply.code(400).send({ error: 'WEAK_PASSWORD', message: `Mật khẩu mới cần ít nhất ${minimumLength} ký tự, gồm chữ và số.` });
+    }
+    if (!await verifyPassword(current, who.passwordHash)) {
+      loginGuard.recordFailure(request.ip, who.username);
+      return reply.code(401).send({ error: 'INVALID_CREDENTIALS', message: 'Mật khẩu hiện tại không đúng.' });
+    }
+    if (current === next) return reply.code(400).send({ error: 'PASSWORD_UNCHANGED', message: 'Mật khẩu mới phải khác mật khẩu hiện tại.' });
+    loginGuard.recordSuccess(request.ip, who.username);
+    if (!await save(await hashPassword(next))) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy tài khoản.' });
+    reply.header('Cache-Control', 'no-store');
+    return reply.code(204).send();
+  }
+
+  app.post('/v1/auth/citizen/change-password', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    const account = await repository.findCitizenAccountById(citizenId);
+    return changePassword(request, reply, account, (hash) => repository.updateCitizenPasswordHash(citizenId, hash), 10);
+  });
+
+  app.post('/v1/auth/officer/change-password', { preHandler: workflowDisabled }, async (request, reply) => {
+    const actorId = officerIdentity(request);
+    if (!actorId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Phiên đăng nhập đã hết hạn.' });
+    const account = await repository.findOfficerAccountById(actorId);
+    return changePassword(request, reply, account ? { id: actorId, username: account.username, passwordHash: account.passwordHash } : null,
+      (hash) => repository.updateOfficerPasswordHash(actorId, hash), 12);
+  });
+
   app.post('/v1/auth/citizen/logout', async (_request, reply) => {
     reply.header('Set-Cookie', clearCitizenSessionCookie(options.secureCookies === true));
     reply.header('Cache-Control', 'no-store');

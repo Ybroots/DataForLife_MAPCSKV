@@ -6,6 +6,7 @@ import {
   Copy,
   FilePlus2,
   Images,
+  LoaderCircle,
   LocateFixed,
   MapPin,
   MessageSquareText,
@@ -22,6 +23,8 @@ import { WorkflowLocationMap } from './WorkflowLocationMap';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { createRequestId } from '../request-id';
 import { IncidentDraftAssistant } from './IncidentDraftAssistant';
+import { VoiceInputButton } from './VoiceInputButton';
+import { prepareImage } from '../image-compress';
 import type { IncidentDraft } from '../types';
 
 interface CitizenReportsPageProps {
@@ -82,6 +85,13 @@ async function encodeMedia(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+const IMAGE_LIMIT_BYTES = 5 * 1024 * 1024;
+
+/** Chọn tệp → ảnh được thu nhỏ trước; chỉ báo lỗi dung lượng sau khi đã nén. */
+async function prepareMedia(file: File): Promise<File> {
+  return file.type.startsWith('image/') && acceptedMediaTypes.has(file.type) ? prepareImage(file, IMAGE_LIMIT_BYTES) : file;
 }
 
 function mediaError(file: File): string | null {
@@ -188,12 +198,35 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     else { setIncidents([]); setSelectedReceipt(null); }
   }, [isAuthenticated]);
 
-  const pickEvidence = (file: File | null) => {
-    const problem = file ? mediaError(file) : null;
-    // A file the server would refuse is not kept, so the form never looks ready when it is not.
-    setEvidenceFile(problem ? null : file);
-    setError(problem ?? '');
-    if (problem) setFileInputKey((value) => value + 1);
+  const pickToken = useRef(0);
+  const [preparing, setPreparing] = useState(false);
+  const pickEvidence = (picked: File | null) => {
+    const token = ++pickToken.current;
+    if (!picked) { setEvidenceFile(null); setError(''); setPreparing(false); return; }
+    const early = acceptedMediaTypes.has(picked.type) ? null : mediaError(picked);
+    if (early) { setEvidenceFile(null); setError(early); setFileInputKey((value) => value + 1); return; }
+    setError(''); setPreparing(true);
+    // Ảnh chất lượng cao được thu nhỏ trước khi xem trước/gửi để không làm treo trang.
+    void prepareMedia(picked).then((file) => {
+      if (token !== pickToken.current) return;
+      const problem = mediaError(file);
+      // A file the server would refuse is not kept, so the form never looks ready when it is not.
+      setEvidenceFile(problem ? null : file);
+      setError(problem ?? '');
+      if (problem) setFileInputKey((value) => value + 1);
+    }).catch((caught) => {
+      if (token !== pickToken.current) return;
+      setEvidenceFile(null); setError(caught instanceof Error ? caught.message : 'Không đọc được tệp này.'); setFileInputKey((value) => value + 1);
+    }).finally(() => { if (token === pickToken.current) setPreparing(false); });
+  };
+  const pickSupplement = (picked: File | null) => {
+    if (!picked) { setSupplementFile(null); return; }
+    setThreadBusy(true); setError('');
+    void prepareMedia(picked).then((file) => {
+      const problem = mediaError(file);
+      if (problem) { setSupplementFile(null); setError(problem); } else setSupplementFile(file);
+    }).catch((caught) => { setSupplementFile(null); setError(caught instanceof Error ? caught.message : 'Không đọc được tệp này.'); })
+      .finally(() => setThreadBusy(false));
   };
 
   // What still blocks "Gửi phản ánh", in the order the form is filled.
@@ -202,6 +235,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   if (description.trim().length < 10) missing.push(description.trim() ? 'mô tả dài hơn (từ 10 ký tự)' : 'mô tả');
   if (!position) missing.push('vị trí');
   if (!consent) missing.push('ô xác nhận');
+  if (preparing) missing.push('đợi ảnh xử lý xong');
 
   const copyReceipt = async (code: string) => {
     try { await navigator.clipboard.writeText(code); setCopied(true); window.setTimeout(() => setCopied(false), 2500); } catch { setError('Không sao chép được. Bạn hãy chép mã bằng tay.'); }
@@ -351,11 +385,11 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
             </select>
           </label>
           <label><span>Tiêu đề ngắn <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
-            <input name="summary" autoComplete="off" value={summary} onChange={(event) => setSummary(event.target.value)} minLength={10} maxLength={180} placeholder="Ví dụ: Tụ tập gây ồn sau 23 giờ" required />
+            <span className="voice-field"><input name="summary" autoComplete="off" value={summary} onChange={(event) => setSummary(event.target.value)} minLength={10} maxLength={180} placeholder="Ví dụ: Tụ tập gây ồn sau 23 giờ" required /><VoiceInputButton value={summary} onChange={setSummary} maxLength={180} label="tiêu đề" /></span>
             {summary.length > 150 && <small>{summary.length}/180 ký tự</small>}
           </label>
           <label><span>Mô tả sự việc <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
-            <textarea name="description" autoComplete="off" value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={4000} rows={5} placeholder="Nêu thời gian, diễn biến và dấu hiệu cần xác minh. Không đưa thông tin không cần thiết về người khác." required />
+            <span className="voice-field voice-field-area"><textarea name="description" autoComplete="off" value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={4000} rows={5} placeholder="Nêu thời gian, diễn biến và dấu hiệu cần xác minh. Không đưa thông tin không cần thiết về người khác." required /><VoiceInputButton value={description} onChange={setDescription} maxLength={4000} label="mô tả" /></span>
           </label>
           <div className="evidence-field">
             <span className="evidence-label">Ảnh hoặc video <small>(không bắt buộc)</small></span>
@@ -380,7 +414,8 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 </label>
               </div>
             )}
-            <small className="evidence-hint">Ảnh tối đa 5 MB · video tối đa 20 MB</small>
+            {preparing && <small className="evidence-hint" role="status"><LoaderCircle size={14} className="spin" aria-hidden="true" /> Đang thu nhỏ ảnh…</small>}
+            <small className="evidence-hint">Ảnh được tự thu nhỏ · video tối đa 20 MB</small>
           </div>
           <WorkflowLocationMap position={position} onSelect={(nextPosition) => { setPosition(nextPosition); setAccuracyM(null); }} />
           <div className={position ? 'workflow-location ready' : 'workflow-location'}>
@@ -466,7 +501,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 <h3 id="citizen-media-title"><Paperclip size={18} aria-hidden="true" /> Ảnh / video</h3>
                 <IncidentMediaGallery scope="citizen" incidentKey={selectedIncident.receiptCode} attachments={selectedIncident.attachments} />
                 <div className="supplement-row">
-                  <label className="evidence-button supplement-pick"><Images size={20} aria-hidden="true" /> {supplementFile ? supplementFile.name : 'Chọn ảnh / video bổ sung'}<input className="sr-only" aria-label="Chọn tệp bổ sung" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => setSupplementFile(event.target.files?.[0] ?? null)} /></label>
+                  <label className="evidence-button supplement-pick"><Images size={20} aria-hidden="true" /> {supplementFile ? supplementFile.name : 'Chọn ảnh / video bổ sung'}<input className="sr-only" aria-label="Chọn tệp bổ sung" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => pickSupplement(event.target.files?.[0] ?? null)} /></label>
                   {supplementFile && <button className="primary-action" type="button" disabled={threadBusy} onClick={() => void uploadSupplement()}><Paperclip size={16} /> Gửi tệp này</button>}
                 </div>
               </section>

@@ -11,6 +11,7 @@ import type {
   PublicUnitContact,
   LookupEnvelope,
   OfficerNotification,
+  OfficerReportCase,
   OfficerStatistics,
   OperationalMapPoint,
   OperationalMapPointInput,
@@ -149,6 +150,12 @@ export async function getCitizenSession(): Promise<CitizenSession | null> {
   }
 }
 
+export async function changeCitizenPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await request<void>('/v1/auth/citizen/change-password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export async function signOutCitizen(): Promise<void> {
   await request<void>('/v1/auth/citizen/logout', { method: 'POST' });
 }
@@ -189,8 +196,8 @@ export async function removePushDevice(token: string): Promise<void> {
   });
 }
 
-export async function listPublicAlerts(areaCode: string): Promise<PublicAlert[]> {
-  const payload = await request<{ data: PublicAlert[] }>(`/v1/public/alerts?areaCode=${encodeURIComponent(areaCode)}`);
+export async function listPublicAlerts(areaCode?: string): Promise<PublicAlert[]> {
+  const payload = await request<{ data: PublicAlert[] }>(areaCode ? `/v1/public/alerts?areaCode=${encodeURIComponent(areaCode)}` : '/v1/public/alerts');
   return payload.data;
 }
 
@@ -303,6 +310,21 @@ export async function getDutyCoverage(): Promise<string[]> {
 
 export async function listOfficerQueue(kind?: 'incident' | 'sos'): Promise<{ data: OfficerQueueItem[]; meta: WorkflowMeta }> {
   return request(`/v1/officer/queue${kind ? `?kind=${kind}` : ''}`, { headers: officerHeaders() });
+}
+
+export async function listOfficerArchive(filters: { q?: string; from?: string; to?: string } = {}): Promise<OfficerQueueItem[]> {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set('q', filters.q.trim().slice(0, 80));
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  const query = params.toString();
+  const payload = await request<{ data: OfficerQueueItem[] }>(`/v1/officer/archive${query ? `?${query}` : ''}`, { headers: officerHeaders() });
+  return payload.data;
+}
+
+export async function listOfficerReportCases(period: StatisticsPeriod, date: string): Promise<OfficerReportCase[]> {
+  const payload = await request<{ data: OfficerReportCase[] }>(`/v1/officer/reports/cases?period=${period}&date=${encodeURIComponent(date)}`, { headers: officerHeaders() });
+  return payload.data;
 }
 
 export async function listWorkflowActors(): Promise<{ data: WorkflowActor[]; meta: WorkflowMeta }> {

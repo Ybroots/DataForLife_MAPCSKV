@@ -267,6 +267,32 @@ export interface CreateSosInput {
   deviceTimestamp: string;
 }
 
+export interface OfficerArchiveQuery {
+  kind?: 'incident' | 'sos';
+  /** Tìm theo mã tiếp nhận hoặc tiêu đề. */
+  q?: string;
+  /** Ngày đóng hồ sơ, định dạng yyyy-mm-dd (giờ Việt Nam). */
+  from?: string;
+  to?: string;
+}
+
+/** Một dòng trong báo cáo chi tiết theo kỳ (dùng để xuất CSV/Excel và in). */
+export interface OfficerReportCaseResponse {
+  kind: 'incident' | 'sos';
+  receiptCode: string;
+  category: string;
+  title: string;
+  status: string;
+  priority: string;
+  serviceAreaName: string | null;
+  assignedOfficerName: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  resolutionMinutes: number | null;
+  ratingScore: number | null;
+}
+
 export interface OfficerQueueItemResponse {
   kind: 'incident' | 'sos';
   id: string;
@@ -456,7 +482,10 @@ export interface DirectoryRepository {
   findCitizenAccountById(id: string): Promise<CitizenAccountRecord | null>;
   createCitizenAccount(input: CitizenAccountRecord): Promise<CitizenAccountRecord | null>;
   findOfficerAccountByUsername(username: string): Promise<OfficerAccountRecord | null>;
-  listPublicAlerts(areaCode: string): Promise<PublicAlertResponse[]>;
+  findOfficerAccountById(actorId: string): Promise<OfficerAccountRecord | null>;
+  updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean>;
+  updateOfficerPasswordHash(actorId: string, passwordHash: string): Promise<boolean>;
+  listPublicAlerts(areaCode?: string): Promise<PublicAlertResponse[]>;
   createIncident(citizenId: string, input: CreateIncidentInput): Promise<IncidentResponse>;
   listCitizenIncidents(citizenId: string): Promise<IncidentResponse[]>;
   getCitizenIncident(citizenId: string, receiptCode: string): Promise<IncidentResponse | null>;
@@ -473,6 +502,8 @@ export interface DirectoryRepository {
   withdrawCitizenIncident(citizenId: string, receiptCode: string, note: string): Promise<IncidentResponse>;
   listDutyLocalityCodes(): Promise<string[]>;
   listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]>;
+  listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]>;
+  listReportCases(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerReportCaseResponse[]>;
   getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null>;
   getOfficerSos(actorId: string, id: string): Promise<SosResponse | null>;
   listOfficerIncidentMessages(actorId: string, id: string): Promise<IncidentMessageResponse[]>;

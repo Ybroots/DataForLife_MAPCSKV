@@ -35,7 +35,6 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
   const contentRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<AbortController | null>(null);
   const ready = Boolean(status && (status.configured || status.lookupAvailable !== false));
-  const usesAi = Boolean(status?.configured);
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -94,7 +93,6 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>
         {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối AI…</p>}
         {statusFailed && <div role="alert"><p>Chưa kiểm tra được kết nối trợ lý.</p><button className="map-assistant-text-button" type="button" onClick={() => setStatusAttempt(value => value + 1)}>Thử lại</button></div>}
-        {ready && !usesAi && <p className="map-assistant-mode" role="status">Chưa dùng AI: hãy ghi rõ tên xã/phường.</p>}
         {ready && turns.length === 0 && <div className="map-assistant-welcome">
           <h3>Bạn cần tìm gì trên bản đồ?</h3>
           <div className="map-assistant-prompts">
@@ -136,7 +134,6 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       </div>
 
       <form className="map-assistant-compose" onSubmit={event => void submit(event)}>
-        {areaName && <p className="map-assistant-context">Đang xem: {areaName}</p>}
         <label htmlFor="map-ai-question">Câu hỏi của bạn</label>
         <div className="map-assistant-input">
           <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!ready || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
@@ -145,7 +142,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
             // completes, so the click would land outside the button and the question would not be sent.
             onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}><ArrowUp size={20} aria-hidden="true" /></button>
         </div>
-        <small>{usesAi && status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Đừng nhập thông tin cá nhân. Không dùng cho SOS.</small>
+        <small>Không nhập thông tin cá nhân. Không dùng cho SOS.</small>
       </form>
     </section>
   );

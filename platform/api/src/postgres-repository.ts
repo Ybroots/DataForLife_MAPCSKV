@@ -32,6 +32,8 @@ import type {
   SatisfactionRatingResponse,
   ServiceAreaResponse,
   ShiftSummaryResponse,
+  OfficerArchiveQuery,
+  OfficerReportCaseResponse,
   OfficerStatisticsResponse,
   OperationalMapPointInput,
   OperationalMapPointResponse,
@@ -129,6 +131,23 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     );
     const row = result.rows[0];
     return row ? { id: row.id, username: row.username, displayName: row.display_name, passwordHash: row.password_hash } : null;
+  }
+
+  async findOfficerAccountById(actorId: string): Promise<OfficerAccountRecord | null> {
+    const result = await this.pool.query<{ actor_id: string; username: string; password_hash: string }>(
+      `SELECT actor_id, username, password_hash FROM officer_accounts WHERE actor_id = $1 AND status = 'active'`, [actorId]);
+    const row = result.rows[0];
+    return row ? { actorId: row.actor_id, username: row.username, passwordHash: row.password_hash } : null;
+  }
+
+  async updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean> {
+    const result = await this.pool.query(`UPDATE citizen_accounts SET password_hash = $2 WHERE id = $1 AND status = 'active'`, [id, passwordHash]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async updateOfficerPasswordHash(actorId: string, passwordHash: string): Promise<boolean> {
+    const result = await this.pool.query(`UPDATE officer_accounts SET password_hash = $2 WHERE actor_id = $1 AND status = 'active'`, [actorId, passwordHash]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async findOfficerAccountByUsername(username: string): Promise<OfficerAccountRecord | null> {
@@ -232,7 +251,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return result.rows;
   }
 
-  listPublicAlerts(areaCode: string): Promise<PublicAlertResponse[]> {
+  listPublicAlerts(areaCode?: string): Promise<PublicAlertResponse[]> {
     return this.operations.listPublicAlerts(areaCode);
   }
 
@@ -351,6 +370,14 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
 
   confirmShiftReport(actorId: string, note: string | null): Promise<{ id: string; confirmedAt: string; summary: ShiftSummaryResponse }> {
     return this.operations.confirmShiftReport(actorId, note);
+  }
+
+  async listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]> {
+    return this.intelligence.decorateQueue(await this.workflows.listOfficerArchive(actorId, query));
+  }
+
+  listReportCases(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerReportCaseResponse[]> {
+    return this.operations.listReportCases(actorId, period, anchorDate);
   }
 
   async getOfficerStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {

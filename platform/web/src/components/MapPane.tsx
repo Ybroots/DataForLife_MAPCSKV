@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { readDevicePosition, supportsDeviceLocation } from '../device-location';
-import { Building2, ChevronRight, CircleDotDashed, Info, Layers3, LoaderCircle, LocateFixed, MapPin, Phone, Shield, ShieldAlert, Siren, TriangleAlert, X } from 'lucide-react';
+import { Building2, ChevronRight, Info, Layers3, LoaderCircle, LocateFixed, MapPin, Phone, Shield, ShieldAlert, Siren, TriangleAlert, X } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { buildCitizenMapPoints, buildPublicAlertPoints, pointsWithinZone, zoneBadgeLabel, zoneReferenceKind, type CitizenMapPoint } from '../citizen-map-points';
+import { buildCitizenMapPoints, buildProvinceAlertPoints, buildPublicAlertPoints, pointsWithinZone, zoneBadgeLabel, zoneReferenceKind, type CitizenMapPoint } from '../citizen-map-points';
 import { listPublicAlerts } from '../api';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
 import type { AreaLookup, AreaOverview, Hotline, PublicAlert } from '../types';
@@ -109,7 +109,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
   const [boundaryVisible, setBoundaryVisible] = useState(true);
   const [serviceAreasVisible, setServiceAreasVisible] = useState(true);
   const [radiusVisible, setRadiusVisible] = useState(true);
-  const [alertsVisible, setAlertsVisible] = useState(showDemoAlerts);
+  const [alertsVisible, setAlertsVisible] = useState(true);
   const [demoOfficersVisible, setDemoOfficersVisible] = useState(true);
   const [selectedServiceAreaCode, setSelectedServiceAreaCode] = useState<string | null>(null);
   const [activePointId, setActivePointId] = useState<string | null>(null);
@@ -117,7 +117,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
   const [publicAlerts, setPublicAlerts] = useState<PublicAlert[]>([]);
   const [alertsFailed, setAlertsFailed] = useState(false);
 
-  const mapPoints = useMemo(() => [...buildCitizenMapPoints(area), ...buildPublicAlertPoints(area, publicAlerts)], [area, publicAlerts]);
+  const mapPoints = useMemo(() => [...buildCitizenMapPoints(area), ...(area ? buildPublicAlertPoints(area, publicAlerts) : buildProvinceAlertPoints(publicAlerts))], [area, publicAlerts]);
   const provinceBoundary = useMemo(() => overview ? { type: 'MultiPolygon' as const,
     coordinates: overview.features.flatMap(feature => feature.geometry.type === 'Polygon'
       ? [feature.geometry.coordinates as number[][][]] : feature.geometry.coordinates as number[][][][]) } : null, [overview]);
@@ -125,8 +125,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
   useEffect(() => {
     let cancelled = false;
     setPublicAlerts([]); setAlertsFailed(false);
-    if (!area?.code) return;
-    const load = () => void listPublicAlerts(area.code)
+    const load = () => void listPublicAlerts(area?.code)
       .then(alerts => { if (!cancelled) { setAlertsFailed(false); setPublicAlerts(previous => JSON.stringify(previous) === JSON.stringify(alerts) ? previous : alerts); } })
       .catch(() => { if (!cancelled) setAlertsFailed(true); });
     load();
@@ -725,9 +724,8 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           <label><input name="radiusVisible" type="checkbox" checked={radiusVisible} onChange={(event) => setRadiusVisible(event.target.checked)} /> <span>Bán kính tra cứu 3 km</span></label>
           {(area?.serviceAreas?.length ?? 0) > 0 && <label><input name="demoOfficersVisible" type="checkbox" checked={demoOfficersVisible} onChange={(event) => setDemoOfficersVisible(event.target.checked)} /> <span>Trụ sở và điểm CSKV demo</span></label>}
           <label><input name="alertsVisible" type="checkbox" checked={alertsVisible} onChange={(event) => setAlertsVisible(event.target.checked)} /> <span>Cảnh báo địa bàn</span></label>
-          <small><CircleDotDashed size={15} aria-hidden="true" /> Chạm một khu hoặc chọn tên khu để xem các điểm bên trong.</small>
-          <small><ShieldAlert size={15} aria-hidden="true" /> {alertsFailed ? 'Chưa tải được cảnh báo. Hãy tải lại trang để thử lại.' : 'Chỉ hiển thị cảnh báo công khai có tọa độ do cán bộ phát hành.'}</small>
-          {(area?.serviceAreas?.length ?? 0) > 0 && <small><ShieldAlert size={15} aria-hidden="true" /> Tọa độ và điểm tiếp dân là demo. Riêng tên/địa chỉ trụ sở chính và số liên hệ lấy từ danh bạ công khai của phường.</small>}
+          {alertsFailed && <small><ShieldAlert size={15} aria-hidden="true" /> Chưa tải được cảnh báo. Hãy tải lại trang để thử lại.</small>}
+          {(area?.serviceAreas?.length ?? 0) > 0 && <small><ShieldAlert size={15} aria-hidden="true" /> Điểm tiếp dân trên bản đồ là dữ liệu demo.</small>}
           {(area?.serviceAreas?.length ?? 0) > 0 && <small>{zoneReferenceKind(area) === 'former_wards' ? `Ranh ${area!.serviceAreas.length} phường cũ được tái dựng để tham chiếu, chưa phải ranh phân công CSKV đã phê duyệt.` : 'Các khu vực được chia minh họa theo hình học; chưa phải ranh đơn vị cũ hay ranh phân công CSKV đã phê duyệt.'}</small>}
         </div>
       )}
@@ -808,7 +806,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           aria-controls="map-credits-popover"
           title="Nguồn dữ liệu bản đồ"
         >
-          <Info size={14} aria-hidden="true" /><span>Nguồn bản đồ</span>
+          <Info size={14} aria-hidden="true" /><span className="map-credits-label">Nguồn bản đồ</span>
         </button>
       </div>
       {locationError && <div className="map-location-error" role="alert"><span>{locationError}</span><button type="button" onClick={() => setLocationError('')} aria-label="Đóng thông báo vị trí"><X size={18} aria-hidden="true" /></button></div>}

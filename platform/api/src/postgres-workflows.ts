@@ -4,6 +4,7 @@ import type {
   CreateIncidentInput,
   CreateSosInput,
   IncidentResponse,
+  OfficerArchiveQuery,
   OfficerNotificationResponse,
   OfficerQueueItemResponse,
   SosResponse,
@@ -483,6 +484,53 @@ export class PostgresWorkflowStore {
        ORDER BY l.code`,
     );
     return result.rows.map((row) => row.code);
+  }
+
+  /** Hồ sơ đã đóng/từ chối/hủy: không còn trong hàng đợi nhưng vẫn xem lại được toàn bộ lịch sử xử lý. */
+  async listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]> {
+    const actor = await this.requireOfficer(this.pool, actorId);
+    const pattern = query.q ? `%${query.q.replace(/[\\%_]/g, (character) => `\\${character}`)}%` : null;
+    const result = await this.pool.query(
+      `SELECT * FROM (
+         SELECT 'sos'::text AS kind, s.id::text, s.receipt_code, s.category,
+                COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp') AS title,
+                s.status, 'critical'::text AS priority, l.code AS locality_code,
+                l.name AS locality_name, sa.name AS service_area_name,
+                a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
+                s.created_at, s.updated_at, COALESCE(s.closed_at, s.updated_at) AS ended_at
+         FROM sos_events s
+         JOIN localities l ON l.id = s.locality_id
+         LEFT JOIN service_areas sa ON sa.id = s.service_area_id
+         LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
+         WHERE s.locality_id = $1 AND s.status IN ('closed', 'cancelled_by_citizen')
+         UNION ALL
+         SELECT 'incident'::text AS kind, i.id::text, i.receipt_code, i.category,
+                i.summary AS title, i.status, i.priority, l.code AS locality_code,
+                l.name AS locality_name, sa.name AS service_area_name,
+                a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
+                i.created_at, i.updated_at, COALESCE(i.closed_at, i.updated_at) AS ended_at
+         FROM incident_reports i
+         JOIN localities l ON l.id = i.locality_id
+         LEFT JOIN service_areas sa ON sa.id = i.service_area_id
+         LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id
+         WHERE i.locality_id = $1 AND i.status IN ('closed', 'rejected')
+       ) archive
+       WHERE ($2::text IS NULL OR kind = $2)
+         AND ($3::text IS NULL OR receipt_code ILIKE $3 OR title ILIKE $3)
+         AND ($4::date IS NULL OR (ended_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= $4::date)
+         AND ($5::date IS NULL OR (ended_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= $5::date)
+       ORDER BY ended_at DESC
+       LIMIT 200`,
+      [actor.locality_id, query.kind ?? null, pattern, query.from ?? null, query.to ?? null],
+    );
+    return result.rows.map((row) => ({
+      kind: row.kind, id: row.id, receiptCode: row.receipt_code, category: row.category, title: row.title,
+      status: row.status, priority: row.priority, localityCode: row.locality_code, localityName: row.locality_name,
+      serviceAreaName: row.service_area_name,
+      assignedOfficer: row.assigned_officer_id && row.assigned_officer_name
+        ? { id: row.assigned_officer_id, displayName: row.assigned_officer_name } : null,
+      createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+    }));
   }
 
   async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {

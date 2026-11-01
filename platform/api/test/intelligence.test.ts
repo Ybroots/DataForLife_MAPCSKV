@@ -21,7 +21,7 @@ afterEach(async () => {
 
 const citizen = { 'x-citizen-id': 'citizen-ai-001' };
 const officer = { 'x-officer-id': 'officer-demo-xuan-huong' };
-const png = [{ fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 4, dataBase64: 'dGVzdA==' }];
+const png = [{ fileName: 'hien-truong.png', mimeType: 'image/png', sizeBytes: 68, dataBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4N8AAAAASUVORK5CYII=' }];
 
 /** Mô hình giả: trả lần lượt các kết quả cho trước và ghi lại yêu cầu. */
 function fakeModel(...outputs: unknown[]): JsonModel & { requests: JsonModelRequest[] } {

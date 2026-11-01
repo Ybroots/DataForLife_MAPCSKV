@@ -29,6 +29,7 @@ import {
   ApiError,
   getOfficerIncident,
   getOfficerSos,
+  listOfficerArchive,
   listOfficerQueue,
   listWorkflowActors,
   transitionOfficerIncident,
@@ -57,7 +58,7 @@ import directoryLogoUrl from '../../../../assets/images/logo-transparent.png';
 type WorkDetail = Incident | SosEvent;
 /** Shown to the citizen in the SOS timeline when an officer takes the SOS from the alarm screen. */
 const QUICK_ACK_NOTE = 'Cán bộ khu vực đã nhận tín hiệu SOS và đang liên hệ với bạn.';
-type QueueScope = 'attention' | 'mine' | 'all';
+type QueueScope = 'attention' | 'mine' | 'all' | 'archive';
 type MobilePane = 'queue' | 'map' | 'detail' | 'operations';
 
 const PoliceDutyMap = lazy(async () => {
@@ -137,8 +138,15 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const detailRequestId = useRef(0);
   const [queue, setQueue] = useState<OfficerQueueItem[]>([]);
   const [actors, setActors] = useState<WorkflowActor[]>([]);
-  const [scope, setScope] = useState<QueueScope>(() => policeParam('scope', ['attention', 'mine', 'all'], 'attention'));
+  const [scope, setScope] = useState<QueueScope>(() => policeParam('scope', ['attention', 'mine', 'all', 'archive'], 'attention'));
   const [queueQuery, setQueueQuery] = useState('');
+  // Hồ sơ đã đóng/từ chối: không còn trong hàng đợi nhưng vẫn xem lại được lịch sử xử lý.
+  const [archive, setArchive] = useState<OfficerQueueItem[]>([]);
+  const archiveRef = useRef<OfficerQueueItem[]>([]);
+  const [archiveFrom, setArchiveFrom] = useState('');
+  const [archiveTo, setArchiveTo] = useState('');
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [justArchived, setJustArchived] = useState<{ key: string; code: string } | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(() => new URL(window.location.href).searchParams.get('case'));
   const [detail, setDetail] = useState<WorkDetail | null>(null);
   const [mobilePane, setMobilePane] = useState<MobilePane>(() => policeParam('pane', ['queue', 'map', 'detail', 'operations'], 'queue'));
@@ -152,6 +160,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
 
   const filteredQueue = useMemo(() => {
     const normalizedQuery = queueQuery.trim().toLocaleLowerCase('vi-VN');
+    if (scope === 'archive') return archive;
     const matches = queue.filter((item) => {
       if (scope === 'mine' && item.assignedOfficer?.id !== currentActorId) return false;
       if (scope === 'attention' && !attentionStatuses.has(item.status) && !isOverdue(item)) return false;
@@ -168,8 +177,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       const priorityDelta = priorityRanks[right.priority] - priorityRanks[left.priority];
       return priorityDelta || Date.parse(right.createdAt) - Date.parse(left.createdAt);
     });
-  }, [currentActorId, queue, queueQuery, scope]);
-  const selectedItem = useMemo(() => queue.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? null, [queue, selectedKey]);
+  }, [archive, currentActorId, queue, queueQuery, scope]);
+  const selectedItem = useMemo(() => queue.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? archive.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? null, [archive, queue, selectedKey]);
   const currentActor = actors.find((actor) => actor.id === currentActorId) ?? sessionActor;
   const alerts = useSosAlerts(queue, lastUpdated !== null);
 
@@ -185,7 +194,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       setLastUpdated(new Date());
       setError('');
       setSelectedKey((current) => {
-        const currentStillExists = current && queuePayload.data.some((item) => `${item.kind}:${item.id}` === current);
+        const currentStillExists = current && (queuePayload.data.some((item) => `${item.kind}:${item.id}` === current)
+          || archiveRef.current.some((item) => `${item.kind}:${item.id}` === current));
         if (currentStillExists) return current;
         const first = queuePayload.data[0];
         return first ? `${first.kind}:${first.id}` : null;
@@ -196,6 +206,24 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       if (!quiet) setLoading(false);
     }
   };
+
+  const loadArchive = async () => {
+    setArchiveLoading(true);
+    try {
+      const items = await listOfficerArchive({ q: queueQuery, from: archiveFrom || undefined, to: archiveTo || undefined });
+      archiveRef.current = items;
+      setArchive(items);
+      setError('');
+      setSelectedKey((current) => current && items.some((item) => `${item.kind}:${item.id}` === current) ? current : items[0] ? `${items[0].kind}:${items[0].id}` : null);
+    } catch (caught) { setError(errorMessage(caught)); } finally { setArchiveLoading(false); }
+  };
+
+  useEffect(() => {
+    if (scope !== 'archive') return;
+    // Gõ tìm kiếm thì chờ một nhịp để không gọi máy chủ sau mỗi phím.
+    const timer = window.setTimeout(() => void loadArchive(), 250);
+    return () => window.clearTimeout(timer);
+  }, [scope, queueQuery, archiveFrom, archiveTo]);
 
   const loadDetail = async (item: OfficerQueueItem) => {
     const requestId = ++detailRequestId.current;
@@ -309,6 +337,11 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         setDetail(latest);
       }
       await loadQueue(true);
+      if (latest.status === 'closed' || latest.status === 'rejected') {
+        // Hồ sơ rời hàng đợi nhưng toàn bộ lịch sử xử lý vẫn lưu ở mục "Đã đóng".
+        setJustArchived({ key: `${latest.kind}:${latest.id}`, code: latest.receiptCode });
+        window.setTimeout(() => setJustArchived((current) => current?.key === `${latest.kind}:${latest.id}` ? null : current), 25_000);
+      }
       return true;
     } catch (caught) {
       setError(errorMessage(caught));
@@ -325,6 +358,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
     attention: `Cần làm${attentionCount ? ` (${attentionCount})` : ''}`,
     mine: `Của tôi${mineCount ? ` (${mineCount})` : ''}`,
     all: `Tất cả (${queue.length})`,
+    archive: 'Đã đóng',
   };
   // The sound switch asks for browser notifications once, so the alarm also reaches a hidden tab.
   const toggleSound = async () => {
@@ -378,13 +412,26 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
               <button className="queue-refresh" type="button" onClick={() => void loadQueue()} disabled={loading} aria-label="Tải lại hàng đợi"><RefreshCw size={18} aria-hidden="true" /></button>
             </div>
             <div className="queue-scopes" role="group" aria-label="Phạm vi hàng đợi">
-              {(['attention', 'mine', 'all'] as const).map((value) => (
+              {(['attention', 'mine', 'all', 'archive'] as const).map((value) => (
                 <button type="button" key={value} className={scope === value ? 'active' : ''} aria-pressed={scope === value} onClick={() => setScope(value)}>{scopeLabels[value]}</button>
               ))}
             </div>
+            {justArchived && scope !== 'archive' && (
+              <div className="archive-note" role="status">
+                <span>Đã lưu hồ sơ <code>{justArchived.code}</code> vào mục Đã đóng.</span>
+                <button type="button" onClick={() => { archiveRef.current = []; setArchive([]); setSelectedKey(justArchived.key); setScope('archive'); setJustArchived(null); setMobilePane('detail'); }}>Xem lịch sử</button>
+              </div>
+            )}
+            {scope === 'archive' && (
+              <div className="archive-filters" role="group" aria-label="Lọc hồ sơ đã đóng theo ngày">
+                <label><span>Từ ngày</span><input type="date" value={archiveFrom} max={archiveTo || undefined} onChange={(event) => setArchiveFrom(event.target.value)} /></label>
+                <label><span>Đến ngày</span><input type="date" value={archiveTo} min={archiveFrom || undefined} onChange={(event) => setArchiveTo(event.target.value)} /></label>
+                {(archiveFrom || archiveTo) && <button type="button" onClick={() => { setArchiveFrom(''); setArchiveTo(''); }}>Xóa lọc</button>}
+              </div>
+            )}
             <div className="queue-list">
-              {loading && <div className="queue-loading"><span className="loader" /> Đang tải…</div>}
-              {!loading && filteredQueue.length === 0 && <div className="queue-empty"><ShieldCheck size={28} aria-hidden="true" /><strong>{scope === 'attention' ? 'Không có việc cần làm ngay' : 'Không có hồ sơ'}</strong>{scope === 'attention' && queue.length > 0 && <button type="button" onClick={() => setScope('all')}>Xem tất cả hồ sơ</button>}</div>}
+              {(scope === 'archive' ? archiveLoading && archive.length === 0 : loading) && <div className="queue-loading"><span className="loader" /> Đang tải…</div>}
+              {!(scope === 'archive' ? archiveLoading && archive.length === 0 : loading) && filteredQueue.length === 0 && <div className="queue-empty"><ShieldCheck size={28} aria-hidden="true" /><strong>{scope === 'attention' ? 'Không có việc cần làm ngay' : 'Không có hồ sơ'}</strong>{scope === 'attention' && queue.length > 0 && <button type="button" onClick={() => setScope('all')}>Xem tất cả hồ sơ</button>}</div>}
               {filteredQueue.map((item) => {
                 const overdue = isOverdue(item);
                 const duplicateHint = item.duplicateOfReceiptCode ? 'Đã gộp' : item.suggestedDuplicateReceiptCode ? 'Có thể trùng' : '';
@@ -395,7 +442,9 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                       <strong><span className="sr-only">{item.kind === 'sos' ? 'SOS: ' : 'Phản ánh: '}</span>{item.title}</strong>
                       <span className="queue-card-status">
                         <span className={`status-chip ${item.status}`}>{statusLabels[item.status] ?? item.status}</span>
-                        <time dateTime={item.createdAt} className={overdue ? 'late' : ''}>{ageLabel(item.createdAt)}{overdue ? ' · quá hạn' : ''}</time>
+                        {scope === 'archive'
+                          ? <time dateTime={item.updatedAt}>Đóng {timeFormatter.format(new Date(item.updatedAt))}</time>
+                          : <time dateTime={item.createdAt} className={overdue ? 'late' : ''}>{ageLabel(item.createdAt)}{overdue ? ' · quá hạn' : ''}</time>}
                         {duplicateHint && <span className="duplicate-chip">{duplicateHint}</span>}
                       </span>
                     </span>
@@ -487,7 +536,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             </Suspense>
           </section>
 
-          <PoliceOperations localityCode={currentActor?.localityCode ?? null} />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} />
         </div>
       </main>
 

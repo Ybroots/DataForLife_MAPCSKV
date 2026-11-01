@@ -274,6 +274,22 @@ export interface SosEvent {
   satisfactionRating?: SatisfactionRating | null;
 }
 
+export interface OfficerReportCase {
+  kind: 'incident' | 'sos';
+  receiptCode: string;
+  category: string;
+  title: string;
+  status: string;
+  priority: string;
+  serviceAreaName: string | null;
+  assignedOfficerName: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  resolutionMinutes: number | null;
+  ratingScore: number | null;
+}
+
 export interface OfficerQueueItem {
   kind: 'incident' | 'sos';
   id: string;

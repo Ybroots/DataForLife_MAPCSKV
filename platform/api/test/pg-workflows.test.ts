@@ -16,7 +16,7 @@ afterEach(async () => { if (app) await app.close(); app = undefined; repo = unde
 
 const citizen = { 'x-citizen-id': 'citizen-pg-001' };
 const officer = { 'x-officer-id': 'officer-demo-xuan-huong' };
-const attachments = [{ fileName: 'a.png', mimeType: 'image/png', sizeBytes: 4, dataBase64: 'dGVzdA==' }];
+const attachments = [{ fileName: 'a.png', mimeType: 'image/png', sizeBytes: 68, dataBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4N8AAAAASUVORK5CYII=' }];
 
 async function newApp() {
   repo = new PostgresDirectoryRepository(url);

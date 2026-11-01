@@ -19,7 +19,7 @@ function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
 }
 
-export function PoliceOperations({ localityCode }: { localityCode: string | null }) {
+export function PoliceOperations({ localityCode, unitName }: { localityCode: string | null; unitName?: string }) {
   const [tab, setTab] = useState<Tab>('reports');
   const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
   const [pickerKey, setPickerKey] = useState(0);
@@ -99,7 +99,7 @@ export function PoliceOperations({ localityCode }: { localityCode: string | null
         <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Tích hợp</button>
       </div>
 
-      {tab === 'reports' && <OfficerStatisticsPanel />}
+      {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} />}
       {tab === 'mapdata' && <OfficerMapDataManager />}
 
       {tab === 'alerts' && <form className="operations-form" onSubmit={submitAlert}>

@@ -119,6 +119,14 @@ export function buildPublicAlertPoints(area: AreaLookup | null, alerts: PublicAl
   });
 }
 
+/** Chưa chọn địa bàn: hiện mọi cảnh báo công khai đang hiệu lực có tọa độ trên toàn tỉnh. */
+export function buildProvinceAlertPoints(alerts: PublicAlert[]): CitizenMapPoint[] {
+  return alerts.flatMap((alert) => alert.latitude === null || alert.longitude === null ? [] : [{
+    id: `alert:${alert.id}`, kind: 'alert' as const, serviceAreaCode: alert.areaCode,
+    name: alert.title, detail: alert.summary, phone: null,
+    latitude: alert.latitude, longitude: alert.longitude, demo: false }]);
+}
+
 export function pointsWithinZone(points: CitizenMapPoint[], zone: ServiceArea): CitizenMapPoint[] {
   return points.filter((point) => pointInBoundary(point.longitude, point.latitude, zone.boundary));
 }

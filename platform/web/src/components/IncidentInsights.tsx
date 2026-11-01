@@ -152,7 +152,7 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
                     {item.duplicateOf ? ` · đã gộp vào ${item.duplicateOf.receiptCode}` : ''}
                   </small>
                   <div className="duplicate-actions">
-                    <button type="button" disabled={busy !== null} onClick={() => void link(primary.id)}>
+                    <button type="button" disabled={busy !== null || closed} onClick={() => void link(primary.id)}>
                       <Link2 size={16} aria-hidden="true" /> {busy === `link:${primary.id}` ? 'Đang gộp…' : `Gộp vào ${primary.receiptCode}`}
                     </button>
                     <button type="button" className="secondary" onClick={() => onOpenCase(item.id)}><ExternalLink size={16} aria-hidden="true" /> Xem</button>

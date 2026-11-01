@@ -21,6 +21,8 @@ import type {
   IncidentResponse,
   OfficerNotificationResponse,
   OfficerQueueItemResponse,
+  OfficerArchiveQuery,
+  OfficerReportCaseResponse,
   OfficerStatisticsResponse,
   OperationalMapPointInput,
   OperationalMapPointResponse,
@@ -152,6 +154,24 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     return [...this.officerAccounts.values()].find((account) => account.username.toLocaleLowerCase('vi-VN') === normalized) ?? null;
   }
 
+  async findOfficerAccountById(actorId: string): Promise<OfficerAccountRecord | null> {
+    return [...this.officerAccounts.values()].find((account) => account.actorId === actorId) ?? null;
+  }
+
+  async updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean> {
+    const account = this.citizenAccounts.get(id);
+    if (!account) return false;
+    this.citizenAccounts.set(id, { ...account, passwordHash });
+    return true;
+  }
+
+  async updateOfficerPasswordHash(actorId: string, passwordHash: string): Promise<boolean> {
+    const account = [...this.officerAccounts.values()].find((candidate) => candidate.actorId === actorId);
+    if (!account) return false;
+    this.officerAccounts.set(account.username, { ...account, passwordHash });
+    return true;
+  }
+
   async searchAreas(query: string, limit: number): Promise<AreaSummary[]> {
     const normalized = query.trim().toLocaleLowerCase('vi');
     const candidates: AreaSummary[] = this.pilots.length
@@ -184,8 +204,8 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     }];
   }
 
-  async listPublicAlerts(areaCode: string): Promise<PublicAlertResponse[]> {
-    return structuredClone(this.alerts.filter((item) => item.areaCode === areaCode && item.status === 'published'));
+  async listPublicAlerts(areaCode?: string): Promise<PublicAlertResponse[]> {
+    return structuredClone(this.alerts.filter((item) => (areaCode === undefined || item.areaCode === areaCode) && item.status === 'published').slice(0, 200));
   }
 
   async createIncident(citizenId: string, input: CreateIncidentInput): Promise<IncidentResponse> {
@@ -515,6 +535,51 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   async confirmShiftReport(actorId: string, _note: string | null): Promise<{ id: string; confirmedAt: string; summary: ShiftSummaryResponse }> {
     this.requireActor(actorId);
     return { id: randomUUID(), confirmedAt: new Date().toISOString(), summary: this.fixtureShiftSummary() };
+  }
+
+  async listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]> {
+    this.requireActor(actorId);
+    const needle = query.q?.toLocaleLowerCase('vi-VN');
+    const dateOf = (value: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value));
+    const rows: OfficerQueueItemResponse[] = [
+      ...[...this.sosEvents.values()].filter((item) => ['closed', 'cancelled_by_citizen'].includes(item.status)).map((item): OfficerQueueItemResponse => ({
+        kind: 'sos', id: item.id, receiptCode: item.receiptCode, category: item.category, title: item.note || 'Yêu cầu hỗ trợ khẩn cấp',
+        status: item.status, priority: 'critical', localityCode: item.location.localityCode, localityName: item.location.localityName,
+        serviceAreaName: item.location.serviceAreaName, assignedOfficer: item.assignedOfficer, createdAt: item.createdAt, updatedAt: item.updatedAt,
+      })),
+      ...[...this.incidents.values()].filter((item) => ['closed', 'rejected'].includes(item.status)).map((item): OfficerQueueItemResponse => ({
+        kind: 'incident', id: item.id, receiptCode: item.receiptCode, category: item.category, title: item.summary,
+        status: item.status, priority: item.priority, localityCode: item.location.localityCode, localityName: item.location.localityName,
+        serviceAreaName: item.location.serviceAreaName, assignedOfficer: item.assignedOfficer, createdAt: item.createdAt, updatedAt: item.updatedAt,
+      })),
+    ];
+    return rows
+      .filter((item) => !query.kind || item.kind === query.kind)
+      .filter((item) => !needle || item.receiptCode.toLocaleLowerCase('vi-VN').includes(needle) || item.title.toLocaleLowerCase('vi-VN').includes(needle))
+      .filter((item) => !query.from || dateOf(item.updatedAt) >= query.from)
+      .filter((item) => !query.to || dateOf(item.updatedAt) <= query.to)
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .slice(0, 200);
+  }
+
+  async listReportCases(actorId: string, _period: StatisticsPeriod, _anchorDate: string): Promise<OfficerReportCaseResponse[]> {
+    this.requireActor(actorId);
+    const minutes = (from: string, to: string | null) => to ? Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 60_000)) : null;
+    const finished = (status: string, updatedAt: string) => ['resolved', 'closed'].includes(status) ? updatedAt : null;
+    return [
+      ...[...this.incidents.values()].map((item): OfficerReportCaseResponse => ({
+        kind: 'incident', receiptCode: item.receiptCode, category: item.category, title: item.summary, status: item.status, priority: item.priority,
+        serviceAreaName: item.location.serviceAreaName, assignedOfficerName: item.assignedOfficer?.displayName ?? null,
+        createdAt: item.createdAt, resolvedAt: finished(item.status, item.updatedAt), closedAt: item.status === 'closed' ? item.updatedAt : null,
+        resolutionMinutes: minutes(item.createdAt, finished(item.status, item.updatedAt)), ratingScore: item.satisfactionRating?.score ?? null,
+      })),
+      ...[...this.sosEvents.values()].map((item): OfficerReportCaseResponse => ({
+        kind: 'sos', receiptCode: item.receiptCode, category: item.category, title: item.note || 'Yêu cầu hỗ trợ khẩn cấp', status: item.status, priority: 'critical',
+        serviceAreaName: item.location.serviceAreaName, assignedOfficerName: item.assignedOfficer?.displayName ?? null,
+        createdAt: item.createdAt, resolvedAt: finished(item.status, item.updatedAt), closedAt: item.status === 'closed' ? item.updatedAt : null,
+        resolutionMinutes: minutes(item.createdAt, finished(item.status, item.updatedAt)), ratingScore: null,
+      })),
+    ].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
   }
 
   async getOfficerStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {

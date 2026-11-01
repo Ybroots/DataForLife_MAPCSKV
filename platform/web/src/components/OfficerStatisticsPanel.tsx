@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileWarning, RefreshCw, Siren, Star } from 'lucide-react';
-import { ApiError, getOfficerStatistics } from '../api';
-import type { OfficerStatistics, StatisticsPeriod } from '../types';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, Printer, RefreshCw, Siren, Star } from 'lucide-react';
+import { ApiError, getOfficerStatistics, listOfficerReportCases } from '../api';
+import type { OfficerReportCase, OfficerStatistics, StatisticsPeriod } from '../types';
+import { buildReportCsv, downloadTextFile, reportFileName } from '../report-export';
+import { PrintableReport } from './PrintableReport';
 import { OfficerKpiTable } from './OfficerKpiTable';
 
 const periodLabels: Record<StatisticsPeriod, string> = { day: 'Ngày', month: 'Tháng', year: 'Năm' };
@@ -14,13 +16,40 @@ function todayVietnam(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 }
 
-export function OfficerStatisticsPanel() {
+export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { unitName?: string }) {
   const [period, setPeriod] = useState<StatisticsPeriod>('day');
   const [date, setDate] = useState(todayVietnam);
   const [data, setData] = useState<OfficerStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [exporting, setExporting] = useState<'csv' | 'print' | null>(null);
+  const [printCases, setPrintCases] = useState<OfficerReportCase[] | null>(null);
+
+  useEffect(() => {
+    const clear = () => setPrintCases(null);
+    window.addEventListener('afterprint', clear);
+    return () => window.removeEventListener('afterprint', clear);
+  }, []);
+
+  const exportCsv = async () => {
+    if (!data || exporting) return;
+    setExporting('csv'); setError('');
+    try {
+      const cases = await listOfficerReportCases(period, date);
+      downloadTextFile(reportFileName(data), buildReportCsv(data, cases, unitName));
+    } catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Không xuất được báo cáo.'); } finally { setExporting(null); }
+  };
+
+  const printReport = async () => {
+    if (!data || exporting) return;
+    setExporting('print'); setError('');
+    try {
+      setPrintCases(await listOfficerReportCases(period, date));
+      // Đợi bản in được dựng xong rồi mới mở hộp thoại in/lưu PDF.
+      window.setTimeout(() => window.print(), 150);
+    } catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Không chuẩn bị được bản in.'); } finally { setExporting(null); }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +71,12 @@ export function OfficerStatisticsPanel() {
       </div>
       <label><span>Mốc thời gian</span><input type="date" value={date} max={todayVietnam()} onChange={(event) => setDate(event.target.value)} /></label>
       <button type="button" className="report-refresh" onClick={() => setReloadKey((value) => value + 1)} disabled={loading}><RefreshCw size={16} aria-hidden="true" /> Cập nhật</button>
+      <div className="report-export" role="group" aria-label="Xuất báo cáo">
+        <button type="button" onClick={() => void exportCsv()} disabled={!data || loading || exporting !== null}><Download size={16} aria-hidden="true" /> {exporting === 'csv' ? 'Đang xuất…' : 'Xuất Excel (CSV)'}</button>
+        <button type="button" onClick={() => void printReport()} disabled={!data || loading || exporting !== null}><Printer size={16} aria-hidden="true" /> {exporting === 'print' ? 'Đang chuẩn bị…' : 'In / lưu PDF'}</button>
+      </div>
     </div>
+    {data && printCases && <PrintableReport stats={data} cases={printCases} unitName={unitName} />}
     {loading && <p className="workflow-empty"><RefreshCw className="spin" size={18} /> Đang tổng hợp số liệu…</p>}
     {error && <p className="inline-notice error" role="alert">{error}</p>}
     {data && !loading && <>

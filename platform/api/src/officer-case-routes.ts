@@ -11,6 +11,20 @@ export function registerOfficerCaseRoutes({ app, repository, localWorkflowMeta, 
     return { data: await repository.listOfficerQueue(officerId, kind), meta: localWorkflowMeta };
   });
 
+  app.get<{ Querystring: { kind?: string; q?: string; from?: string; to?: string } }>('/v1/officer/archive', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const { kind, q, from, to } = request.query;
+    const isDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
+    if ((from !== undefined && !isDate(from)) || (to !== undefined && !isDate(to)) || (q !== undefined && (typeof q !== 'string' || q.length > 80))) {
+      return reply.code(400).send({ error: 'INVALID_ARCHIVE_QUERY', message: 'Bộ lọc lưu trữ không hợp lệ.' });
+    }
+    const data = await repository.listOfficerArchive(officerId, {
+      kind: kind === 'incident' || kind === 'sos' ? kind : undefined, q: q?.trim() || undefined, from, to,
+    });
+    return { data, meta: localWorkflowMeta };
+  });
+
   app.get('/v1/officer/actors', { preHandler: workflowDisabled }, async (request, reply) => {
     const officerId = officerIdentity(request);
     if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });

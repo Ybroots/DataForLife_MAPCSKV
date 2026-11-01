@@ -88,7 +88,7 @@ async function main() {
     const report=await api(context,'/v1/citizen/incidents',{
       clientRequestId:randomUUID(),category:'security',summary:'E2E chuông thông báo Xuân Hương',
       description:'Hồ sơ kiểm thử riêng: thông báo xử lý của cán bộ tới người dân.',latitude:11.944,longitude:108.441,
-      contactPhone:'0912345678',accuracyM:10,attachments:[{fileName:'notification.png',mimeType:'image/png',sizeBytes:4,dataBase64:'dGVzdA=='}],
+      contactPhone:'0912345678',accuracyM:10,attachments:[{fileName:'notification.png',mimeType:'image/png',sizeBytes:68,dataBase64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4N8AAAAASUVORK5CYII='}],
     }); created.push(report);
     const sos=await api(context,'/v1/citizen/sos',{idempotencyKey:randomUUID(),category:'security',note:'E2E kiểm tra thông báo SOS',latitude:11.944,longitude:108.441,accuracyM:10,deviceTimestamp:new Date().toISOString()}); created.push(sos);
 

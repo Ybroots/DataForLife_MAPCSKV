@@ -586,7 +586,6 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .station-location-note { color: var(--color-muted); font-size: 12px; line-height: 1.5; }
 .station-demo-phone, .cskv-demo-phone { font-size: 15px; }
 .station-demo-label { font-size: 12px; }
-.map-pane:has(.map-zone-panel) .map-assistant { flex-direction: row; gap: 10px; }
 .map-pane:has(.map-zone-panel) .my-location-button { margin-bottom: 0; }
 .map-pane:has(.map-zone-panel) .map-credits-popover { top: 51px; bottom: auto; }
 @keyframes zone-panel-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }

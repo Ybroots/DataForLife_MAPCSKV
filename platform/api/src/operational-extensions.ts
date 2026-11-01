@@ -8,6 +8,7 @@ import type {
   PublicAlertResponse,
   SatisfactionRatingResponse,
   ShiftSummaryResponse,
+  OfficerReportCaseResponse,
   OfficerStatisticsResponse,
   OperationalMapPointInput,
   OperationalMapPointResponse,
@@ -30,16 +31,17 @@ function iso(value: Date | string): string {
 export class OperationalExtensionsStore {
   constructor(private readonly pool: Pool) {}
 
-  async listPublicAlerts(areaCode: string): Promise<PublicAlertResponse[]> {
+  async listPublicAlerts(areaCode?: string): Promise<PublicAlertResponse[]> {
     const result = await this.pool.query(
       `SELECT a.id::text, l.code AS area_code, a.title, a.category, a.risk_level, a.summary,
               CASE WHEN a.geom IS NULL THEN NULL ELSE ST_Y(a.geom) END AS latitude,
               CASE WHEN a.geom IS NULL THEN NULL ELSE ST_X(a.geom) END AS longitude,
               a.starts_at, a.ends_at, a.status, a.created_at
        FROM public_alerts a JOIN localities l ON l.id = a.locality_id
-       WHERE l.code = $1 AND a.status = 'published' AND now() BETWEEN a.starts_at AND a.ends_at
-       ORDER BY CASE a.risk_level WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, a.starts_at DESC`,
-      [areaCode],
+       WHERE ($1::text IS NULL OR l.code = $1) AND a.status = 'published' AND now() BETWEEN a.starts_at AND a.ends_at
+       ORDER BY CASE a.risk_level WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, a.starts_at DESC
+       LIMIT 200`,
+      [areaCode ?? null],
     );
     return result.rows.map(this.mapAlert);
   }
@@ -313,6 +315,48 @@ export class OperationalExtensionsStore {
       },
       trend: row.trend ?? [], categories: row.categories ?? [],
     };
+  }
+
+  /** Danh sách hồ sơ chi tiết trong kỳ báo cáo, để xuất CSV/Excel hoặc in. */
+  async listReportCases(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerReportCaseResponse[]> {
+    const actor = await this.requireActor(actorId);
+    const unit = period === 'day' ? 'day' : period === 'month' ? 'month' : 'year';
+    const result = await this.pool.query(
+      `WITH bounds AS (
+         SELECT (date_trunc('${unit}', $2::date::timestamp) AT TIME ZONE 'Asia/Ho_Chi_Minh') AS from_at,
+                ((date_trunc('${unit}', $2::date::timestamp) + interval '1 ${unit}') AT TIME ZONE 'Asia/Ho_Chi_Minh') AS to_at
+       )
+       SELECT * FROM (
+         SELECT 'incident'::text AS kind, i.receipt_code, i.category, i.summary AS title, i.status, i.priority,
+                sa.name AS service_area_name, a.display_name AS officer_name, i.created_at, i.resolved_at, i.closed_at,
+                (SELECT r.score FROM satisfaction_ratings r WHERE r.incident_id = i.id ORDER BY r.created_at DESC LIMIT 1) AS rating_score
+         FROM incident_reports i
+         LEFT JOIN service_areas sa ON sa.id = i.service_area_id
+         LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id, bounds
+         WHERE i.locality_id = $1 AND i.created_at >= from_at AND i.created_at < to_at
+         UNION ALL
+         SELECT 'sos'::text, s.receipt_code, s.category, COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp'), s.status, 'critical'::text,
+                sa.name, a.display_name, s.created_at, s.resolved_at, s.closed_at, NULL::int
+         FROM sos_events s
+         LEFT JOIN service_areas sa ON sa.id = s.service_area_id
+         LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id, bounds
+         WHERE s.locality_id = $1 AND s.created_at >= from_at AND s.created_at < to_at
+       ) cases
+       ORDER BY created_at DESC
+       LIMIT 5000`,
+      [actor.locality_id, anchorDate],
+    );
+    return result.rows.map((row) => {
+      const finished = row.resolved_at ?? row.closed_at;
+      return {
+        kind: row.kind, receiptCode: row.receipt_code, category: row.category, title: row.title, status: row.status,
+        priority: row.priority, serviceAreaName: row.service_area_name, assignedOfficerName: row.officer_name,
+        createdAt: iso(row.created_at), resolvedAt: row.resolved_at ? iso(row.resolved_at) : null,
+        closedAt: row.closed_at ? iso(row.closed_at) : null,
+        resolutionMinutes: finished ? Math.max(0, Math.round((new Date(finished).getTime() - new Date(row.created_at).getTime()) / 60_000)) : null,
+        ratingScore: row.rating_score === null ? null : Number(row.rating_score),
+      };
+    });
   }
 
   async listMapPoints(actorId: string): Promise<OperationalMapPointResponse[]> {

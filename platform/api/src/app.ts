@@ -26,6 +26,18 @@ export async function buildApp(
   await app.register(cors, { origin: options.corsOrigin, credentials: true });
   registerMapAssistant(app, repository, options.assistantPlanner, options.assistantDailyLimit);
 
+  // Ký tự NUL (U+0000) làm PostgreSQL báo lỗi 500: chặn sớm trong URL và trong thân JSON.
+  app.addHook('preValidation', async (request, reply) => {
+    const hasNul = (value: unknown, depth = 0): boolean => {
+      if (typeof value === 'string') return value.includes('\u0000');
+      if (depth > 6 || value === null || typeof value !== 'object') return false;
+      return Object.values(value as Record<string, unknown>).some((item) => hasNul(item, depth + 1));
+    };
+    if (request.url.includes('%00') || hasNul(request.body)) {
+      return reply.code(400).send({ error: 'BAD_REQUEST', message: 'Yêu cầu chứa ký tự không hợp lệ.' });
+    }
+  });
+
   app.addHook('onSend', async (_request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -55,6 +67,22 @@ export async function buildApp(
       const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' || error.code === 'NO_DUTY_OFFICER' ? 409 : 400;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
+    // Lỗi do người gọi (JSON hỏng, sai Content-Type, body quá lớn...): trả 4xx rõ ràng thay vì 500.
+    const status = (error as { statusCode?: unknown }).statusCode;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      const message = status === 413 ? 'Dữ liệu gửi lên quá lớn.'
+        : status === 415 ? 'Định dạng dữ liệu không được hỗ trợ.'
+          : 'Yêu cầu không hợp lệ.';
+      return reply.code(status).send({ error: status === 413 ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST', message });
+    }
+    if ((error as { code?: unknown }).code === 'PASSWORD_BUSY') {
+      reply.header('Retry-After', '5');
+      return reply.code(503).send({ error: 'SERVER_BUSY', message: 'Hệ thống đang bận, vui lòng thử lại sau vài giây.' });
+    }
+    // Mã định danh sai dạng hoặc ký tự NUL trong chuỗi: lỗi đầu vào, không phải lỗi máy chủ.
+    const pgCode = (error as { code?: unknown }).code;
+    if (pgCode === '22P02') return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy dữ liệu.' });
+    if (pgCode === '22021' || pgCode === '22P05') return reply.code(400).send({ error: 'BAD_REQUEST', message: 'Yêu cầu chứa ký tự không hợp lệ.' });
     app.log.error(error);
     reply.code(500).send({
       error: 'INTERNAL_ERROR',
