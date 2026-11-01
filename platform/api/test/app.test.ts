@@ -363,6 +363,20 @@ describe('local operational workflows', () => {
     expect(shift.json().data.incidentsReceived).toBe(1);
   });
 
+  it('publishes an alert with a map position that citizens can read, and rejects half a coordinate', async () => {
+    app = await buildApp(new FixtureDirectoryRepository(), { corsOrigin: 'http://localhost:5173', allowTestAuthHeaders: true });
+    const base = { title: 'Ngập cục bộ đường chính', category: 'weather', riskLevel: 'medium', summary: 'Tránh đoạn đường ngập, đi theo biển chỉ dẫn.', startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString() };
+    const created = await app.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officerHeaders, payload: { ...base, latitude: 11.944, longitude: 108.441 } });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().data).toMatchObject({ latitude: 11.944, longitude: 108.441 });
+    const listed = await app.inject({ method: 'GET', url: `/v1/public/alerts?areaCode=${created.json().data.areaCode}` });
+    expect(listed.json().data[0]).toMatchObject({ title: 'Ngập cục bộ đường chính', latitude: 11.944, longitude: 108.441 });
+    const half = await app.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officerHeaders, payload: { ...base, latitude: 11.944 } });
+    expect(half.statusCode).toBe(400);
+    const outOfRange = await app.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officerHeaders, payload: { ...base, latitude: 95, longitude: 108.441 } });
+    expect(outOfRange.statusCode).toBe(400);
+  });
+
   it('uses signed HttpOnly sessions for both pilot roles and ignores forged headers', async () => {
     app = await buildApp(new FixtureDirectoryRepository(), {
       corsOrigin: 'http://localhost:5173',

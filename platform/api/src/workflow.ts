@@ -70,14 +70,6 @@ export function assertSosTransition(from: SosStatus, to: SosStatus): void {
   }
 }
 
-export function incidentNextStatuses(status: IncidentStatus): readonly IncidentStatus[] {
-  return incidentTransitions[status];
-}
-
-export function sosNextStatuses(status: SosStatus): readonly SosStatus[] {
-  return sosTransitions[status];
-}
-
 /**
  * Only the officer a case is assigned to may act on it. The previous guard compared the officer id the
  * client chose to send (assignedOfficerId) instead of the stored assignee, so omitting that field let any

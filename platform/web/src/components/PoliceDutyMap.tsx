@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, FileWarning, LocateFixed, MapPinned, Siren } from 'lucide-react';
+import { ArrowLeft, BellRing, FileWarning, LocateFixed, MapPinned, Siren } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { getOfficerIncident, getOfficerSos, listOperationalMapPoints, lookupByCode } from '../api';
+import { getOfficerIncident, getOfficerSos, listOperationalMapPoints, listPublicAlerts, lookupByCode } from '../api';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
-import type { AreaLookup, Incident, OfficerQueueItem, OperationalMapPoint, SosEvent } from '../types';
+import type { AreaLookup, Incident, OfficerQueueItem, OperationalMapPoint, PublicAlert, SosEvent } from '../types';
 
 interface PoliceDutyMapProps {
   active: boolean;
@@ -135,6 +135,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const serviceLabelsRef = useRef<maplibregl.Marker[]>([]);
   const operationalMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const alertMarkersRef = useRef<maplibregl.Marker[]>([]);
   const onOpenCaseRef = useRef(onOpenCase);
   const [mapReady, setMapReady] = useState(false);
   const [area, setArea] = useState<AreaLookup | null>(null);
@@ -143,6 +144,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
   const [pointsLoading, setPointsLoading] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [operationalPoints, setOperationalPoints] = useState<OperationalMapPoint[]>([]);
+  const [publicAlerts, setPublicAlerts] = useState<PublicAlert[]>([]);
   const [error, setError] = useState('');
   const [viewRevision, setViewRevision] = useState(0);
   const queueVersion = queue
@@ -212,6 +214,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
       markersRef.current.forEach((marker) => marker.remove());
       serviceLabelsRef.current.forEach((marker) => marker.remove());
       operationalMarkersRef.current.forEach((marker) => marker.remove());
+      alertMarkersRef.current.forEach((marker) => marker.remove());
       map.remove();
       mapRef.current = null;
     };
@@ -290,6 +293,17 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
     const timer = window.setInterval(load, 15_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [active]);
+
+  useEffect(() => {
+    if (!active || !localityCode) { setPublicAlerts([]); return; }
+    let cancelled = false;
+    const load = () => void listPublicAlerts(localityCode)
+      .then((items) => { if (!cancelled) setPublicAlerts((previous) => JSON.stringify(previous) === JSON.stringify(items) ? previous : items); })
+      .catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 15_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [active, localityCode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -435,6 +449,32 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
     });
   }, [mapReady, operationalPoints]);
 
+  const alertPoints = publicAlerts.filter((alert) => alert.latitude !== null && alert.longitude !== null);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    alertMarkersRef.current.forEach((marker) => marker.remove());
+    alertMarkersRef.current = alertPoints.map((alert) => {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = `duty-alert-marker ${alert.riskLevel}`;
+      const badge = document.createElement('span');
+      badge.textContent = '!';
+      element.append(badge);
+      element.setAttribute('aria-label', `Cảnh báo công khai: ${alert.title}`);
+      const content = document.createElement('div');
+      content.className = 'operational-point-popup';
+      const title = document.createElement('strong'); title.textContent = alert.title;
+      const meta = document.createElement('span');
+      meta.textContent = `Cảnh báo công khai · hiệu lực đến ${new Date(alert.endsAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`;
+      const summary = document.createElement('p'); summary.textContent = alert.summary;
+      content.append(title, meta, summary);
+      return new maplibregl.Marker({ element }).setLngLat([alert.longitude as number, alert.latitude as number])
+        .setPopup(new maplibregl.Popup({ offset: 24, maxWidth: '280px' }).setDOMContent(content)).addTo(map);
+    });
+  }, [mapReady, publicAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sosCount = points.filter((point) => point.item.kind === 'sos').length;
   const incidentCount = points.length - sosCount;
   const referenceAreaCount = area?.serviceAreas.filter((serviceArea) => serviceArea.isDemo).length ?? 0;
@@ -458,6 +498,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
       <div className="duty-map-legend" aria-label="Chú giải điểm nghiệp vụ">
         <span className="sos"><Siren size={15} aria-hidden="true" /><strong>{sosCount}</strong> SOS</span>
         <span className="incident"><FileWarning size={15} aria-hidden="true" /><strong>{incidentCount}</strong> Phản ánh</span>
+        <span className="alert"><BellRing size={15} aria-hidden="true" /><strong>{alertPoints.length}</strong> Cảnh báo</span>
         <span className="boundary"><LocateFixed size={15} aria-hidden="true" /> Ranh phụ trách</span>
         <button type="button" className={showCompleted ? 'active' : ''} onClick={() => setShowCompleted((value) => !value)} aria-pressed={showCompleted}>
           {showCompleted ? 'Ẩn hồ sơ kết thúc' : 'Hiện hồ sơ kết thúc'}

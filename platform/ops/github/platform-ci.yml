@@ -1,0 +1,68 @@
+name: platform-ci
+
+on:
+  push:
+    branches: [dataforlife, main]
+    paths: ['platform/**', 'assets/**', '.github/workflows/platform-ci.yml']
+  pull_request:
+    paths: ['platform/**', 'assets/**', '.github/workflows/platform-ci.yml']
+
+concurrency:
+  group: platform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  checks:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  postgis:
+    name: Integration tests on PostgreSQL + PostGIS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cskv_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cskv_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/cskv_test
+      PUSH_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/cskv_push_test
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare throwaway databases
+        run: |
+          TEST_DB_URL="$TEST_DATABASE_URL" bash ops/prepare-test-db.sh
+          psql postgres://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE cskv_push_test"
+      - name: API tests against the real database
+        working-directory: platform/api
+        run: npx vitest run

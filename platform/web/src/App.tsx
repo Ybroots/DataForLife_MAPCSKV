@@ -634,7 +634,8 @@ export default function App() {
             <MapAssistant areaCode={area?.code ?? null} areaName={area?.name ?? null}
               onAreaSelect={code => { navigateToFeature('directory'); setMobileView('map'); void selectAreaCode(code, false); }}
               onClose={() => { navigateToFeature('directory'); window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.map-assistant-trigger')?.focus({ preventScroll: true })); }}
-              onOpenSos={() => navigateToFeature('sos')} />
+              onOpenSos={() => navigateToFeature('sos')}
+              onOpenReports={() => navigateToFeature('reports')} />
           </Suspense>}
         </main>
       ) : (

@@ -49,6 +49,11 @@ async function officerLogin(page, credentials) {
   await page.locator('input[name="password"]').fill(credentials.API_OFFICER_PASSWORD);
   await page.locator('form button[type="submit"]').click();
   await page.waitForSelector('.police-portal');
+  // A citizen SOS is already waiting, so the full-screen red alarm comes up: open the case from it.
+  const alarm = page.locator('.sos-emergency-overlay');
+  try { await alarm.waitFor({ timeout: 10_000 }); } catch { return; }
+  await alarm.getByRole('button', { name: 'Xem hồ sơ trước' }).click();
+  await alarm.waitFor({ state: 'detached' });
 }
 
 async function transition(page, action, note, terminal = false) {

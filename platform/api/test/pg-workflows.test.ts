@@ -136,3 +136,18 @@ describe('postgres only: duty gate and ownership', () => {
     } finally { await p.end(); }
   });
 });
+
+describe('officer publishes a located alert', () => {
+  it('accepts a point inside the locality and refuses one outside it', async () => {
+    const a = await newApp();
+    const base = { title: 'Cảnh báo kiểm thử vị trí', category: 'traffic', riskLevel: 'info', summary: 'Nội dung cảnh báo kiểm thử hợp lệ.', startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString() };
+    const inside = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: { ...base, latitude: 11.944, longitude: 108.441 } });
+    expect(inside.statusCode).toBe(201);
+    expect(inside.json().data).toMatchObject({ latitude: 11.944, longitude: 108.441, areaCode: '24781' });
+    const outside = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: { ...base, latitude: 10.5, longitude: 106.5 } });
+    expect(outside.statusCode).toBe(400);
+    const listed = await a.inject({ method: 'GET', url: '/v1/public/alerts?areaCode=24781' });
+    expect(listed.json().data.some((item: { title: string; latitude: number | null }) => item.title === base.title && item.latitude === 11.944)).toBe(true);
+    await repo!['pool'].query(`DELETE FROM public_alerts WHERE title = $1`, [base.title]);
+  });
+});

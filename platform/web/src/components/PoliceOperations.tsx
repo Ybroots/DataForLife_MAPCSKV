@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
 import { BarChart3, BellRing, Bot, Camera, CheckCircle2, ClipboardCheck, Database, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
 import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
@@ -6,6 +6,12 @@ import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
 
 import { OfficerStatisticsPanel } from './OfficerStatisticsPanel';
 import { OfficerMapDataManager } from './OfficerMapDataManager';
+import type { AlertPoint } from './AlertLocationPicker';
+
+const AlertLocationPicker = lazy(async () => {
+  const module = await import('./AlertLocationPicker');
+  return { default: module.AlertLocationPicker };
+});
 
 type Tab = 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'roadmap';
 
@@ -13,8 +19,10 @@ function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
 }
 
-export function PoliceOperations() {
+export function PoliceOperations({ localityCode }: { localityCode: string | null }) {
   const [tab, setTab] = useState<Tab>('reports');
+  const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
+  const [pickerKey, setPickerKey] = useState(0);
   const [patrols, setPatrols] = useState<PatrolSession[]>([]);
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,7 +38,9 @@ export function PoliceOperations() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const submitAlert = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setBusy(true); setNotice('');
+    event.preventDefault(); setNotice('');
+    if (!alertPoint) { setNotice('Chọn vị trí cảnh báo trong ranh địa bàn: bấm vào bản đồ hoặc nhập tọa độ.'); return; }
+    setBusy(true);
     const form = event.currentTarget;
     const data = new FormData(event.currentTarget);
     const now = new Date();
@@ -39,9 +49,10 @@ export function PoliceOperations() {
       const alert = await createPublicAlert({
         title: String(data.get('title')), summary: String(data.get('summary')),
         category: String(data.get('category')) as PublicAlert['category'], riskLevel: String(data.get('risk')) as PublicAlert['riskLevel'],
-        latitude: null, longitude: null, startsAt: now.toISOString(), endsAt: new Date(now.getTime() + hours * 3_600_000).toISOString(),
+        latitude: alertPoint.latitude, longitude: alertPoint.longitude, startsAt: now.toISOString(), endsAt: new Date(now.getTime() + hours * 3_600_000).toISOString(),
       });
-      setNotice(`Đã phát hành cảnh báo “${alert.title}” trong ${hours} giờ.`); form.reset();
+      setNotice(`Đã phát hành cảnh báo “${alert.title}” trong ${hours} giờ. Cảnh báo hiện trên bản đồ người dân; thiết bị đã bật thông báo của địa bàn sẽ nhận trong ít phút.`);
+      form.reset(); setAlertPoint(null); setPickerKey((key) => key + 1);
     } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); }
   };
 
@@ -92,10 +103,13 @@ export function PoliceOperations() {
       {tab === 'mapdata' && <OfficerMapDataManager />}
 
       {tab === 'alerts' && <form className="operations-form" onSubmit={submitAlert}>
-        <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3><p>Cảnh báo được hiển thị ngay trên ứng dụng người dân trong thời gian hiệu lực.</p></div></div>
+        <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3><p>Chọn vị trí trên bản đồ hoặc nhập tọa độ. Cảnh báo hiện ngay trên bản đồ người dân trong thời gian hiệu lực và gửi thông báo tới thiết bị đã bật thông báo.</p></div></div>
         <label>Tiêu đề<input name="title" minLength={5} maxLength={160} required placeholder="Ví dụ: Mật độ giao thông tăng" /></label>
         <div className="form-grid"><label>Nhóm<select name="category" defaultValue="security"><option value="security">An ninh</option><option value="traffic">Giao thông</option><option value="fire_rescue">PCCC/CNCH</option><option value="weather">Thời tiết</option><option value="other">Khác</option></select></label><label>Mức độ<select name="risk" defaultValue="info"><option value="info">Thông tin</option><option value="medium">Mức vừa</option><option value="high">Mức cao</option></select></label></div>
         <label>Nội dung<textarea name="summary" minLength={10} maxLength={1200} rows={5} required placeholder="Thông tin ngắn gọn, có hướng dẫn hành động cụ thể…" /></label>
+        <Suspense fallback={<p className="workflow-empty">Đang mở bản đồ chọn vị trí…</p>}>
+          <AlertLocationPicker key={pickerKey} localityCode={localityCode} onChange={setAlertPoint} />
+        </Suspense>
         <label>Thời gian hiệu lực<select name="duration" defaultValue="4"><option value="2">2 giờ</option><option value="4">4 giờ</option><option value="8">8 giờ</option><option value="24">24 giờ</option></select></label>
         <button className="ops-submit" disabled={busy}><BellRing size={17} /> Phát hành cảnh báo</button>
       </form>}

@@ -2089,3 +2089,25 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
     min-height: 44px;
   }
 }
+
+/* Cảnh báo khu vực: bộ chọn vị trí của cán bộ và điểm cảnh báo trên bản đồ trực ban */
+.alert-location-picker { display: grid; gap: 10px; }
+.alert-picker-head { display: grid; gap: 2px; font-size: 13px; color: var(--color-ink); }
+.alert-picker-head small { color: #5b6a72; font-size: 12px; }
+.alert-picker-map { height: clamp(260px, 42vh, 380px); border: 1px solid #ccd5da; border-radius: 8px; overflow: hidden; }
+.alert-picker-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.alert-picker-actions button { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid #ccd5da; border-radius: 8px; background: #fff; color: var(--color-ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.alert-picker-actions button:disabled { opacity: .6; cursor: default; }
+.alert-picker-note { margin: 0; font-size: 12px; color: #5b6a72; }
+.alert-picker-note.warning { color: #b26900; font-weight: 700; }
+.duty-alert-marker { width: 34px; height: 34px; display: grid; place-items: center; border: 3px solid #fff; border-radius: 50% 50% 50% 9px; transform: rotate(-45deg); color: #fff; background: #b26900; box-shadow: none; font-size: 15px; font-weight: 800; cursor: pointer; }
+.duty-alert-marker.high { background: var(--color-primary-deep, #8f1022); }
+.duty-alert-marker.info { background: #2f6f86; }
+.duty-alert-marker > span { transform: rotate(45deg); }
+
+/* Trợ lý AI: khối khẩn cấp và chuyển người thật */
+.map-assistant-emergency { display: grid; gap: 6px; margin-top: 8px; padding: 10px 12px; border: 1px solid #d71935; border-radius: 8px; background: #fff5f6; }
+.map-assistant-emergency a { color: #a4102a; font-weight: 700; }
+.map-assistant-emergency p { margin: 0; line-height: 1.7; }
+.map-assistant-handoff { display: grid; gap: 6px; margin-top: 8px; padding: 10px 12px; border: 1px solid #ccd5da; border-radius: 8px; background: #f7f9fa; }
+.map-assistant-handoff p { margin: 0; }

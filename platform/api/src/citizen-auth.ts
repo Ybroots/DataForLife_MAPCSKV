@@ -7,11 +7,6 @@ export interface CitizenCredential {
   displayName: string;
 }
 
-export interface CitizenSessionIdentity {
-  id: string;
-  displayName: string;
-}
-
 interface CitizenSessionPayload {
   citizenId: string;
   expiresAt: number;

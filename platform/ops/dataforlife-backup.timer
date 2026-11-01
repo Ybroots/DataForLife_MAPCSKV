@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the DataForLife database every night
+
+[Timer]
+OnCalendar=*-*-* 02:17:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

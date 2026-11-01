@@ -126,9 +126,13 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
     let cancelled = false;
     setPublicAlerts([]); setAlertsFailed(false);
     if (!area?.code) return;
-    void listPublicAlerts(area.code).then(alerts => { if (!cancelled) setPublicAlerts(alerts); })
+    const load = () => void listPublicAlerts(area.code)
+      .then(alerts => { if (!cancelled) { setAlertsFailed(false); setPublicAlerts(previous => JSON.stringify(previous) === JSON.stringify(alerts) ? previous : alerts); } })
       .catch(() => { if (!cancelled) setAlertsFailed(true); });
-    return () => { cancelled = true; };
+    load();
+    // Cảnh báo mới do cán bộ phát hành hiện lên mà người dân không phải tải lại trang.
+    const timer = window.setInterval(() => { if (!document.hidden) load(); }, 60_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [area?.code]);
 
   const selectedServiceArea = area?.serviceAreas.find((serviceArea) => serviceArea.code === selectedServiceAreaCode) ?? null;

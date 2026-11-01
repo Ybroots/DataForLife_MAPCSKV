@@ -53,9 +53,12 @@ import { useSosAlerts } from '../officer-alerts';
 import { WorkflowTimeline } from './WorkflowTimeline';
 import { IncidentCollaboration } from './IncidentCollaboration';
 import { PoliceOperations } from './PoliceOperations';
+import { SosEmergencyOverlay } from './SosEmergencyOverlay';
 import directoryLogoUrl from '../../../../assets/images/logo-transparent.png';
 
 type WorkDetail = Incident | SosEvent;
+/** Shown to the citizen in the SOS timeline when an officer takes the SOS from the alarm screen. */
+const QUICK_ACK_NOTE = 'Cán bộ khu vực đã nhận tín hiệu SOS và đang liên hệ với bạn.';
 type QueueFilter = 'all' | 'sos' | 'incident';
 type QueueScope = 'attention' | 'mine' | 'unassigned' | 'all';
 type QueueSort = 'priority' | 'newest' | 'oldest';
@@ -197,6 +200,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const [publicMessage, setPublicMessage] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [sosAcceptingId, setSosAcceptingId] = useState<string | null>(null);
+  const [sosAlertError, setSosAlertError] = useState('');
   const actionFormRef = useRef<HTMLFormElement>(null);
   const filterSheetRef = useRef<HTMLElement>(null);
 
@@ -368,6 +373,39 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
     setMobilePane('detail');
   };
 
+  // Alarm screen: take the SOS in one tap (acknowledged + assigned to me, message to the citizen), then open it.
+  const acceptSos = async (item: OfficerQueueItem) => {
+    setSosAcceptingId(item.id);
+    setSosAlertError('');
+    try {
+      const payload = await transitionOfficerSos(item.id, 'acknowledged', QUICK_ACK_NOTE, currentActorId, true);
+      alerts.hide([item.id]);
+      detailRequestId.current += 1;
+      setSelectedKey(`sos:${item.id}`);
+      setDetail(payload.data);
+      setTargetStatus('');
+      setCriticalConfirmation(false);
+      setNote('');
+      setPublicMessage(false);
+      setMobilePane('detail');
+      await loadQueue(true);
+    } catch (caught) {
+      setSosAlertError(`${errorMessage(caught)} Hàng đợi đã được tải lại.`);
+      await loadQueue(true);
+    } finally {
+      setSosAcceptingId(null);
+    }
+  };
+
+  const alarmFrontId = alerts.overlayItems[0]?.id;
+  useEffect(() => { setSosAlertError(''); }, [alarmFrontId]);
+
+  const viewSosFromAlarm = (item: OfficerQueueItem) => {
+    alerts.hide([item.id]);
+    setSosAlertError('');
+    selectItem(item);
+  };
+
   const submitTransition = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!detail || !targetStatus || note.trim().length < requiredNoteLength) return;
@@ -466,10 +504,13 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
           <div className="sos-alert-control">
             <button type="button" className={alerts.enabled ? 'sos-alert-toggle on' : 'sos-alert-toggle'} aria-pressed={alerts.enabled} onClick={alerts.enabled ? alerts.disable : () => void alerts.enable()}>
               {alerts.enabled ? <Bell size={17} aria-hidden="true" /> : <BellOff size={17} aria-hidden="true" />}
-              <span>Cảnh báo SOS: {alerts.enabled ? 'Bật' : 'Tắt'}</span>
+              <span>Còi SOS: {alerts.enabled ? 'Bật' : 'Tắt'}</span>
             </button>
-            {alerts.enabled && alerts.permission !== 'granted' && <small>Chưa cấp quyền thông báo trình duyệt: chỉ có âm thanh khi tab đang mở.</small>}
-            {!alerts.enabled && <small>Bật để nghe chuông và nhận thông báo khi có SOS mới.</small>}
+            {alerts.enabled && alerts.permission === 'default' && (
+              <button type="button" className="sos-alert-permission" onClick={() => void alerts.requestPermission()}>Cho phép thông báo khi tab ẩn</button>
+            )}
+            {alerts.enabled && alerts.permission === 'denied' && <small>Trình duyệt chặn thông báo: còi và màn hình đỏ chỉ hiện khi trang cán bộ đang mở.</small>}
+            {!alerts.enabled && <small>Còi đang tắt. SOS mới vẫn hiện màn hình đỏ nhưng không có tiếng.</small>}
           </div>
           {alerts.pendingCount > 0 && (
             <p className="sos-alert-banner" role="alert"><Siren size={18} aria-hidden="true" /> Có {alerts.pendingCount} SOS đang chờ tiếp nhận.</p>
@@ -658,7 +699,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             </Suspense>
           </section>
 
-          <PoliceOperations />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} />
         </div>
       </main>
 
@@ -719,6 +760,18 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         <button type="button" className={mobilePane === 'detail' ? 'active' : ''} onClick={() => setMobilePane('detail')} disabled={!detail}><FileWarning size={21} aria-hidden="true" />Hồ sơ</button>
         <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={21} aria-hidden="true" />Nghiệp vụ</button>
       </nav>
+      <SosEmergencyOverlay
+        items={alerts.overlayItems}
+        sirenOn={alerts.sirenOn}
+        soundBlocked={alerts.soundBlocked}
+        soundEnabled={alerts.enabled}
+        acceptingId={sosAcceptingId}
+        error={sosAlertError}
+        onAccept={(item) => void acceptSos(item)}
+        onView={viewSosFromAlarm}
+        onMute={alerts.mute}
+        onUnlockSound={alerts.unlockSound}
+      />
     </div>
   );
 }

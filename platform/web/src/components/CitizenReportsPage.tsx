@@ -9,7 +9,6 @@ import {
   Paperclip,
   RefreshCw,
   Send,
-  ShieldCheck,
 } from 'lucide-react';
 import { addCitizenIncidentAttachment, addCitizenIncidentMessage, ApiError, createIncident, getCitizenIncident, listCitizenIncidentMessages, listCitizenIncidents, withdrawCitizenIncident } from '../api';
 import type { Incident, IncidentAttachment, IncidentMessage, IncidentStatus } from '../types';

@@ -49,6 +49,13 @@ export class OperationalExtensionsStore {
     input: Omit<PublicAlertResponse, 'id' | 'areaCode' | 'status' | 'createdAt'>,
   ): Promise<PublicAlertResponse> {
     const actor = await this.requireActor(actorId);
+    if (input.latitude !== null && input.longitude !== null) {
+      const inside = await this.pool.query(
+        `SELECT 1 FROM boundaries b WHERE b.locality_id=$1 AND ST_Covers(b.geom,ST_SetSRID(ST_Point($3,$2),4326)) LIMIT 1`,
+        [actor.locality_id, input.latitude, input.longitude],
+      );
+      if (!inside.rows[0]) throw new WorkflowError('INVALID_INPUT', 'Vị trí cảnh báo phải nằm trong ranh địa bàn được phân quyền.');
+    }
     const id = randomUUID();
     const result = await this.pool.query(
       `INSERT INTO public_alerts (

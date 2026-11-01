@@ -1,0 +1,8 @@
+[Unit]
+Description=Check that the DataForLife API answers
+
+[Service]
+Type=oneshot
+# Đặt ALERT_WEBHOOK_URL trong tệp này nếu muốn nhận cảnh báo (tùy chọn, quyền 600).
+EnvironmentFile=-/etc/dataforlife/healthcheck.env
+ExecStart=/usr/local/sbin/dataforlife-healthcheck

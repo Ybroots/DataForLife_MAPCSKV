@@ -10,10 +10,19 @@ interface Props {
   onAreaSelect: (code: string) => void;
   onClose: () => void;
   onOpenSos: () => void;
+  onOpenReports: () => void;
 }
 interface Turn { question: string; answer: MapAssistantAnswer }
 
-export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpenSos }: Props) {
+/** No approved answer: offer a person instead of leaving the citizen at a dead end. */
+function needsHandoff(answer: MapAssistantAnswer): boolean {
+  if (answer.intent === 'unsupported') return true;
+  if (answer.needsClarification) return false;
+  if (answer.intent === 'hotlines') return answer.hotlines.length === 0;
+  return (answer.intent === 'area' || answer.intent === 'directory' || answer.intent === 'alerts') && answer.areas.length === 0;
+}
+
+export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpenSos, onOpenReports }: Props) {
   const [status, setStatus] = useState<MapAssistantStatus | null>(null);
   const [statusFailed, setStatusFailed] = useState(false);
   const [statusAttempt, setStatusAttempt] = useState(0);
@@ -110,7 +119,15 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
             </>}
           </div>)}
           {answer.hotlines.map(hotline => <p key={hotline.id}><strong>{hotline.label}</strong><br /><a href={`tel:${hotline.phone.replace(/[^+\d]/g, '')}`}>{hotline.phone}</a></p>)}
-          {answer.intent === 'emergency' && <button className="map-assistant-text-button" type="button" onClick={onOpenSos}>Mở quy trình SOS</button>}
+          {answer.intent === 'emergency' && <div className="map-assistant-emergency">
+            <p><a href="tel:113">Gọi 113 · Công an</a><br /><a href="tel:114">Gọi 114 · Cứu hỏa, cứu nạn</a><br /><a href="tel:115">Gọi 115 · Cấp cứu</a></p>
+            <button className="map-assistant-text-button" type="button" onClick={onOpenSos}>Mở quy trình SOS</button>
+          </div>}
+          {needsHandoff(answer) && <div className="map-assistant-handoff">
+            <p>Trợ lý chưa có câu trả lời đã duyệt cho câu này. Bạn có thể hỏi trực tiếp cán bộ:</p>
+            {areaCode && <button className="map-assistant-text-button" type="button" onClick={() => onAreaSelect(areaCode)}><MapPinned size={16} aria-hidden="true" />Xem đầu mối {areaName ?? 'địa bàn đang xem'}</button>}
+            <button className="map-assistant-text-button" type="button" onClick={onOpenReports}>Gửi câu hỏi cho cán bộ (mục Phản ánh)</button>
+          </div>}
           <small className="map-assistant-source">Nguồn: danh bạ, địa bàn và cảnh báo công khai · {new Date(answer.meta.retrievedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{answer.meta.dataSource === 'fixture' && ' · Dữ liệu kiểm thử, không dùng thực tế'}</small>
         </article>)}
         <div role="status" aria-live="polite" aria-atomic="true" className={pending ? 'map-assistant-progress' : 'sr-only'}>{pending ? <><LoaderCircle size={16} className="spin" aria-hidden="true" /> Đang đối chiếu dữ liệu…</> : turns.length > 0 ? 'Đã trả kết quả tra cứu.' : ''}</div>
@@ -122,7 +139,10 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
         <label htmlFor="map-ai-question">Câu hỏi của bạn</label>
         <div className="map-assistant-input">
           <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!status?.configured || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
-          <button type="submit" disabled={!status?.configured || pending || question.trim().length < 3} aria-label="Gửi câu hỏi"><ArrowUp size={20} aria-hidden="true" /></button>
+          <button type="submit" disabled={!status?.configured || pending || question.trim().length < 3} aria-label="Gửi câu hỏi"
+            // Keep focus in the field: on phones a blur hides the keyboard and shifts the sheet before the tap
+            // completes, so the click would land outside the button and the question would not be sent.
+            onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}><ArrowUp size={20} aria-hidden="true" /></button>
         </div>
         <small>{status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Không nhập thông tin cá nhân. Không tiếp nhận SOS.</small>
       </form>

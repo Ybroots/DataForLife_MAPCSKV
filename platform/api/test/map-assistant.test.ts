@@ -94,6 +94,43 @@ describe('map assistant: public data boundary', () => {
   });
 });
 
+describe('map assistant: safety checks before the model', () => {
+  it('answers emergencies on the server without calling the model, with or without diacritics', async () => {
+    for (const question of ['Cứu với, nhà tôi đang cháy', 'co nguoi bi dam o cho', 'Vừa xảy ra tai nạn trên đèo Prenn', 'Có kẻ dọa giết tôi']) {
+      const model = planner();
+      const answer = await answerMapQuestion(new FixtureDirectoryRepository(), model, question, null);
+      expect(answer.intent).toBe('emergency');
+      expect(answer.message).toContain('113');
+      expect(model.plan).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still answers the emergency when the provider is down', async () => {
+    const down: AssistantPlanner = { provider: 'Gemini', plan: vi.fn().mockRejectedValue(new Error('down')) };
+    const answer = await answerMapQuestion(new FixtureDirectoryRepository(), down, 'Khẩn cấp, có người bất tỉnh', null);
+    expect(answer.intent).toBe('emergency');
+  });
+
+  it('does not treat ordinary procedure questions as emergencies', async () => {
+    for (const question of ['Thủ tục đăng ký tạm trú khi thuê nhà', 'Giấy chứng nhận phòng cháy chữa cháy làm ở đâu', 'Số liên hệ phường Xuân Hương']) {
+      const model = planner();
+      await answerMapQuestion(new FixtureDirectoryRepository(), model, question, null);
+      expect(model.plan).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('refuses a question containing a 12-digit personal ID before reaching the model', async () => {
+    for (const question of ['Số căn cước 068123456789 của tôi đăng ký tạm trú chưa', 'CCCD 068 123 456 789 bị mất thì sao']) {
+      const model = planner();
+      await expect(answerMapQuestion(new FixtureDirectoryRepository(), model, question, null)).rejects.toMatchObject({ status: 400, code: 'AI_PERSONAL_DATA' });
+      expect(model.plan).not.toHaveBeenCalled();
+    }
+    const model = planner();
+    await answerMapQuestion(new FixtureDirectoryRepository(), model, 'Gọi số 0263 3822 000 được không', null);
+    expect(model.plan).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('map assistant limits', () => {
   it('rejects malformed questions before invoking the provider', async () => {
     const model = planner();
