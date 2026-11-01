@@ -26,6 +26,11 @@ import type {
   StatisticsPeriod,
   MapAssistantStatus,
   MapAssistantAnswer,
+  AiStatus,
+  AppRating,
+  DuplicateCandidate,
+  IncidentAiReview,
+  IncidentDraft,
 } from './types';
 
 import { apiFetch } from './native-api';
@@ -437,4 +442,58 @@ export async function transitionOfficerSos(
 
 export async function listOfficerNotifications(): Promise<{ data: OfficerNotification[]; meta: WorkflowMeta }> {
   return request('/v1/officer/notifications', { headers: officerHeaders() });
+}
+
+/* ---------- AI hỗ trợ điền phiếu, nhóm trùng, gợi ý lĩnh vực, đánh giá ---------- */
+
+export async function getAiStatus(signal?: AbortSignal): Promise<AiStatus> {
+  return (await request<{ data: AiStatus }>('/v1/ai/status', { signal })).data;
+}
+
+export async function draftIncidentWithAi(text: string): Promise<IncidentDraft> {
+  return (await request<{ data: IncidentDraft }>('/v1/citizen/incident-draft', {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ text }),
+  })).data;
+}
+
+export async function listIncidentDuplicates(id: string): Promise<DuplicateCandidate[]> {
+  return (await request<{ data: DuplicateCandidate[] }>(`/v1/officer/incidents/${encodeURIComponent(id)}/duplicates`, { headers: officerHeaders() })).data;
+}
+
+export async function setIncidentDuplicateOf(id: string, primaryId: string | null): Promise<Incident> {
+  return (await request<{ data: Incident }>(`/v1/officer/incidents/${encodeURIComponent(id)}/duplicate-of`, {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ primaryId }),
+  })).data;
+}
+
+export async function getIncidentAiReview(id: string): Promise<IncidentAiReview | null> {
+  return (await request<{ data: IncidentAiReview | null }>(`/v1/officer/incidents/${encodeURIComponent(id)}/ai-review`, { headers: officerHeaders() })).data;
+}
+
+export async function requestIncidentAiReview(id: string): Promise<IncidentAiReview> {
+  return (await request<{ data: IncidentAiReview }>(`/v1/officer/incidents/${encodeURIComponent(id)}/ai-review`, {
+    method: 'POST', headers: officerHeaders(), body: '{}',
+  })).data;
+}
+
+export async function decideIncidentCategory(id: string, category: Incident['category'], reviewId: string | null): Promise<Incident> {
+  return (await request<{ data: Incident }>(`/v1/officer/incidents/${encodeURIComponent(id)}/category`, {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ category, reviewId }),
+  })).data;
+}
+
+export async function getAppRating(): Promise<AppRating | null> {
+  return (await request<{ data: AppRating | null }>('/v1/citizen/app-rating', { headers: citizenHeaders() })).data;
+}
+
+export async function saveAppRating(score: number, comment: string): Promise<AppRating> {
+  return (await request<{ data: AppRating }>('/v1/citizen/app-rating', {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ score, comment: comment.trim() || null }),
+  })).data;
+}
+
+export async function createSosRating(receiptCode: string, score: number, comment: string): Promise<SatisfactionRating> {
+  return (await request<{ data: SatisfactionRating }>(`/v1/citizen/sos/${encodeURIComponent(receiptCode)}/rating`, {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ score, comment: comment.trim() || null }),
+  })).data;
 }

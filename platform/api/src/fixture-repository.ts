@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { notificationTitle, paginateNotifications } from './citizen-notifications.js';
 import type { CitizenNotification, CitizenNotificationPage, NotificationQuery } from './types.js';
+import { haversineMeters, rankDuplicates, type DuplicateCaseInput } from './incident-intelligence.js';
 import type {
+  AppRatingResponse,
+  DuplicateCandidateResponse,
+  IncidentAiReviewResponse,
+  IncidentSuggestion,
+  OfficerKpiResponse,
   AreaLookupResponse,
   AreaOverview,
   AreaSummary,
@@ -244,6 +250,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
       });
     });
     this.incidents.set(id, item);
+    this.refreshDuplicateSuggestion(id);
     return publicIncident(item);
   }
 
@@ -337,12 +344,12 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     return [...this.sosEvents.values()]
       .filter((item) => item.citizenId === citizenId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map(publicSos);
+      .map((item) => this.withSosRating(publicSos(item)));
   }
 
   async getCitizenSos(citizenId: string, receiptCode: string): Promise<SosResponse | null> {
     const item = [...this.sosEvents.values()].find((entry) => entry.citizenId === citizenId && entry.receiptCode === receiptCode);
-    return item ? publicSos(item) : null;
+    return item ? this.withSosRating(publicSos(item)) : null;
   }
 
   async cancelCitizenSos(citizenId: string, receiptCode: string, note: string): Promise<SosResponse> {
@@ -408,6 +415,9 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         localityCode: item.location.localityCode, localityName: item.location.localityName,
         serviceAreaName: item.location.serviceAreaName, assignedOfficer: item.assignedOfficer,
         createdAt: item.createdAt, updatedAt: item.updatedAt,
+        duplicateOfReceiptCode: this.incidents.get(this.duplicateLinks.get(item.id) ?? '')?.receiptCode ?? null,
+        suggestedDuplicateReceiptCode: this.duplicateLinks.has(item.id) ? null
+          : this.incidents.get(this.suggestedDuplicates.get(item.id)?.id ?? '')?.receiptCode ?? null,
       }));
     const statusOrder: Record<string, number> = {
       triggered: 0, dispatched: 0, escalated: 1, acknowledged: 2, responding: 3, resolved: 4,
@@ -427,7 +437,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     if (!item) return null;
     const clone = structuredClone(item);
     clone.satisfactionRating = structuredClone(this.ratings.get(`${item.citizenId}:${item.id}`) ?? null);
-    return clone;
+    return this.withDuplicateInfo(clone);
   }
 
   async getOfficerSos(actorId: string, id: string): Promise<SosResponse | null> {
@@ -517,6 +527,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
       totals: { incidents: incidents.length, sos: sos.length, resolved, open: incidents.length + sos.length - resolved, overdue: 0, averageResolutionMinutes: null, averageRating: null, ratingCount: this.ratings.size },
       trend: [{ label: anchorDate, incidents: incidents.length, sos: sos.length, resolved }],
       categories: [],
+      kpis: this.fixtureKpis(incidents, sos),
     };
   }
 
@@ -564,7 +575,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
       item.assignedOfficer = { id: assignee.id, displayName: assignee.displayName };
     }
     this.pushIncidentHistory(item, toStatus, actorId, actor.actorType, note, publicMessage);
-    return structuredClone(item);
+    return this.withDuplicateInfo(structuredClone(item));
   }
 
   async transitionSos(
@@ -602,6 +613,178 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   private readonly citizenNotificationReads = new Map<string, string>();
+
+  /* ---------- Nhóm trùng, gợi ý AI, đánh giá SOS/ứng dụng, chỉ số (kho mẫu) ---------- */
+
+  private readonly duplicateLinks = new Map<string, string>();
+  private readonly suggestedDuplicates = new Map<string, { id: string; score: number }>();
+  private readonly aiReviews: IncidentAiReviewResponse[] = [];
+  private readonly sosRatings = new Map<string, SatisfactionRatingResponse>();
+  private readonly appRatings = new Map<string, AppRatingResponse>();
+
+  private duplicateCase(item: IncidentResponse): DuplicateCaseInput {
+    const primaryId = this.duplicateLinks.get(item.id);
+    const primary = primaryId ? this.incidents.get(primaryId) : undefined;
+    return {
+      id: item.id, receiptCode: item.receiptCode, category: item.category, summary: item.summary,
+      description: item.description, status: item.status, createdAt: item.createdAt,
+      duplicateOf: primary ? { id: primary.id, receiptCode: primary.receiptCode } : null,
+    };
+  }
+
+  private rankFor(id: string): DuplicateCandidateResponse[] {
+    const target = this.incidents.get(id);
+    if (!target) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    const candidates = [...this.incidents.values()]
+      .filter((item) => item.id !== id && item.location.localityCode === target.location.localityCode)
+      .map((item) => ({ item: this.duplicateCase(item), distanceM: haversineMeters(target.location, item.location) }));
+    return rankDuplicates(this.duplicateCase(target), candidates);
+  }
+
+  private refreshDuplicateSuggestion(id: string): void {
+    if (this.duplicateLinks.has(id)) return;
+    const best = this.rankFor(id).find((item) => item.level === 'likely');
+    const target = best ? best.duplicateOf ?? { id: best.id, receiptCode: best.receiptCode } : null;
+    if (target && best) this.suggestedDuplicates.set(id, { id: target.id, score: best.score });
+    else this.suggestedDuplicates.delete(id);
+  }
+
+  private withDuplicateInfo(incident: IncidentResponse): IncidentResponse {
+    const primary = this.incidents.get(this.duplicateLinks.get(incident.id) ?? '');
+    const suggestion = this.suggestedDuplicates.get(incident.id);
+    const suggested = primary ? undefined : this.incidents.get(suggestion?.id ?? '');
+    return {
+      ...incident,
+      duplicateOf: primary ? { id: primary.id, receiptCode: primary.receiptCode } : null,
+      suggestedDuplicateOf: suggested && suggestion ? { id: suggested.id, receiptCode: suggested.receiptCode, score: suggestion.score } : null,
+      duplicates: [...this.duplicateLinks].filter(([, primaryId]) => primaryId === incident.id)
+        .map(([childId]) => this.incidents.get(childId)!)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((child) => ({ id: child.id, receiptCode: child.receiptCode })),
+    };
+  }
+
+  private withSosRating(sos: SosResponse): SosResponse {
+    return { ...sos, satisfactionRating: structuredClone(this.sosRatings.get(sos.id) ?? null) };
+  }
+
+  async findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]> {
+    this.requireActor(actorId);
+    return this.rankFor(incidentId);
+  }
+
+  async setIncidentDuplicateOf(actorId: string, incidentId: string, primaryId: string | null): Promise<IncidentResponse> {
+    this.requireActor(actorId);
+    const target = this.incidents.get(incidentId);
+    if (!target) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    if (primaryId === null) {
+      if (!this.duplicateLinks.delete(incidentId)) throw new WorkflowError('INVALID_INPUT', 'Phản ánh này chưa được gộp vào hồ sơ nào.');
+    } else {
+      if (primaryId === incidentId) throw new WorkflowError('INVALID_INPUT', 'Không thể gộp phản ánh vào chính nó.');
+      const primary = this.incidents.get(primaryId);
+      if (!primary || primary.location.localityCode !== target.location.localityCode) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+      if (this.duplicateLinks.has(primaryId)) throw new WorkflowError('INVALID_INPUT', `Hồ sơ ${primary.receiptCode} đã được gộp vào hồ sơ khác. Hãy gộp vào hồ sơ chính đó.`);
+      if ([...this.duplicateLinks.values()].includes(incidentId)) {
+        throw new WorkflowError('INVALID_INPUT', 'Phản ánh này đang là hồ sơ chính của phản ánh khác. Hãy gộp các phản ánh kia vào hồ sơ mới trước.');
+      }
+      this.duplicateLinks.set(incidentId, primaryId);
+      this.suggestedDuplicates.delete(incidentId);
+    }
+    target.updatedAt = new Date().toISOString();
+    return (await this.getOfficerIncident(actorId, incidentId))!;
+  }
+
+  async saveIncidentAiReview(actorId: string, incidentId: string, suggestion: IncidentSuggestion): Promise<IncidentAiReviewResponse> {
+    this.requireActor(actorId);
+    if (!this.incidents.has(incidentId)) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    const review: IncidentAiReviewResponse = {
+      ...structuredClone(suggestion), id: randomUUID(), incidentId, createdAt: new Date().toISOString(),
+      decision: null, decidedCategory: null, decidedAt: null,
+    };
+    this.aiReviews.push(review);
+    return structuredClone(review);
+  }
+
+  async getLatestIncidentAiReview(actorId: string, incidentId: string): Promise<IncidentAiReviewResponse | null> {
+    this.requireActor(actorId);
+    if (!this.incidents.has(incidentId)) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    const review = [...this.aiReviews].reverse().find((item) => item.incidentId === incidentId);
+    return review ? structuredClone(review) : null;
+  }
+
+  async decideIncidentCategory(actorId: string, incidentId: string, category: IncidentResponse['category'], reviewId: string | null): Promise<IncidentResponse> {
+    this.requireActor(actorId);
+    const item = this.incidents.get(incidentId);
+    if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    if (['closed', 'rejected'].includes(item.status)) throw new WorkflowError('INVALID_TRANSITION', 'Hồ sơ đã đóng, không đổi lĩnh vực được nữa.');
+    if (reviewId) {
+      const review = this.aiReviews.find((entry) => entry.id === reviewId && entry.incidentId === incidentId);
+      if (!review) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy gợi ý AI của hồ sơ này.');
+      review.decision = category === review.suggestedCategory ? 'accepted' : category === item.category ? 'kept' : 'changed';
+      review.decidedCategory = category;
+      review.decidedAt = new Date().toISOString();
+    }
+    if (category !== item.category) {
+      item.category = category;
+      item.updatedAt = new Date().toISOString();
+    }
+    return (await this.getOfficerIncident(actorId, incidentId))!;
+  }
+
+  async getCitizenAppRating(citizenId: string): Promise<AppRatingResponse | null> {
+    return structuredClone(this.appRatings.get(citizenId) ?? null);
+  }
+
+  async saveCitizenAppRating(citizenId: string, score: number, comment: string | null): Promise<AppRatingResponse> {
+    const now = new Date().toISOString();
+    const rating = { score, comment, createdAt: this.appRatings.get(citizenId)?.createdAt ?? now, updatedAt: now };
+    this.appRatings.set(citizenId, rating);
+    return structuredClone(rating);
+  }
+
+  async createSosRating(citizenId: string, receiptCode: string, score: number, comment: string | null): Promise<SatisfactionRatingResponse> {
+    const item = [...this.sosEvents.values()].find((entry) => entry.citizenId === citizenId && entry.receiptCode === receiptCode);
+    if (!item) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS thuộc tài khoản này.');
+    if (!['resolved', 'closed'].includes(item.status)) throw new WorkflowError('INVALID_TRANSITION', 'Chỉ đánh giá sau khi cán bộ đã xử lý xong SOS.');
+    const rating = { id: this.sosRatings.get(item.id)?.id ?? randomUUID(), receiptCode, score, comment, createdAt: new Date().toISOString() };
+    this.sosRatings.set(item.id, rating);
+    return structuredClone(rating);
+  }
+
+  private fixtureKpis(incidents: IncidentResponse[], sos: SosResponse[]): OfficerKpiResponse {
+    const ratio = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 1000 : null);
+    const average = (values: number[]) => (values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null);
+    const minutes = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 60_000;
+    const firstResponses = incidents
+      .map((item) => item.history.find((entry) => entry.actorRole === 'officer' || entry.actorRole === 'supervisor'))
+      .map((entry, index) => (entry ? minutes(incidents[index]!.createdAt, entry.createdAt) : null))
+      .filter((value): value is number => value !== null);
+    const acknowledged = sos.filter((item) => item.acknowledgedAt && item.status !== 'cancelled_by_citizen');
+    const counted = sos.filter((item) => item.status !== 'cancelled_by_citizen');
+    const decided = this.aiReviews.filter((item) => item.decision !== null);
+    const accepted = decided.filter((item) => item.decision === 'accepted').length;
+    const incidentScores = [...this.ratings.values()].map((item) => item.score);
+    const sosScores = [...this.sosRatings.values()].map((item) => item.score);
+    const appScores = [...this.appRatings.values()].map((item) => item.score);
+    return {
+      reach: { citizenAccounts: this.citizenAccounts.size, newCitizenAccounts: this.citizenAccounts.size, pushDevices: 0 },
+      response: {
+        incidentFirstResponseMinutes: average(firstResponses),
+        sosAcknowledgeMinutes: average(acknowledged.map((item) => minutes(item.createdAt, item.acknowledgedAt!))),
+        respondedRate: ratio(firstResponses.length + acknowledged.length, incidents.length + counted.length),
+      },
+      dataQuality: {
+        duplicateLinked: this.duplicateLinks.size, duplicateRate: ratio(this.duplicateLinks.size, incidents.length),
+        vneidConnected: false, vneidVerifiedRate: null,
+      },
+      ai: { reviews: this.aiReviews.length, decided: decided.length, accepted, accuracy: ratio(accepted, decided.length) },
+      satisfaction: {
+        incidentAverage: average(incidentScores), incidentCount: incidentScores.length,
+        sosAverage: average(sosScores), sosCount: sosScores.length,
+        appAverage: average(appScores), appCount: appScores.length,
+      },
+    };
+  }
 
   private citizenNotificationEvents(citizenId: string): CitizenNotification[] {
     const items: CitizenNotification[] = [];

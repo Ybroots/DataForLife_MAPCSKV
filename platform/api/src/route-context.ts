@@ -3,6 +3,7 @@ import type { DirectoryRepository } from './types.js';
 import { readOfficerSessionCookie, verifyOfficerSession, type OfficerCredential } from './officer-auth.js';
 import { verifyCitizenSession, readCitizenSessionCookie, type CitizenCredential } from './citizen-auth.js';
 import type { AssistantPlanner } from './map-assistant.js';
+import type { JsonModel } from './ai-client.js';
 import type { PushStore } from './push.js';
 import { headerIdentity } from './request-parsing.js';
 
@@ -18,6 +19,10 @@ export interface AppOptions {
   releaseValidation?: boolean;
   assistantPlanner?: AssistantPlanner;
   assistantDailyLimit?: number;
+  /** Mô hình AI cho hỗ trợ điền phiếu và gợi ý lĩnh vực/nhận biết ảnh. Không có thì các chức năng này tắt. */
+  aiModel?: JsonModel;
+  /** Số lượt gọi AI tối đa mỗi ngày cho các chức năng trên (mặc định 200). */
+  aiDailyLimit?: number;
   /** Kho thiết bị nhận thông báo đẩy. Mặc định là kho trong bộ nhớ (fixture, kiểm thử). */
   pushStore?: PushStore;
   /** true khi máy chủ có khóa FCM và thật sự gửi được thông báo đẩy. */

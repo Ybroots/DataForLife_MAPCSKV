@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileWarning, RefreshCw, Siren, Star } from 'lucide-react';
 import { ApiError, getOfficerStatistics } from '../api';
 import type { OfficerStatistics, StatisticsPeriod } from '../types';
+import { OfficerKpiTable } from './OfficerKpiTable';
 
 const periodLabels: Record<StatisticsPeriod, string> = { day: 'Ngày', month: 'Tháng', year: 'Năm' };
 const categoryLabels: Record<string, string> = {
@@ -19,6 +20,7 @@ export function OfficerStatisticsPanel() {
   const [data, setData] = useState<OfficerStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +30,7 @@ export function OfficerStatisticsPanel() {
       .catch((caught) => { if (!cancelled) setError(caught instanceof ApiError ? caught.message : 'Không tải được báo cáo.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [date, period]);
+  }, [date, period, reloadKey]);
 
   const maxTrend = useMemo(() => Math.max(1, ...(data?.trend.map((item) => item.incidents + item.sos) ?? [1])), [data]);
 
@@ -39,6 +41,7 @@ export function OfficerStatisticsPanel() {
         {(Object.keys(periodLabels) as StatisticsPeriod[]).map((item) => <button key={item} type="button" role="tab" aria-selected={period === item} className={period === item ? 'active' : ''} onClick={() => setPeriod(item)}>{periodLabels[item]}</button>)}
       </div>
       <label><span>Mốc thời gian</span><input type="date" value={date} max={todayVietnam()} onChange={(event) => setDate(event.target.value)} /></label>
+      <button type="button" className="report-refresh" onClick={() => setReloadKey((value) => value + 1)} disabled={loading}><RefreshCw size={16} aria-hidden="true" /> Cập nhật</button>
     </div>
     {loading && <p className="workflow-empty"><RefreshCw className="spin" size={18} /> Đang tổng hợp số liệu…</p>}
     {error && <p className="inline-notice error" role="alert">{error}</p>}
@@ -62,6 +65,7 @@ export function OfficerStatisticsPanel() {
         <details><summary>Xem bảng số liệu</summary><div className="statistics-table-wrap"><table><thead><tr><th>Thời gian</th><th>Phản ánh</th><th>SOS</th><th>Đã xử lý</th></tr></thead><tbody>{data.trend.map((item) => <tr key={item.label}><td>{item.label}</td><td>{item.incidents}</td><td>{item.sos}</td><td>{item.resolved}</td></tr>)}</tbody></table></div></details>
       </section>
       <section className="category-breakdown"><h4>Nhóm vụ việc</h4>{data.categories.length === 0 ? <p>Chưa có dữ liệu trong kỳ.</p> : data.categories.map((item) => <div key={item.category}><span>{categoryLabels[item.category] ?? item.category}</span><b>{item.count}</b><i style={{ width: `${Math.max(4, item.count / Math.max(1, data.totals.incidents + data.totals.sos) * 100)}%` }} /></div>)}</section>
+      {data.kpis && <OfficerKpiTable kpis={data.kpis} />}
     </>}
   </div>;
 }

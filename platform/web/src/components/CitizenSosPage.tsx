@@ -14,6 +14,7 @@ import {
 import { ApiError, cancelCitizenSos, createSos, getCitizenSos, getDutyCoverage, listCitizenSos, lookupByLocation, reportCitizenSosSafe } from '../api';
 import type { SosEvent, SosStatus } from '../types';
 import { WorkflowTimeline } from './WorkflowTimeline';
+import { SosRatingInline } from './SosRatingInline';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { createRequestId } from '../request-id';
 
@@ -499,6 +500,14 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             )}
             {['triggered', 'dispatched'].includes(activeEvent.status) && <button className="danger-outline" type="button" onClick={() => void cancel()}><XCircle size={17} aria-hidden="true" /> {cancelConfirmation ? 'Xác nhận hủy' : 'Hủy thao tác nhầm'}</button>}
           </div>
+          {['resolved', 'closed'].includes(activeEvent.status) && (
+            <SosRatingInline
+              key={activeEvent.id}
+              receiptCode={activeEvent.receiptCode}
+              rating={activeEvent.satisfactionRating}
+              onRated={(rating) => setEvents((current) => current.map((item) => item.id === activeEvent.id ? { ...item, satisfactionRating: rating } : item))}
+            />
+          )}
           <button className="text-action" type="button" onClick={startAnother}>Tạo một yêu cầu khác</button>
         </article>
       )}

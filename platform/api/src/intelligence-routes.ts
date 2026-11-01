@@ -1,0 +1,170 @@
+import type { FastifyReply } from 'fastify';
+import { AiUnavailableError, type JsonModel } from './ai-client.js';
+import { draftIncident, incidentCategoryValues, IntelligenceError, reviewIncident, type IncidentCategory, type ReviewImage } from './incident-intelligence.js';
+import { AttemptWindow } from './rate-limit.js';
+import { optionalText } from './request-parsing.js';
+import type { RouteContext } from './route-context.js';
+
+const REVIEW_IMAGE_LIMIT = 3;
+const REVIEW_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Giới hạn chi phí AI cho cả tiến trình API: số lượt mỗi ngày và số lượt chạy đồng thời. */
+class AiBudget {
+  private day = '';
+  private count = 0;
+  private inFlight = 0;
+
+  constructor(private readonly dailyCap: number, private readonly clock: () => number) {}
+
+  /** Trả về số giây cần chờ, hoặc 0 khi được phép gọi (và đã giữ chỗ). */
+  acquire(): number {
+    const now = this.clock();
+    const today = new Date(now).toISOString().slice(0, 10);
+    if (this.day !== today) { this.day = today; this.count = 0; }
+    if (this.count >= this.dailyCap) return Math.ceil((Date.parse(`${today}T00:00:00Z`) + 86_400_000 - now) / 1000);
+    if (this.inFlight >= 3) return 10;
+    this.count += 1;
+    this.inFlight += 1;
+    return 0;
+  }
+
+  release(): void {
+    this.inFlight = Math.max(0, this.inFlight - 1);
+  }
+}
+
+function parseScore(value: unknown): number | null {
+  const score = Number(value);
+  return Number.isInteger(score) && score >= 1 && score <= 5 ? score : null;
+}
+
+/**
+ * AI hỗ trợ điền phiếu, nhóm phản ánh trùng, gợi ý lĩnh vực và nhận biết ảnh, đánh giá sau SOS và đánh giá ứng dụng.
+ * AI chỉ gợi ý: người dân xem lại trước khi gửi, cán bộ quyết định lĩnh vực và việc gộp hồ sơ.
+ */
+export function registerIntelligenceRoutes(context: RouteContext, model: JsonModel | undefined, dailyLimit = 200): void {
+  const { app, repository, options, localWorkflowMeta, officerIdentity, citizenIdentity, workflowDisabled } = context;
+  const clock = options.limits?.clock ?? Date.now;
+  const draftWindow = new AttemptWindow(20, 60 * 60_000, clock);
+  const reviewWindow = new AttemptWindow(60, 60 * 60_000, clock);
+  const budget = new AiBudget(Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 200, clock);
+
+  const notConfigured = (reply: FastifyReply) => reply.code(503).send({
+    error: 'AI_NOT_CONFIGURED', message: 'Chức năng AI chưa được bật trên máy chủ.',
+  });
+
+  async function runAi<T>(reply: FastifyReply, subject: string, window: AttemptWindow, task: () => Promise<T>) {
+    const wait = window.retryAfterSeconds(subject) || budget.acquire();
+    if (wait) {
+      reply.header('Retry-After', String(wait));
+      return reply.code(429).send({ error: 'AI_RATE_LIMITED', message: 'Đã đạt giới hạn dùng AI. Hãy thử lại sau.' });
+    }
+    window.record(subject);
+    try {
+      return { data: await task() };
+    } catch (error) {
+      if (error instanceof IntelligenceError) return reply.code(error.status).send({ error: error.code, message: error.message });
+      if (error instanceof AiUnavailableError) {
+        return reply.code(503).send({ error: 'AI_PROVIDER_UNAVAILABLE', message: 'Chưa kết nối được AI. Hãy thử lại sau.' });
+      }
+      throw error;
+    } finally {
+      budget.release();
+    }
+  }
+
+  app.get('/v1/ai/status', async (_request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review'] : [] } };
+  });
+
+  app.post<{ Body: { text?: unknown } }>('/v1/citizen/incident-draft', { preHandler: workflowDisabled, bodyLimit: 16 * 1024 }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập trước khi dùng AI hỗ trợ điền phiếu.' });
+    if (!model) return notConfigured(reply);
+    const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+    if (text.length < 10 || text.length > 2000) {
+      return reply.code(400).send({ error: 'INVALID_DRAFT_TEXT', message: 'Lời mô tả cần từ 10 đến 2.000 ký tự.' });
+    }
+    return runAi(reply, citizenId, draftWindow, () => draftIncident(model, text));
+  });
+
+  app.get<{ Params: { id: string } }>('/v1/officer/incidents/:id/duplicates', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    return { data: await repository.findIncidentDuplicates(officerId, request.params.id), meta: localWorkflowMeta };
+  });
+
+  app.post<{ Params: { id: string }; Body: { primaryId?: unknown } }>('/v1/officer/incidents/:id/duplicate-of', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const primaryId = request.body?.primaryId;
+    if (primaryId !== null && (typeof primaryId !== 'string' || !/^[\w-]{8,64}$/.test(primaryId))) {
+      return reply.code(400).send({ error: 'INVALID_PRIMARY', message: 'Hồ sơ chính không hợp lệ.' });
+    }
+    return { data: await repository.setIncidentDuplicateOf(officerId, request.params.id, primaryId), meta: localWorkflowMeta };
+  });
+
+  app.get<{ Params: { id: string } }>('/v1/officer/incidents/:id/ai-review', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    return { data: await repository.getLatestIncidentAiReview(officerId, request.params.id), meta: localWorkflowMeta };
+  });
+
+  app.post<{ Params: { id: string } }>('/v1/officer/incidents/:id/ai-review', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    if (!model) return notConfigured(reply);
+    const incident = await repository.getOfficerIncident(officerId, request.params.id);
+    if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
+    const images: ReviewImage[] = [];
+    for (const attachment of incident.attachments) {
+      if (images.length >= REVIEW_IMAGE_LIMIT) break;
+      if (!attachment.mimeType.startsWith('image/') || attachment.sizeBytes > REVIEW_IMAGE_MAX_BYTES || attachment.uploaderRole !== 'citizen') continue;
+      const file = await repository.getOfficerIncidentAttachment(officerId, incident.id, attachment.id);
+      if (file) images.push({ attachmentId: attachment.id, mimeType: file.mimeType, data: file.content });
+    }
+    return runAi(reply, officerId, reviewWindow, async () => {
+      const suggestion = await reviewIncident(model, incident, images);
+      return repository.saveIncidentAiReview(officerId, incident.id, suggestion);
+    });
+  });
+
+  app.post<{ Params: { id: string }; Body: { category?: unknown; reviewId?: unknown } }>('/v1/officer/incidents/:id/category', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const category = request.body?.category;
+    const reviewId = request.body?.reviewId ?? null;
+    if (typeof category !== 'string' || !incidentCategoryValues.includes(category as IncidentCategory)
+      || (reviewId !== null && (typeof reviewId !== 'string' || !/^[\w-]{8,64}$/.test(reviewId)))) {
+      return reply.code(400).send({ error: 'INVALID_CATEGORY', message: 'Lĩnh vực không hợp lệ.' });
+    }
+    return { data: await repository.decideIncidentCategory(officerId, request.params.id, category as IncidentCategory, reviewId as string | null), meta: localWorkflowMeta };
+  });
+
+  app.get('/v1/citizen/app-rating', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    reply.header('Cache-Control', 'private, no-store');
+    return { data: await repository.getCitizenAppRating(citizenId) };
+  });
+
+  app.post<{ Body: { score?: unknown; comment?: unknown } }>('/v1/citizen/app-rating', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    const score = parseScore(request.body?.score);
+    const comment = optionalText(request.body?.comment, 1000);
+    if (score === null || comment === undefined) return reply.code(400).send({ error: 'INVALID_RATING', message: 'Điểm đánh giá phải từ 1 đến 5.' });
+    return reply.code(201).send({ data: await repository.saveCitizenAppRating(citizenId, score, comment) });
+  });
+
+  app.post<{ Params: { receiptCode: string }; Body: { score?: unknown; comment?: unknown } }>('/v1/citizen/sos/:receiptCode/rating', { preHandler: workflowDisabled }, async (request, reply) => {
+    const citizenId = citizenIdentity(request);
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập tài khoản người dân.' });
+    const score = parseScore(request.body?.score);
+    const comment = optionalText(request.body?.comment, 1000);
+    if (score === null || comment === undefined) return reply.code(400).send({ error: 'INVALID_RATING', message: 'Điểm đánh giá phải từ 1 đến 5.' });
+    return reply.code(201).send({ data: await repository.createSosRating(citizenId, request.params.receiptCode, score, comment), meta: localWorkflowMeta });
+  });
+}

@@ -8,6 +8,7 @@ import { registerCitizenRoutes } from './citizen-routes.js';
 import { registerOfficerCaseRoutes } from './officer-case-routes.js';
 import { registerOfficerOperationsRoutes } from './officer-operations-routes.js';
 import { registerPublicRoutes } from './public-routes.js';
+import { registerIntelligenceRoutes } from './intelligence-routes.js';
 import { createRouteContext, type AppOptions } from './route-context.js';
 import type { DirectoryRepository } from './types.js';
 import { WorkflowError } from './workflow.js';
@@ -47,6 +48,7 @@ export async function buildApp(
   });
   registerOfficerCaseRoutes(context);
   registerOfficerOperationsRoutes(context);
+  registerIntelligenceRoutes(context, options.aiModel, options.aiDailyLimit);
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof WorkflowError) {

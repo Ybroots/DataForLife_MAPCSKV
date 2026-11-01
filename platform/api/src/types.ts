@@ -124,6 +124,86 @@ export interface IncidentResponse {
   history: WorkflowHistoryResponse<import('./workflow.js').IncidentStatus>[];
   attachments: IncidentAttachmentResponse[];
   satisfactionRating?: SatisfactionRatingResponse | null;
+  /** Chỉ có ở hồ sơ cán bộ: hồ sơ chính mà cán bộ đã gộp phản ánh này vào. */
+  duplicateOf?: CaseRef | null;
+  /** Chỉ có ở hồ sơ cán bộ: hệ thống tự gợi ý khi tiếp nhận, chờ cán bộ xác nhận. */
+  suggestedDuplicateOf?: (CaseRef & { score: number }) | null;
+  /** Chỉ có ở hồ sơ cán bộ: các phản ánh đã được gộp vào hồ sơ này. */
+  duplicates?: CaseRef[];
+}
+
+export interface CaseRef {
+  id: string;
+  receiptCode: string;
+}
+
+export interface IncidentDraftResponse {
+  category: IncidentResponse['category'];
+  summary: string;
+  description: string;
+  occurredAt: string | null;
+  locationNote: string | null;
+  /** Lời mô tả có dấu hiệu khẩn cấp: giao diện nhắc gọi 113 hoặc dùng SOS. */
+  emergency: boolean;
+  provider: 'OpenAI' | 'Gemini';
+}
+
+export type ImageLabel =
+  | 'fire_smoke' | 'traffic_accident' | 'crowd_gathering' | 'fighting_or_weapon' | 'flood_or_landslide'
+  | 'property_damage' | 'waste_or_pollution' | 'document_or_screenshot' | 'no_incident_visible' | 'unclear';
+
+export interface IncidentSuggestion {
+  suggestedCategory: IncidentResponse['category'];
+  confidence: 'low' | 'medium' | 'high';
+  reason: string | null;
+  imageFindings: Array<{ attachmentId: string; labels: ImageLabel[] }>;
+  provider: 'OpenAI' | 'Gemini';
+  model: string;
+}
+
+export interface IncidentAiReviewResponse extends IncidentSuggestion {
+  id: string;
+  incidentId: string;
+  createdAt: string;
+  decision: 'accepted' | 'changed' | 'kept' | null;
+  decidedCategory: IncidentResponse['category'] | null;
+  decidedAt: string | null;
+}
+
+export interface DuplicateCandidateResponse {
+  id: string;
+  receiptCode: string;
+  summary: string;
+  status: string;
+  category: string;
+  createdAt: string;
+  distanceM: number;
+  minutesApart: number;
+  sameCategory: boolean;
+  textSimilarity: number;
+  score: number;
+  level: 'likely' | 'possible';
+  duplicateOf: CaseRef | null;
+}
+
+export interface AppRatingResponse {
+  score: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Bộ chỉ số mục 9.2 của bản mô tả giải pháp. */
+export interface OfficerKpiResponse {
+  reach: { citizenAccounts: number; newCitizenAccounts: number; pushDevices: number };
+  response: { incidentFirstResponseMinutes: number | null; sosAcknowledgeMinutes: number | null; respondedRate: number | null };
+  dataQuality: { duplicateLinked: number; duplicateRate: number | null; vneidConnected: false; vneidVerifiedRate: null };
+  ai: { reviews: number; decided: number; accepted: number; accuracy: number | null };
+  satisfaction: {
+    incidentAverage: number | null; incidentCount: number;
+    sosAverage: number | null; sosCount: number;
+    appAverage: number | null; appCount: number;
+  };
 }
 
 export interface IncidentAttachmentResponse {
@@ -159,6 +239,8 @@ export interface SosResponse {
   createdAt: string;
   updatedAt: string;
   history: WorkflowHistoryResponse<import('./workflow.js').SosStatus>[];
+  /** Chỉ có ở hồ sơ người dân: điểm người dân chấm sau khi SOS được xử lý xong. */
+  satisfactionRating?: SatisfactionRatingResponse | null;
 }
 
 export interface CreateIncidentInput {
@@ -199,6 +281,10 @@ export interface OfficerQueueItemResponse {
   assignedOfficer: AssignedOfficerResponse | null;
   createdAt: string;
   updatedAt: string;
+  /** Phản ánh đã được cán bộ gộp vào hồ sơ chính này. */
+  duplicateOfReceiptCode?: string | null;
+  /** Hệ thống gợi ý có thể trùng với hồ sơ này, chờ cán bộ xác nhận. */
+  suggestedDuplicateReceiptCode?: string | null;
 }
 
 export interface OfficerNotificationResponse {
@@ -326,6 +412,7 @@ export interface OfficerStatisticsResponse {
   };
   trend: Array<{ label: string; incidents: number; sos: number; resolved: number }>;
   categories: Array<{ category: string; count: number }>;
+  kpis?: OfficerKpiResponse;
 }
 
 export interface OperationalMapPointResponse {
@@ -419,6 +506,14 @@ export interface DirectoryRepository {
   listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]>;
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]>;
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage>;
+  findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]>;
+  setIncidentDuplicateOf(actorId: string, incidentId: string, primaryId: string | null): Promise<IncidentResponse>;
+  saveIncidentAiReview(actorId: string, incidentId: string, suggestion: IncidentSuggestion): Promise<IncidentAiReviewResponse>;
+  getLatestIncidentAiReview(actorId: string, incidentId: string): Promise<IncidentAiReviewResponse | null>;
+  decideIncidentCategory(actorId: string, incidentId: string, category: IncidentResponse['category'], reviewId: string | null): Promise<IncidentResponse>;
+  getCitizenAppRating(citizenId: string): Promise<AppRatingResponse | null>;
+  saveCitizenAppRating(citizenId: string, score: number, comment: string | null): Promise<AppRatingResponse>;
+  createSosRating(citizenId: string, receiptCode: string, score: number, comment: string | null): Promise<SatisfactionRatingResponse>;
   markCitizenNotificationsRead(citizenId: string, ids: string[]): Promise<number>;
   close(): Promise<void>;
 }

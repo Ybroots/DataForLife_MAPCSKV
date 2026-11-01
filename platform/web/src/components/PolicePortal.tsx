@@ -54,6 +54,7 @@ import { WorkflowTimeline } from './WorkflowTimeline';
 import { IncidentCollaboration } from './IncidentCollaboration';
 import { PoliceOperations } from './PoliceOperations';
 import { SosEmergencyOverlay } from './SosEmergencyOverlay';
+import { IncidentInsights } from './IncidentInsights';
 import directoryLogoUrl from '../../../../assets/images/logo-transparent.png';
 
 type WorkDetail = Incident | SosEvent;
@@ -400,6 +401,19 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const alarmFrontId = alerts.overlayItems[0]?.id;
   useEffect(() => { setSosAlertError(''); }, [alarmFrontId]);
 
+  // Mở một phản ánh khác từ khối "Phản ánh trùng" (kể cả hồ sơ đã đóng, không còn trong hàng đợi).
+  const openIncidentById = (id: string) => {
+    const item = queue.find((entry) => entry.kind === 'incident' && entry.id === id);
+    if (item) { selectItem(item); return; }
+    const requestId = ++detailRequestId.current;
+    setDetailLoading(true);
+    setError('');
+    getOfficerIncident(id)
+      .then((payload) => { if (requestId === detailRequestId.current) { setDetail(payload.data); setMobilePane('detail'); } })
+      .catch((caught) => { if (requestId === detailRequestId.current) setError(errorMessage(caught)); })
+      .finally(() => { if (requestId === detailRequestId.current) setDetailLoading(false); });
+  };
+
   const viewSosFromAlarm = (item: OfficerQueueItem) => {
     alerts.hide([item.id]);
     setSosAlertError('');
@@ -566,6 +580,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                       <span className={`priority-chip ${item.priority}`}>{priorityLabels[item.priority]}</span>
                       <span className={`status-chip ${item.status}`}>{statusLabels[item.status] ?? item.status}</span>
                       {isOverdue(item) && <span className="sla-chip">Quá SLA</span>}
+                      {item.duplicateOfReceiptCode && <span className="duplicate-chip">Đã gộp vào {item.duplicateOfReceiptCode}</span>}
+                      {!item.duplicateOfReceiptCode && item.suggestedDuplicateReceiptCode && <span className="duplicate-chip suggested">Có thể trùng {item.suggestedDuplicateReceiptCode}</span>}
                     </span>
                   </span>
                   <ChevronRight size={18} aria-hidden="true" />
@@ -624,6 +640,15 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                         <p>{detail.satisfactionRating.comment || 'Người dân không nhập góp ý bổ sung.'}</p>
                         <small>Gửi lúc {timeFormatter.format(new Date(detail.satisfactionRating.createdAt))}</small>
                       </section>
+                    )}
+
+                    {detail.kind === 'incident' && (
+                      <IncidentInsights
+                        incident={detail}
+                        categoryLabels={categoryLabels}
+                        onIncidentChange={(updated) => { setDetail(updated); void loadQueue(true); }}
+                        onOpenCase={openIncidentById}
+                      />
                     )}
 
                     {detail.kind === 'incident' && <IncidentCollaboration incident={detail} onAttachmentAdded={(attachment) => setDetail((current) => current?.kind === 'incident' ? { ...current, attachments: [...current.attachments, attachment] } : current)} />}

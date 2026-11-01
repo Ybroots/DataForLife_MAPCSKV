@@ -17,6 +17,8 @@ import { IncidentMediaGallery } from './IncidentMediaGallery';
 import { WorkflowLocationMap } from './WorkflowLocationMap';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { createRequestId } from '../request-id';
+import { IncidentDraftAssistant } from './IncidentDraftAssistant';
+import type { IncidentDraft } from '../types';
 
 interface CitizenReportsPageProps {
   selectedPosition: { latitude: number; longitude: number } | null;
@@ -178,6 +180,15 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     );
   };
 
+  // AI chỉ điền sẵn: giữ nguyên số liên hệ, vị trí, ảnh và ô xác nhận để người dân tự làm.
+  const applyDraft = (draft: IncidentDraft) => {
+    setCategory(draft.category);
+    setSummary(draft.summary.slice(0, 180));
+    setDescription(draft.description.slice(0, 4000));
+    if (draft.locationNote) setLocationNote(draft.locationNote.slice(0, 500));
+    setNotice('');
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isAuthenticated) { onRequireLogin(); return; }
@@ -285,6 +296,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
           <div className="form-section-heading">
             <div><span>Bước 1–3</span><h2 id="report-workflow-title">Nội dung, vị trí và xác nhận</h2></div>
           </div>
+          <IncidentDraftAssistant isAuthenticated={isAuthenticated} categoryLabels={categoryLabels} onRequireLogin={onRequireLogin} onDraft={applyDraft} />
           <label><span>Nhóm phản ánh <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <select name="category" autoComplete="off" value={category} onChange={(event) => setCategory(event.target.value as Incident['category'])}>
               {Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

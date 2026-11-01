@@ -198,12 +198,12 @@ async function main() {
 
     await citizen.goto(`${BASE_URL}?feature=feedback`, { waitUntil: 'networkidle' });
     await citizen.getByRole('heading', { name: 'Đánh giá hài lòng' }).waitFor();
-    await citizen.locator('select[name="case-id"]').selectOption(incidentReceipt);
+    await citizen.locator('select[name="case-id"]').selectOption(`incident:${incidentReceipt}`);
     await citizen.locator('input[name="rating"][value="5"]').check();
     await citizen.locator('textarea[name="comment"]').fill('Quy trình rõ ràng, cán bộ phản hồi đầy đủ.');
     const [ratingResponse] = await Promise.all([
       citizen.waitForResponse((response) => response.url().includes('/rating') && response.request().method() === 'POST'),
-      citizen.getByRole('button', { name: 'Gửi đánh giá' }).click(),
+      citizen.getByRole('button', { name: 'Gửi đánh giá', exact: true }).click(),
     ]);
     if (!ratingResponse.ok()) throw new Error(`Rating failed ${ratingResponse.status()}: ${await ratingResponse.text()}`);
     await citizen.getByText(/Đánh giá đã được ghi nhận/).waitFor();

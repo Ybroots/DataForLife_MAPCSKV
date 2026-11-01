@@ -4,6 +4,7 @@ import { loadPlatformEnv } from './load-env.js';
 import { PostgresDirectoryRepository } from './postgres-repository.js';
 import type { DirectoryRepository } from './types.js';
 import { createAssistantPlanner } from './map-assistant.js';
+import { createJsonModel } from './ai-client.js';
 import { Pool } from 'pg';
 import { createPushSender, PostgresPushStore, PushDispatcher, type PushStore } from './push.js';
 
@@ -51,6 +52,8 @@ const app = await buildApp(repository, {
   secureCookies: process.env.NODE_ENV === 'production',
   assistantPlanner: createAssistantPlanner(process.env),
   assistantDailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT || 200),
+  aiModel: createJsonModel(process.env),
+  aiDailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT || 200),
   releaseValidation: process.env.API_RELEASE_VALIDATION === 'true' && process.env.NODE_ENV !== 'production',
 });
 

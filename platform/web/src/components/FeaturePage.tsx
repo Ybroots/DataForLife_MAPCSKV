@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   ArrowLeft,
@@ -9,14 +9,15 @@ import {
   Star,
 } from 'lucide-react';
 import { FEATURE_LABELS, type FeatureId } from '../features';
-import { ApiError, createSatisfactionRating, listCitizenIncidents, listPublicAlerts } from '../api';
-import type { Incident, PublicAlert } from '../types';
+import { listPublicAlerts } from '../api';
+import type { PublicAlert } from '../types';
 import type { CitizenSession } from '../types';
 import { CitizenReportsPage } from './CitizenReportsPage';
 import { CitizenSosPage, EmergencyCallStrip } from './CitizenSosPage';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { CitizenAccountPage } from './CitizenAccountPage';
 import { CitizenFeatureAuthGate } from './CitizenFeatureAuthGate';
+import { CitizenFeedbackPage } from './CitizenFeedbackPage';
 
 interface FeaturePageProps {
   feature: Exclude<FeatureId, 'directory' | 'assistant'>;
@@ -51,12 +52,9 @@ const alertCategoryLabels: Record<PublicAlert['category'], string> = {
 
 export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPosition, areaCode, areaName, isAuthenticated, onRequireLogin, citizenSession, onCitizenLogout, onNavigate, onStartTour }: FeaturePageProps) {
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const [feedbackNotice, setFeedbackNotice] = useState('');
   const [alerts, setAlerts] = useState<PublicAlert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsFailed, setAlertsFailed] = useState(false);
-  const [feedbackIncidents, setFeedbackIncidents] = useState<Incident[]>([]);
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -73,31 +71,6 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
     return () => { cancelled = true; };
   }, [areaCode, feature]);
 
-  useEffect(() => {
-    if (feature !== 'feedback' || !isAuthenticated) { setFeedbackIncidents([]); return; }
-    setFeedbackLoading(true);
-    listCitizenIncidents()
-      .then((payload) => setFeedbackIncidents(payload.data.filter((item) => ['resolved', 'closed'].includes(item.status))))
-      .catch(() => setFeedbackIncidents([]))
-      .finally(() => setFeedbackLoading(false));
-  }, [feature, isAuthenticated]);
-
-  const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(event.currentTarget);
-    const receiptCode = String(data.get('case-id') ?? '').trim();
-    const score = Number(data.get('rating'));
-    const comment = String(data.get('comment') ?? '').trim();
-    setFeedbackNotice('Đang gửi đánh giá…');
-    try {
-      await createSatisfactionRating(receiptCode, score, comment);
-      setFeedbackNotice('Đánh giá đã được ghi nhận. Cảm ơn bạn đã góp ý.');
-      form.reset();
-    } catch (error) {
-      setFeedbackNotice(error instanceof ApiError ? error.message : 'Chưa thể gửi đánh giá lúc này.');
-    }
-  };
 
   const featureNeedsCitizenLogin = !isAuthenticated && (feature === 'reports' || feature === 'sos');
 
@@ -174,34 +147,7 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
 
         {feature === 'account' && <CitizenAccountPage session={citizenSession} areaName={areaName} onLogin={() => onRequireLogin('xem tài khoản')} onLogout={onCitizenLogout} onNavigate={onNavigate} onStartTour={onStartTour} />}
 
-        {feature === 'feedback' && (
-          <section className="feature-section form-section" aria-labelledby="feedback-title">
-            <h2 id="feedback-title">Tra cứu lời mời đánh giá</h2>
-            <p className="section-lead">Chỉ phản ánh đã có kết quả hoặc đã đóng mới đủ điều kiện đánh giá.</p>
-            {!isAuthenticated ? <VneIdLoginPrompt action="xem phản ánh đủ điều kiện đánh giá" onLogin={() => onRequireLogin('gửi đánh giá')} /> : (
-              <>
-                {feedbackLoading && <p className="workflow-empty">Đang kiểm tra phản ánh đã hoàn tất…</p>}
-                {!feedbackLoading && feedbackIncidents.length === 0 && <p className="workflow-empty">Chưa có phản ánh đã xử lý xong để đánh giá.</p>}
-                {feedbackIncidents.length > 0 && <form onSubmit={submitFeedback}>
-                  <label>Phản ánh đã hoàn tất
-                    <select name="case-id" required>{feedbackIncidents.map((item) => <option key={item.id} value={item.receiptCode}>{item.receiptCode} · {item.summary}</option>)}</select>
-                  </label>
-                  <fieldset className="rating-options">
-                    <legend>Mức độ hài lòng</legend>
-                    {[1, 2, 3, 4, 5].map((score) => (
-                      <label key={score}><input type="radio" name="rating" value={score} required /><Star size={18} aria-hidden="true" /><span>{score}</span></label>
-                    ))}
-                  </fieldset>
-                  <label>Góp ý thêm
-                    <textarea name="comment" maxLength={1000} rows={4} placeholder="Nội dung góp ý (không bắt buộc)" />
-                  </label>
-                  <button className="primary-action" type="submit"><Star size={18} aria-hidden="true" /> Gửi đánh giá</button>
-                </form>}
-              </>
-            )}
-            {feedbackNotice && <p className="inline-notice" role="status">{feedbackNotice}</p>}
-          </section>
-        )}
+        {feature === 'feedback' && <CitizenFeedbackPage isAuthenticated={isAuthenticated} onRequireLogin={() => onRequireLogin('gửi đánh giá')} />}
 
       </div>
     </main>

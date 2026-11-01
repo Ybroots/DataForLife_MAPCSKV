@@ -144,6 +144,10 @@ export interface Incident {
   history: WorkflowHistory<IncidentStatus>[];
   attachments: IncidentAttachment[];
   satisfactionRating?: SatisfactionRating | null;
+  /** Chỉ có ở hồ sơ cán bộ. */
+  duplicateOf?: CaseRef | null;
+  suggestedDuplicateOf?: (CaseRef & { score: number }) | null;
+  duplicates?: CaseRef[];
 }
 
 export interface IncidentAttachment {
@@ -231,6 +235,7 @@ export interface OfficerStatistics {
   };
   trend: Array<{ label: string; incidents: number; sos: number; resolved: number }>;
   categories: Array<{ category: string; count: number }>;
+  kpis?: OfficerKpis;
 }
 
 export interface OperationalMapPoint {
@@ -265,6 +270,7 @@ export interface SosEvent {
   createdAt: string;
   updatedAt: string;
   history: WorkflowHistory<SosStatus>[];
+  satisfactionRating?: SatisfactionRating | null;
 }
 
 export interface OfficerQueueItem {
@@ -281,6 +287,8 @@ export interface OfficerQueueItem {
   assignedOfficer: AssignedOfficer | null;
   createdAt: string;
   updatedAt: string;
+  duplicateOfReceiptCode?: string | null;
+  suggestedDuplicateReceiptCode?: string | null;
 }
 
 export interface WorkflowActor {
@@ -328,4 +336,80 @@ export interface CitizenNotificationPage {
   items: CitizenNotification[];
   unreadCount: number;
   nextCursor: string | null;
+}
+
+export interface CaseRef {
+  id: string;
+  receiptCode: string;
+}
+
+export interface AiStatus {
+  configured: boolean;
+  provider: 'OpenAI' | 'Gemini' | null;
+  features: Array<'incident_draft' | 'incident_review'>;
+}
+
+export interface IncidentDraft {
+  category: Incident['category'];
+  summary: string;
+  description: string;
+  occurredAt: string | null;
+  locationNote: string | null;
+  emergency: boolean;
+  provider: 'OpenAI' | 'Gemini';
+}
+
+export type ImageLabel =
+  | 'fire_smoke' | 'traffic_accident' | 'crowd_gathering' | 'fighting_or_weapon' | 'flood_or_landslide'
+  | 'property_damage' | 'waste_or_pollution' | 'document_or_screenshot' | 'no_incident_visible' | 'unclear';
+
+export interface IncidentAiReview {
+  id: string;
+  incidentId: string;
+  createdAt: string;
+  suggestedCategory: Incident['category'];
+  confidence: 'low' | 'medium' | 'high';
+  reason: string | null;
+  imageFindings: Array<{ attachmentId: string; labels: ImageLabel[] }>;
+  provider: 'OpenAI' | 'Gemini';
+  model: string;
+  decision: 'accepted' | 'changed' | 'kept' | null;
+  decidedCategory: Incident['category'] | null;
+  decidedAt: string | null;
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  receiptCode: string;
+  summary: string;
+  status: string;
+  category: string;
+  createdAt: string;
+  distanceM: number;
+  minutesApart: number;
+  sameCategory: boolean;
+  textSimilarity: number;
+  score: number;
+  level: 'likely' | 'possible';
+  duplicateOf: CaseRef | null;
+}
+
+export interface AppRating {
+  score: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Bộ chỉ số mục 9.2 của bản mô tả giải pháp. */
+export interface OfficerKpis {
+  reach: { citizenAccounts: number; newCitizenAccounts: number; pushDevices: number };
+  response: { incidentFirstResponseMinutes: number | null; sosAcknowledgeMinutes: number | null; respondedRate: number | null };
+  dataQuality: { duplicateLinked: number; duplicateRate: number | null; vneidConnected: false; vneidVerifiedRate: null };
+  ai: { reviews: number; decided: number; accepted: number; accuracy: number | null };
+  satisfaction: {
+    incidentAverage: number | null; incidentCount: number;
+    sosAverage: number | null; sosCount: number;
+    appAverage: number | null; appCount: number;
+  };
 }

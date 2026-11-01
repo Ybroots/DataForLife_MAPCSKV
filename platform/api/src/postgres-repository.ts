@@ -2,7 +2,15 @@ import { Pool } from 'pg';
 import { PostgresWorkflowStore } from './postgres-workflows.js';
 import { OperationalExtensionsStore } from './operational-extensions.js';
 import { CitizenNotificationStore } from './citizen-notifications.js';
-import type { CitizenNotificationPage, NotificationQuery } from './types.js';
+import { IntelligenceStore } from './intelligence-store.js';
+import type {
+  AppRatingResponse,
+  CitizenNotificationPage,
+  DuplicateCandidateResponse,
+  IncidentAiReviewResponse,
+  IncidentSuggestion,
+  NotificationQuery,
+} from './types.js';
 import type {
   AreaLookupResponse,
   AreaOverview,
@@ -34,7 +42,7 @@ import type {
   CitizenAccountRecord,
   OfficerAccountRecord,
 } from './types.js';
-import type { IncidentStatus, SosStatus } from './workflow.js';
+import { WorkflowError, type IncidentStatus, type SosStatus } from './workflow.js';
 
 interface AreaRow {
   code: string;
@@ -66,12 +74,14 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
   private readonly workflows: PostgresWorkflowStore;
   private readonly operations: OperationalExtensionsStore;
   private readonly citizenNotifications: CitizenNotificationStore;
+  private readonly intelligence: IntelligenceStore;
 
   constructor(databaseUrl: string) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 10 });
     this.workflows = new PostgresWorkflowStore(this.pool);
     this.operations = new OperationalExtensionsStore(this.pool);
     this.citizenNotifications = new CitizenNotificationStore(this.pool);
+    this.intelligence = new IntelligenceStore(this.pool);
   }
 
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage> {
@@ -226,8 +236,11 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.operations.listPublicAlerts(areaCode);
   }
 
-  createIncident(citizenId: string, input: CreateIncidentInput): Promise<IncidentResponse> {
-    return this.workflows.createIncident(citizenId, input);
+  async createIncident(citizenId: string, input: CreateIncidentInput): Promise<IncidentResponse> {
+    const incident = await this.workflows.createIncident(citizenId, input);
+    // Gợi ý trùng chỉ để cán bộ tham khảo: lỗi ở bước này không được làm hỏng việc tiếp nhận phản ánh.
+    try { await this.intelligence.refreshSuggestion(incident.id); } catch { /* best effort */ }
+    return incident;
   }
 
   listCitizenIncidents(citizenId: string): Promise<IncidentResponse[]> {
@@ -262,12 +275,13 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.workflows.createSos(citizenId, input);
   }
 
-  listCitizenSos(citizenId: string): Promise<SosResponse[]> {
-    return this.workflows.listCitizenSos(citizenId);
+  async listCitizenSos(citizenId: string): Promise<SosResponse[]> {
+    return this.intelligence.attachSosRatings(await this.workflows.listCitizenSos(citizenId));
   }
 
-  getCitizenSos(citizenId: string, receiptCode: string): Promise<SosResponse | null> {
-    return this.workflows.getCitizenSos(citizenId, receiptCode);
+  async getCitizenSos(citizenId: string, receiptCode: string): Promise<SosResponse | null> {
+    const sos = await this.workflows.getCitizenSos(citizenId, receiptCode);
+    return sos ? (await this.intelligence.attachSosRatings([sos]))[0]! : null;
   }
 
   cancelCitizenSos(citizenId: string, receiptCode: string, note: string): Promise<SosResponse> {
@@ -286,12 +300,13 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.workflows.listDutyLocalityCodes();
   }
 
-  listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
-    return this.workflows.listOfficerQueue(actorId, kind);
+  async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
+    return this.intelligence.decorateQueue(await this.workflows.listOfficerQueue(actorId, kind));
   }
 
-  getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null> {
-    return this.workflows.getOfficerIncident(actorId, id);
+  async getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null> {
+    const incident = await this.workflows.getOfficerIncident(actorId, id);
+    return incident ? this.intelligence.decorateIncident(incident) : null;
   }
 
   getOfficerSos(actorId: string, id: string): Promise<SosResponse | null> {
@@ -338,8 +353,9 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.operations.confirmShiftReport(actorId, note);
   }
 
-  getOfficerStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {
-    return this.operations.getStatistics(actorId, period, anchorDate);
+  async getOfficerStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {
+    const statistics = await this.operations.getStatistics(actorId, period, anchorDate);
+    return { ...statistics, kpis: await this.intelligence.kpis(actorId, statistics.from, statistics.to) };
   }
 
   listOperationalMapPoints(actorId: string): Promise<OperationalMapPointResponse[]> {
@@ -358,7 +374,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.operations.deleteMapPoint(actorId, id);
   }
 
-  transitionIncident(
+  async transitionIncident(
     actorId: string,
     id: string,
     toStatus: IncidentStatus,
@@ -366,7 +382,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     assignedOfficerId?: string | null,
     publicMessage?: boolean,
   ): Promise<IncidentResponse> {
-    return this.workflows.transitionIncident(actorId, id, toStatus, note, assignedOfficerId, publicMessage);
+    return this.intelligence.decorateIncident(await this.workflows.transitionIncident(actorId, id, toStatus, note, assignedOfficerId, publicMessage));
   }
 
   transitionSos(
@@ -386,6 +402,46 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
 
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {
     return this.workflows.listOfficerNotifications(actorId);
+  }
+
+  findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]> {
+    return this.intelligence.findDuplicates(actorId, incidentId);
+  }
+
+  async setIncidentDuplicateOf(actorId: string, incidentId: string, primaryId: string | null): Promise<IncidentResponse> {
+    await this.intelligence.setDuplicateOf(actorId, incidentId, primaryId);
+    return this.requireOfficerIncident(actorId, incidentId);
+  }
+
+  saveIncidentAiReview(actorId: string, incidentId: string, suggestion: IncidentSuggestion): Promise<IncidentAiReviewResponse> {
+    return this.intelligence.saveAiReview(actorId, incidentId, suggestion);
+  }
+
+  getLatestIncidentAiReview(actorId: string, incidentId: string): Promise<IncidentAiReviewResponse | null> {
+    return this.intelligence.latestAiReview(actorId, incidentId);
+  }
+
+  async decideIncidentCategory(actorId: string, incidentId: string, category: IncidentResponse['category'], reviewId: string | null): Promise<IncidentResponse> {
+    await this.intelligence.decideCategory(actorId, incidentId, category, reviewId);
+    return this.requireOfficerIncident(actorId, incidentId);
+  }
+
+  getCitizenAppRating(citizenId: string): Promise<AppRatingResponse | null> {
+    return this.intelligence.getAppRating(citizenId);
+  }
+
+  saveCitizenAppRating(citizenId: string, score: number, comment: string | null): Promise<AppRatingResponse> {
+    return this.intelligence.saveAppRating(citizenId, score, comment);
+  }
+
+  createSosRating(citizenId: string, receiptCode: string, score: number, comment: string | null): Promise<SatisfactionRatingResponse> {
+    return this.intelligence.createSosRating(citizenId, receiptCode, score, comment);
+  }
+
+  private async requireOfficerIncident(actorId: string, incidentId: string): Promise<IncidentResponse> {
+    const incident = await this.getOfficerIncident(actorId, incidentId);
+    if (!incident) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
+    return incident;
   }
 
   async close(): Promise<void> {
