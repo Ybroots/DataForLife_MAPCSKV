@@ -5,7 +5,7 @@ import { Building2, ChevronRight, CircleDotDashed, Info, Layers3, LoaderCircle, 
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { buildCitizenMapPoints, buildPublicAlertPoints, pointsWithinZone, type CitizenMapPoint } from '../citizen-map-points';
+import { buildCitizenMapPoints, buildPublicAlertPoints, pointsWithinZone, zoneBadgeLabel, zoneReferenceKind, type CitizenMapPoint } from '../citizen-map-points';
 import { listPublicAlerts } from '../api';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
 import type { AreaLookup, AreaOverview, Hotline, PublicAlert } from '../types';
@@ -462,8 +462,8 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       const title = document.createElement('strong');
       title.textContent = 'CSKV';
       const code = document.createElement('small');
-      const legacyWardCode = area?.serviceAreas.find((serviceArea) => serviceArea.code === point.serviceAreaCode)?.legacyWardCode;
-      code.textContent = legacyWardCode ? `P.${legacyWardCode}` : 'XH';
+      const pointZone = area?.serviceAreas.find((serviceArea) => serviceArea.code === point.serviceAreaCode);
+      code.textContent = pointZone ? zoneBadgeLabel(pointZone) : 'CSKV';
       badge.append(title, code);
       markerElement.append(badge);
 
@@ -705,7 +705,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           <label><input name="boundaryVisible" type="checkbox" checked={boundaryVisible} onChange={(event) => setBoundaryVisible(event.target.checked)} /> <span>Ranh giới hành chính</span></label>
           {(area?.serviceAreas?.length ?? 0) > 0 && (
             <>
-              <label><input name="serviceAreasVisible" type="checkbox" checked={serviceAreasVisible} onChange={(event) => { setServiceAreasVisible(event.target.checked); if (!event.target.checked) { closePointPopup(); setSelectedServiceAreaCode(null); } }} /> <span>5 khu vực phường cũ</span></label>
+              <label><input name="serviceAreasVisible" type="checkbox" checked={serviceAreasVisible} onChange={(event) => { setServiceAreasVisible(event.target.checked); if (!event.target.checked) { closePointPopup(); setSelectedServiceAreaCode(null); } }} /> <span>{zoneReferenceKind(area) === 'former_wards' ? `${area!.serviceAreas.length} khu vực phường cũ` : `${area!.serviceAreas.length} khu vực chia minh họa`}</span></label>
               {serviceAreasVisible && (
                 <div className="service-area-key" aria-label="Chọn một khu vực để xem các điểm bên trong">
                   {area!.serviceAreas.map((serviceArea) => (
@@ -724,7 +724,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           <small><CircleDotDashed size={15} aria-hidden="true" /> Chạm một khu hoặc chọn tên khu để xem các điểm bên trong.</small>
           <small><ShieldAlert size={15} aria-hidden="true" /> {alertsFailed ? 'Chưa tải được cảnh báo. Hãy tải lại trang để thử lại.' : 'Chỉ hiển thị cảnh báo công khai có tọa độ do cán bộ phát hành.'}</small>
           {(area?.serviceAreas?.length ?? 0) > 0 && <small><ShieldAlert size={15} aria-hidden="true" /> Tọa độ và điểm tiếp dân là demo. Riêng tên/địa chỉ trụ sở chính và số liên hệ lấy từ danh bạ công khai của phường.</small>}
-          {(area?.serviceAreas?.length ?? 0) > 0 && <small>Ranh 5 phường cũ được tái dựng để tham chiếu, chưa phải ranh phân công CSKV đã phê duyệt.</small>}
+          {(area?.serviceAreas?.length ?? 0) > 0 && <small>{zoneReferenceKind(area) === 'former_wards' ? `Ranh ${area!.serviceAreas.length} phường cũ được tái dựng để tham chiếu, chưa phải ranh phân công CSKV đã phê duyệt.` : 'Các khu vực được chia minh họa theo hình học; chưa phải ranh đơn vị cũ hay ranh phân công CSKV đã phê duyệt.'}</small>}
         </div>
       )}
       <div ref={containerRef} className="map-canvas" data-testid="map-canvas" />

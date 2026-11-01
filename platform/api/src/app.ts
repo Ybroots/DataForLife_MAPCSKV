@@ -25,6 +25,8 @@ import { hashPassword, verifyPassword } from './password.js';
 import { AttemptWindow, LoginGuard } from './rate-limit.js';
 import { registerMapAssistant } from './map-assistant-routes.js';
 import type { AssistantPlanner } from './map-assistant.js';
+import { registerPushRoutes } from './push-routes.js';
+import { MemoryPushStore, type PushStore } from './push.js';
 
 interface AppOptions {
   corsOrigin: string;
@@ -38,6 +40,10 @@ interface AppOptions {
   releaseValidation?: boolean;
   assistantPlanner?: AssistantPlanner;
   assistantDailyLimit?: number;
+  /** Kho thiết bị nhận thông báo đẩy. Mặc định là kho trong bộ nhớ (fixture, kiểm thử). */
+  pushStore?: PushStore;
+  /** true khi máy chủ có khóa FCM và thật sự gửi được thông báo đẩy. */
+  pushEnabled?: boolean;
   /** Test hooks and tuning for the in-process abuse limits. Defaults are pilot proposals, not policy. */
   limits?: {
     clock?: () => number;
@@ -626,6 +632,13 @@ export async function buildApp(
       return reply.code(400).send({ error: 'INVALID_NOTIFICATION_IDS', message: 'Danh sách thông báo không hợp lệ.' });
     }
     return { data: { updated: await repository.markCitizenNotificationsRead(citizenId, [...new Set(ids)]) } };
+  });
+
+  registerPushRoutes(app, {
+    store: options.pushStore ?? new MemoryPushStore(),
+    enabled: options.pushEnabled ?? false,
+    citizenIdentity,
+    clock: options.limits?.clock,
   });
 
   app.get('/v1/officer/notifications', { preHandler: workflowDisabled }, async (request, reply) => {

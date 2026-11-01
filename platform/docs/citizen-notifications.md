@@ -25,7 +25,7 @@ API:
 
 Frontend đồng bộ mỗi 10 giây khi trang đang hiển thị, đồng thời tải lại khi mở chuông, quay lại tab hoặc có mạng. Request bị hủy khi thay tài khoản, đóng component hoặc đổi bộ lọc. Lỗi mạng có trạng thái và nút thử lại; không coi lỗi là “không có thông báo”.
 
-Đây là **thông báo trong web**, chưa phải SMS, Web Push hay thông báo hệ điều hành khi trình duyệt đã đóng. Không gọi tổng đài hoặc dịch vụ bên ngoài.
+Chuông này là **thông báo trong ứng dụng/web**. Ứng dụng Android còn có thể hiện thông báo ngoài màn hình điện thoại (FCM) cho cảnh báo khu vực và cập nhật hồ sơ khi đã cấu hình Firebase; xem `push-notifications.md`. Bản web chưa có Web Push hay SMS. Không gọi tổng đài hoặc dịch vụ bên ngoài.
 
 ## Kiểm thử local — 27/08/2026
 

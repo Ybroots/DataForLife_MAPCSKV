@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:fixture": "tsx watch src/server.ts --fixture",
+    "dev:fixture:pilots": "tsx watch src/server.ts --fixture --pilot-areas",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",

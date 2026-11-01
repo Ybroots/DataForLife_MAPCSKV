@@ -28,6 +28,7 @@ import type {
   CitizenAccountRecord,
   OfficerAccountRecord,
 } from './types.js';
+import { loadPilotAreaSources, PilotArea } from './fixture-pilot-areas.js';
 import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
 
 const demoArea: AreaLookupResponse = {
@@ -93,7 +94,18 @@ function publicSos(item: SosResponse): SosResponse {
 
 export class FixtureDirectoryRepository implements DirectoryRepository {
   readonly sourceName = 'fixture' as const;
+  /** `pilotAreas`: dùng ba địa bàn trình diễn (Xuân Hương, Xuân Trường, Lâm Viên) có khu vực bên trong thay cho địa bàn minh họa đơn. */
+  constructor(options: { pilotAreas?: boolean } = {}) {
+    this.pilots = options.pilotAreas ? loadPilotAreaSources().map((source) => new PilotArea(source)) : [];
+  }
+  private readonly pilots: PilotArea[];
+
   async getAreaOverview(): Promise<AreaOverview> {
+    if (this.pilots.length) {
+      return { type: 'FeatureCollection', features: this.pilots.map((pilot) => ({ type: 'Feature' as const, id: pilot.code,
+        properties: { code: pilot.code, name: pilot.name, localityType: pilot.localityType, provinceName: pilot.provinceName },
+        geometry: structuredClone(pilot.boundary) })) };
+    }
     return { type: 'FeatureCollection', features: [{ type: 'Feature', id: demoArea.code,
       properties: { code: demoArea.code, name: demoArea.name, localityType: demoArea.localityType, provinceName: demoArea.provinceName },
       geometry: structuredClone(demoArea.boundary!) }] };
@@ -136,20 +148,21 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
 
   async searchAreas(query: string, limit: number): Promise<AreaSummary[]> {
     const normalized = query.trim().toLocaleLowerCase('vi');
-    if (normalized && !demoArea.name.toLocaleLowerCase('vi').includes(normalized)) return [];
-    return [{
-      code: demoArea.code,
-      name: demoArea.name,
-      localityType: demoArea.localityType,
-      provinceName: demoArea.provinceName,
-    }].slice(0, limit);
+    const candidates: AreaSummary[] = this.pilots.length
+      ? this.pilots.map((pilot) => ({ code: pilot.code, name: pilot.name, localityType: pilot.localityType, provinceName: pilot.provinceName }))
+      : [{ code: demoArea.code, name: demoArea.name, localityType: demoArea.localityType, provinceName: demoArea.provinceName }];
+    return candidates
+      .filter((area) => !normalized || area.name.toLocaleLowerCase('vi').includes(normalized) || area.code.toLocaleLowerCase('vi').includes(normalized))
+      .slice(0, limit);
   }
 
   async lookupByCode(code: string): Promise<AreaLookupResponse | null> {
+    if (this.pilots.length) return this.pilots.find((pilot) => pilot.code === code)?.lookup() ?? null;
     return code === demoArea.code ? cloneArea() : null;
   }
 
   async lookupByLocation(latitude: number, longitude: number): Promise<AreaLookupResponse | null> {
+    if (this.pilots.length) return this.pilots.find((pilot) => pilot.contains(latitude, longitude))?.lookup({ latitude, longitude }) ?? null;
     return latitude >= 11.924 && latitude <= 11.965 && longitude >= 108.414 && longitude <= 108.466
       ? cloneArea()
       : null;
@@ -194,8 +207,8 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         latitude: input.latitude,
         longitude: input.longitude,
         accuracyM: input.accuracyM ?? null,
-        localityCode: demoArea.code,
-        localityName: demoArea.name,
+        localityCode: this.localityAt(input.latitude, input.longitude).code,
+        localityName: this.localityAt(input.latitude, input.longitude).name,
         serviceAreaCode: null,
         serviceAreaName: null,
         routingStatus: 'locality_dispatch',
@@ -300,8 +313,8 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         latitude: input.latitude,
         longitude: input.longitude,
         accuracyM: input.accuracyM ?? null,
-        localityCode: demoArea.code,
-        localityName: demoArea.name,
+        localityCode: this.localityAt(input.latitude, input.longitude).code,
+        localityName: this.localityAt(input.latitude, input.longitude).name,
         serviceAreaCode: null,
         serviceAreaName: null,
         routingStatus: 'locality_dispatch',
@@ -680,7 +693,18 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     };
   }
 
+  private localityAt(latitude: number, longitude: number): { code: string; name: string } {
+    const pilot = this.pilots.find((candidate) => candidate.contains(latitude, longitude));
+    return pilot ? { code: pilot.code, name: pilot.name } : { code: demoArea.code, name: demoArea.name };
+  }
+
   private assertDemoLocation(latitude: number, longitude: number): void {
+    if (this.pilots.length) {
+      if (!this.pilots.some((pilot) => pilot.contains(latitude, longitude))) {
+        throw new WorkflowError('INVALID_INPUT', 'Vị trí nằm ngoài phạm vi dữ liệu đang phục vụ.');
+      }
+      return;
+    }
     if (latitude < 11.924 || latitude > 11.965 || longitude < 108.414 || longitude > 108.466) {
       throw new WorkflowError('INVALID_INPUT', 'Vị trí nằm ngoài phạm vi dữ liệu đang phục vụ.');
     }

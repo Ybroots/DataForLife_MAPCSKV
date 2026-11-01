@@ -79,6 +79,7 @@ Dùng bản `ban-do-cskv-preview.apk` (API production, **chỉ đọc**) hoặc 
 
 ## 5. Chưa làm / ngoài phạm vi
 
-- Thông báo đẩy, offline đầy đủ, định vị nền: hạng mục riêng, chưa có.
+- Thông báo đẩy: đã có mã nguồn (FCM, theo dõi khu vực, cập nhật hồ sơ), chỉ chạy khi chủ dự án cấu hình Firebase; xem `push-notifications.md`. Chưa thử trên điện thoại thật.
+- Offline đầy đủ, định vị nền: hạng mục riêng, chưa có.
 - Truyền tệp native thay cho base64 trong JSON: chỉ cần nếu bước 3 cho thấy hết bộ nhớ; cần thiết kế endpoint upload mới.
 - App Expo ở thư mục gốc (nhánh phụ, không phải đường phát hành chính): lớp dữ liệu đã được viết lại cho khớp API thật (ngày 31/10/2026). Trước đó `ApiTypes.ts`/adapter dùng trường không tồn tại (`unitType`, `chiefLabel`, `locality`...) nên danh bạ sẽ văng lỗi và màn Bản đồ luôn trống. Hiện: cấp tỉnh = hotline, cấp phòng/đồn = `/v1/directory/units`, cấp xã = 124 địa bàn (đầu mối tải khi mở rộng qua `/v1/lookup/by-code`); số liệu chưa có hiển thị "Đang cập nhật" (không dùng 0). `tsc --noEmit` sạch, 6 test adapter đạt (`npm test`, mẫu dữ liệu lấy từ API thật). Đã chạy `npm run test:integration` (đăng nhập/đăng ký/đăng xuất công dân, đăng nhập cán bộ, phiên, mã lỗi 401/409/400/404, danh bạ qua adapter) bằng chính mã của app với API cục bộ chế độ fixture — **không** dùng production vì đăng ký tạo tài khoản; script từ chối chạy với địa chỉ không phải localhost. Dữ liệu fixture rất nhỏ (1 địa bàn), nên hình dạng dữ liệu production được đối chiếu riêng bằng GET chỉ đọc. Script giữ cookie bằng lớp bọc fetch, nên kho cookie của React Native vẫn **chưa chạy trên thiết bị/emulator**; `ContactsScreen` vẫn `@ts-nocheck` (phần mới đã được kiểm kiểu riêng, còn 3 lỗi kiểu có sẵn từ trước).

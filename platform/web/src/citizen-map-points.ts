@@ -47,28 +47,61 @@ function demoStationPosition(zone: ServiceArea) {
   return zone.center;
 }
 
+/** Các địa bàn trình diễn có khu vực bên trong, kèm tên gọi dùng trong nhãn điểm tiếp dân. */
+export const PILOT_AREA_LABELS: Readonly<Record<string, string>> = {
+  '24781': 'Xuân Hương',
+  '24805': 'Xuân Trường',
+  '24778': 'Lâm Viên',
+};
+
+/** 'former_wards': khu vực tái dựng từ phường cũ; 'geometric': khu vực chia minh họa theo hình học. */
+export function zoneReferenceKind(area: Pick<AreaLookup, 'serviceAreas'> | null): 'former_wards' | 'geometric' | null {
+  if (!area?.serviceAreas.length) return null;
+  return area.serviceAreas.every((zone) => zone.legacyWardCode) ? 'former_wards' : 'geometric';
+}
+
+/** Nhãn ngắn trên pin CSKV: "P.3" cho phường cũ, "K2" cho khu vực chia minh họa. */
+export function zoneBadgeLabel(zone: Pick<ServiceArea, 'code' | 'legacyWardCode'>): string {
+  if (zone.legacyWardCode) return `P.${zone.legacyWardCode}`;
+  return zone.code.split('-').pop() ?? zone.code;
+}
+
+function zoneLongLabel(zone: ServiceArea): string {
+  return zone.legacyWardCode ? `P.${zone.legacyWardCode} cũ` : zone.name;
+}
+
 export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[] {
-  // The fixtures are specific to this demo, not other wards returned by lookup.
-  if (area?.code !== '24781' || !area.serviceAreas.length) return [];
-  const contacts = area.directory.filter((entry) => entry.phone.trim());
+  // Dữ liệu trình diễn chỉ dành cho các địa bàn thí điểm, không áp cho phường khác được tra cứu.
+  const wardLabel = area ? PILOT_AREA_LABELS[area.code] : undefined;
+  if (!area || !wardLabel || !area.serviceAreas.length) return [];
+  const withPhone = area.directory.filter((entry) => entry.phone.trim());
+  // Pin CSKV đại diện cho cảnh sát khu vực: ưu tiên đầu mối loại "officer" nếu địa bàn có.
+  const officers = withPhone.filter((entry) => entry.entryType === 'officer');
+  const contacts = officers.length ? officers : withPhone;
   const points: CitizenMapPoint[] = [];
   area.serviceAreas.forEach((zone, index) => {
     const contact = contacts.length ? contacts[index % contacts.length] : null;
     points.push({
       id: `officer:${zone.code}`, kind: 'officer', serviceAreaCode: zone.code,
-      name: `${contact?.displayName ?? 'Đầu mối CSKV'} · P.${zone.legacyWardCode} cũ`,
+      name: `${contact?.displayName ?? 'Đầu mối CSKV'} · ${zoneLongLabel(zone)}`,
       detail: 'Liên hệ công khai của phường; vị trí pin minh họa.',
       phone: contact?.phone ?? null, ...zone.center, demo: true,
     });
-    const isMain = zone.legacyWardCode === '3' && Boolean(area.station);
+    // Xuân Hương giữ trụ sở chính ở Phường 3 cũ; địa bàn khác dùng khu đầu tiên.
+    const isMain = area.code === '24781' ? zone.legacyWardCode === '3' && Boolean(area.station) : index === 0 && Boolean(area.station);
     const mainPosition = { latitude: 11.9327, longitude: 108.4426 };
-    const position = isMain && pointInBoundary(mainPosition.longitude, mainPosition.latitude, zone.boundary)
+    const position = isMain && area.code === '24781' && pointInBoundary(mainPosition.longitude, mainPosition.latitude, zone.boundary)
       ? mainPosition : demoStationPosition(zone);
+    const receptionName = zone.legacyWardCode
+      ? `Điểm tiếp dân Công an ${wardLabel} · Khu P.${zone.legacyWardCode}`
+      : `Điểm tiếp dân Công an ${wardLabel} · ${zone.name}`;
+    const receptionDetail = zone.legacyWardCode
+      ? `Điểm tiếp dân giả định trong khu Phường ${zone.legacyWardCode} cũ, chưa có địa chỉ chính thức.`
+      : `Điểm tiếp dân giả định trong ${zone.name}, chưa có địa chỉ chính thức.`;
     points.push({
       id: `station:${zone.code}`, kind: 'station', serviceAreaCode: zone.code,
-      name: isMain ? area.station!.name : `Điểm tiếp dân Công an Xuân Hương · Khu P.${zone.legacyWardCode}`,
-      detail: isMain ? area.station!.address ?? 'Phường Xuân Hương – Đà Lạt'
-        : `Điểm tiếp dân giả định trong khu Phường ${zone.legacyWardCode} cũ, chưa có địa chỉ chính thức.`,
+      name: isMain ? area.station!.name : receptionName,
+      detail: isMain ? area.station!.address ?? `Phường ${wardLabel} – Đà Lạt` : receptionDetail,
       phone: contact?.phone ?? null, ...position, demo: true,
     });
   });

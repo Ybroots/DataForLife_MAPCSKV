@@ -166,6 +166,24 @@ export async function listHotlines(): Promise<Hotline[]> {
   return payload.data;
 }
 
+/** Máy chủ đã cấu hình khóa FCM và thật sự gửi được thông báo đẩy hay chưa. */
+export async function getPushStatus(signal?: AbortSignal): Promise<{ enabled: boolean }> {
+  return (await request<{ data: { enabled: boolean } }>('/v1/push/status', { signal })).data;
+}
+
+/** Đăng ký (hoặc cập nhật) thiết bị nhận thông báo. Phiên đăng nhập người dân, nếu có, được gắn vào thiết bị. */
+export async function registerPushDevice(token: string, areaCodes: string[]): Promise<void> {
+  await request('/v1/push/devices', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, areaCodes }),
+  });
+}
+
+export async function removePushDevice(token: string): Promise<void> {
+  await request('/v1/push/devices/remove', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+  });
+}
+
 export async function listPublicAlerts(areaCode: string): Promise<PublicAlert[]> {
   const payload = await request<{ data: PublicAlert[] }>(`/v1/public/alerts?areaCode=${encodeURIComponent(areaCode)}`);
   return payload.data;

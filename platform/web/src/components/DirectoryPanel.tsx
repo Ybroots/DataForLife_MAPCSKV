@@ -1,6 +1,7 @@
 import { Building2, ChevronDown, MapPin, Navigation, Phone, PhoneForwarded, UserRoundCheck } from 'lucide-react';
 import type { AreaLookup, Hotline } from '../types';
 import { UnitDirectory } from './UnitDirectory';
+import { stationDirectionsUrl } from '../directions';
 
 interface DirectoryPanelProps {
   area: AreaLookup;
@@ -18,14 +19,6 @@ function formatPopulation(value: number | null): string {
 
 function telHref(phone: string): string {
   return `tel:${phone.replace(/[^0-9+]/g, '')}`;
-}
-
-function stationDirectionsUrl(area: AreaLookup): string | null {
-  if (!area.station) return null;
-  const destination = area.station.latitude !== null && area.station.longitude !== null
-    ? `${area.station.latitude},${area.station.longitude}`
-    : area.station.address;
-  return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : null;
 }
 
 export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProps) {

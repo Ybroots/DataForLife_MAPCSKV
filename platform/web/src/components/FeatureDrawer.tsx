@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
+  Bell,
   Bot,
   ChevronDown,
   ExternalLink,
@@ -8,6 +9,8 @@ import {
   HelpCircle,
   LogIn,
   MapPinned,
+  Navigation,
+  Phone,
   Scale,
   ShieldAlert,
   Star,
@@ -21,6 +24,12 @@ interface FeatureDrawerProps {
   onClose: () => void;
   onSelect: (feature: FeatureId) => void;
   onStartTour: () => void;
+  /** Mở hộp thông báo cho tính năng chưa hoàn thiện. */
+  onComingSoon: (feature: 'directions') => void;
+  /** Mở cài đặt thông báo trên điện thoại. */
+  onOpenNotifications: () => void;
+  /** false khi bản này chưa có thông báo đẩy (web, hoặc bản Android chưa cấu hình Firebase): hiện nhãn "Đang phát triển". */
+  notificationsReady: boolean;
   /** Bỏ trống ở bản dành cho người dân: không hiện nút đăng nhập cán bộ. */
   onOfficerLogin?: () => void;
 }
@@ -59,7 +68,7 @@ const featureItems: Array<{
 
 const DRAWER_EXIT_DURATION_MS = 180;
 
-export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartTour, onOfficerLogin }: FeatureDrawerProps) {
+export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartTour, onComingSoon, onOpenNotifications, notificationsReady, onOfficerLogin }: FeatureDrawerProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const [present, setPresent] = useState(open);
@@ -156,6 +165,28 @@ export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartT
             );
           })}
         </div>
+
+        <button className="feature-soon-item" type="button" onClick={onOpenNotifications}>
+          <span className="feature-list-icon"><Bell size={21} aria-hidden="true" /></span>
+          <span className="feature-list-copy"><strong>Thông báo trên điện thoại</strong><small>Nhận cảnh báo khu vực và cập nhật hồ sơ.</small></span>
+          {!notificationsReady && <em className="feature-soon-badge">Đang phát triển</em>}
+        </button>
+
+        <button className="feature-soon-item" type="button" onClick={() => onComingSoon('directions')}>
+          <span className="feature-list-icon"><Navigation size={21} aria-hidden="true" /></span>
+          <span className="feature-list-copy"><strong>Chỉ đường</strong><small>Dẫn đường tới trụ sở Công an gần bạn.</small></span>
+          <em className="feature-soon-badge">Đang phát triển</em>
+        </button>
+
+        <section className="emergency-numbers" aria-labelledby="emergency-numbers-title">
+          <h3 id="emergency-numbers-title">Số điện thoại khẩn cấp</h3>
+          <div>
+            <a href="tel:113"><Phone size={16} aria-hidden="true" /><strong>113</strong><small>Công an</small></a>
+            <a href="tel:114"><Phone size={16} aria-hidden="true" /><strong>114</strong><small>Cứu hỏa</small></a>
+            <a href="tel:115"><Phone size={16} aria-hidden="true" /><strong>115</strong><small>Cấp cứu</small></a>
+            <a href="tel:112"><Phone size={16} aria-hidden="true" /><strong>112</strong><small>Khẩn cấp</small></a>
+          </div>
+        </section>
 
         <div className="feature-utilities">
           <button type="button" onClick={onStartTour}><HelpCircle size={20} aria-hidden="true" /> Hướng dẫn sử dụng</button>

@@ -6,6 +6,7 @@ $nativeRoot = Join-Path $webRoot 'android-native'
 $previousJava = $env:JAVA_HOME
 $previousSdk = $env:ANDROID_HOME
 $previousApi = $env:VITE_API_BASE_URL
+$previousPush = $env:VITE_PUSH_ENABLED
 $previousLocation = Get-Location
 try {
     if ($Qa -and $Release) { throw 'The emulator QA build (cleartext fixture API) must never be a release build.' }
@@ -16,6 +17,11 @@ try {
     if (-not (Test-Path -LiteralPath $env:ANDROID_HOME)) { throw 'Android SDK missing. Set ANDROID_HOME.' }
     # Never inherit a local browser API override into an APK intended for citizens.
     $env:VITE_API_BASE_URL = if ($Qa) { 'http://10.0.2.2:3001' } else { 'https://bandosocskv.com/api' }
+    # Push notifications are enabled only when the project has its Firebase config. Without the file the app still
+    # works and the notification entry shows "in development" (the plugin is never called). See docs\push-notifications.md.
+    $hasFirebase = Test-Path -LiteralPath (Join-Path $nativeRoot 'app\google-services.json')
+    $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa) { 'true' } else { 'false' }
+    Write-Host ("Thong bao day (FCM): " + $(if ($env:VITE_PUSH_ENABLED -eq 'true') { 'BAT' } else { 'TAT - thieu android-native\app\google-services.json' }))
     Set-Location $webRoot
     $buildTask = if ($Qa) { 'build:android:qa' } else { 'build:android' }
     & npm.cmd run $buildTask
@@ -49,4 +55,5 @@ try {
     $env:JAVA_HOME = $previousJava
     $env:ANDROID_HOME = $previousSdk
     $env:VITE_API_BASE_URL = $previousApi
+    $env:VITE_PUSH_ENABLED = $previousPush
 }

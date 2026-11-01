@@ -23,7 +23,7 @@ Phạm vi pilot Xuân Hương hiện dùng mô hình một cấp: người dân 
 | FR-CD-07 | Hoạt động | Timeline, cán bộ phụ trách, trao đổi và bổ sung media |
 | FR-CD-08 | Hoạt động nội bộ pilot | SOS trên bản đồ; nút mở trình gọi 112/113 dùng được trước đăng nhập nhưng không tự kết nối hay điều phối qua các tổng đài, yêu cầu phiên người dân mô phỏng để gửi SOS nội bộ, giữ đủ 3 giây để gửi đúng một lần, có bản đồ vị trí, mã tiếp nhận và luồng trực ban |
 | FR-CD-09 | Tích hợp local, chờ cấu hình | Trợ lý hỏi đáp địa bàn/danh bạ/cảnh báo công khai với nút xem trên bản đồ; hỗ trợ cấu hình OpenAI hoặc Gemini tại server. Chưa có API key/model được chọn nên AI vẫn hiển thị chưa kết nối; thủ tục pháp lý và kho tri thức đã duyệt chưa tích hợp. Xem `ai-map-integration.md` |
-| FR-CD-10 | Hoạt động local | Thông báo trong cổng cán bộ; SMS/Web Push đang phát triển |
+| FR-CD-10 | Hoạt động local; push Android chờ cấu hình | Thông báo trong cổng cán bộ. Thông báo ngoài màn hình cho ứng dụng Android (cảnh báo khu vực, cập nhật hồ sơ) đã có mã nguồn, chỉ bật khi cấu hình Firebase và chưa thử trên điện thoại thật (xem `push-notifications.md`); SMS/Web Push đang phát triển |
 | FR-CD-11 | Hoạt động | Chỉ chọn được phản ánh đã xử lý/đóng để đánh giá 1–5 sao; điểm và góp ý hiển thị trong chi tiết hồ sơ của cán bộ |
 | FR-CD-12 | Đang phát triển | Chờ hàng đợi offline, mã hóa thiết bị và cơ chế đồng bộ xung đột |
 

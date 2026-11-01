@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowUp, LoaderCircle, MapPinned, MessageSquareText, X } from 'lucide-react';
+import { ArrowUp, Hammer, LoaderCircle, MapPinned, MessageSquareText, X } from 'lucide-react';
 import { ApiError, askMapAssistant, getMapAssistantStatus } from '../api';
 import type { MapAssistantAnswer, MapAssistantStatus } from '../types';
 
@@ -83,7 +83,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>
         {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối AI…</p>}
         {statusFailed && <div role="alert"><p>Chưa kiểm tra được kết nối trợ lý.</p><button className="map-assistant-text-button" type="button" onClick={() => setStatusAttempt(value => value + 1)}>Thử lại</button></div>}
-        {status && !status.configured && <div role="status"><h3>AI chưa được kết nối</h3><p>Bạn vẫn có thể dùng ô tìm xã/phường và danh bạ trên bản đồ. Trợ lý sẽ hoạt động khi dịch vụ AI được cấu hình.</p></div>}
+        {status && !status.configured && <div className="map-assistant-soon" role="status"><span aria-hidden="true"><Hammer size={24} /></span><h3>Trợ lý AI đang được phát triển</h3><p>Chức năng này đang trong quá trình phát triển và hoàn thiện, sẽ sớm có trong phiên bản tới.</p><p>Trong lúc chờ, bạn vẫn có thể tìm xã/phường, xem danh bạ và gọi đầu mối ngay trên bản đồ.</p><button className="map-assistant-text-button" type="button" onClick={onClose}>Quay lại bản đồ</button></div>}
         {status?.configured && turns.length === 0 && <div className="map-assistant-welcome">
           <h3>Bạn cần tìm gì trên bản đồ?</h3>
           <p>Tìm xã/phường, địa chỉ trụ sở, đầu mối liên hệ hoặc cảnh báo công khai tại Lâm Đồng.</p>

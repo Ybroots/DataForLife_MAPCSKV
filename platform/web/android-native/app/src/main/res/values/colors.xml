@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Màu nhấn của thông báo, trùng màu chủ đạo của ứng dụng. -->
+    <color name="cskv_notification">#D71935</color>
+</resources>

@@ -10,6 +10,16 @@ import { LoginScreen } from './components/LoginScreen';
 import { CitizenAuthSheet } from './components/CitizenAuthSheet';
 import { CitizenOnboardingTour } from './components/CitizenOnboardingTour';
 import { CitizenNotifications } from './components/CitizenNotifications';
+import { FeatureNotice } from './components/FeatureNotice';
+import type { FeatureNoticeContent } from './components/FeatureNotice';
+import { QuickActions } from './components/QuickActions';
+import { NotificationSettings } from './components/NotificationSettings';
+import { PushToast } from './components/PushToast';
+import { initPush, pushSupported, PUSH_EVENT, readPushPrefs, syncPushDevice, takePendingPushOpen, writePushPrefs } from './push-notifications';
+import type { PushEventDetail, PushPrefs, PushTarget } from './push-notifications';
+import { stationDirectionsUrl } from './directions';
+import { readRecentAreas, rememberArea } from './recent-areas';
+import type { RecentArea } from './recent-areas';
 import { ScreenErrorBoundary } from './components/ScreenErrorBoundary';
 import type { FeatureId } from './features';
 import type { AreaLookup, AreaOverview, AreaSummary, CitizenSession, Hotline, WorkflowActor } from './types';
@@ -94,6 +104,12 @@ export default function App() {
   const [citizenLoginAction, setCitizenLoginAction] = useState('tiếp tục');
   const [citizenLoginNotice, setCitizenLoginNotice] = useState('');
   const [tourOpen, setTourOpen] = useState(false);
+  const [featureNotice, setFeatureNotice] = useState<FeatureNoticeContent | null>(null);
+  const [recentAreas, setRecentAreas] = useState<RecentArea[]>(() => readRecentAreas());
+  const [pushPrefs, setPushPrefs] = useState<PushPrefs>(() => readPushPrefs());
+  const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
+  const [pushSettingsIntro, setPushSettingsIntro] = useState(false);
+  const [pushToast, setPushToast] = useState<PushEventDetail | null>(null);
   const [caseNavigationVersion, setCaseNavigationVersion] = useState(0);
   const tourAutoStarted = useRef(false);
   const [appView, setAppView] = useState<'landing' | 'citizen' | 'officer'>(() => {
@@ -231,6 +247,7 @@ export default function App() {
   const acceptEnvelope = useCallback((payload: Awaited<ReturnType<typeof lookupByCode>>) => {
     setArea(payload.data);
     setQuery(payload.data.name);
+    setRecentAreas(rememberArea({ code: payload.data.code, name: payload.data.name }));
     const url = new URL(window.location.href);
     url.searchParams.set('area', payload.data.code);
     window.history.replaceState(window.history.state, '', url);
@@ -373,10 +390,78 @@ export default function App() {
     navigateToFeature('directory');
   };
 
+  const closeFeatureNotice = useCallback(() => setFeatureNotice(null), []);
+
+  const openDirections = useCallback(() => {
+    const url = area ? stationDirectionsUrl(area) : null;
+    if (url) { window.open(url, '_blank', 'noopener'); return; }
+    setFeatureNotice({
+      title: 'Chỉ đường đang được phát triển',
+      hint: area
+        ? 'Địa bàn này chưa có tọa độ hoặc địa chỉ trụ sở để dẫn đường.'
+        : 'Trong lúc chờ, hãy chọn một xã/phường rồi bấm "Mở chỉ đường Google Maps" ở mục Trụ sở Công an.',
+    });
+  }, [area]);
+
   const startTour = useCallback(() => {
     navigateToFeature('directory'); setMapRequested(true); setMobileView('map'); setFeatureMenuOpen(false);
     window.setTimeout(() => setTourOpen(true), 120);
   }, [navigateToFeature]);
+
+  const openCase = useCallback((kind: 'incident' | 'sos', receiptCode: string) => {
+    const url = new URL(window.location.href);
+    const feature: FeatureId = kind === 'sos' ? 'sos' : 'reports';
+    url.searchParams.set('feature', feature);
+    if (kind === 'incident') {
+      url.searchParams.set('reportTab', 'tracking'); url.searchParams.set('reportReceipt', receiptCode);
+    } else {
+      url.searchParams.set('sosStep', 'receipt'); url.searchParams.set('sosReceipt', receiptCode);
+    }
+    window.history.pushState({}, '', url);
+    setActiveFeature(feature); setFeatureMenuOpen(false); setCaseNavigationVersion((value) => value + 1);
+  }, []);
+
+  // Thông báo ngoài màn hình: bấm vào thông báo thì mở đúng khu vực hoặc đúng hồ sơ.
+  const openFromPush = useCallback((target: PushTarget) => {
+    setAppView('citizen');
+    if (target.type === 'alert') { navigateToFeature('alerts'); void selectAreaCode(target.areaCode, false); }
+    else openCase(target.kind, target.receiptCode);
+  }, [navigateToFeature, openCase, selectAreaCode]);
+
+  const updatePushPrefs = useCallback((next: PushPrefs) => { writePushPrefs(next); setPushPrefs(next); }, []);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    void initPush();
+    const onPush = (event: Event) => {
+      const detail = (event as CustomEvent<PushEventDetail>).detail;
+      if (detail.phase === 'received') { setPushToast(detail); return; }
+      const target = takePendingPushOpen();
+      if (target) openFromPush(target);
+    };
+    window.addEventListener(PUSH_EVENT, onPush);
+    const pending = takePendingPushOpen();
+    if (pending) openFromPush(pending);
+    return () => window.removeEventListener(PUSH_EVENT, onPush);
+  }, [openFromPush]);
+
+  // Đăng nhập/đăng xuất làm đổi tài khoản gắn với thiết bị: báo lại cho máy chủ.
+  useEffect(() => { void syncPushDevice(); }, [citizenSession?.id]);
+
+  // Hỏi bật thông báo đúng một lần, sau khi người dùng đã chọn một địa bàn và xem xong hướng dẫn.
+  useEffect(() => {
+    if (!pushSupported() || pushPrefs.asked || !area || appView !== 'citizen' || tourOpen) return;
+    const timer = window.setTimeout(() => {
+      setPushSettingsIntro(true); setPushSettingsOpen(true); updatePushPrefs({ ...pushPrefs, asked: true });
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [area, appView, tourOpen, pushPrefs, updatePushPrefs]);
+
+  const openPushSettings = useCallback(() => {
+    setFeatureMenuOpen(false); setPushSettingsIntro(false); setPushSettingsOpen(true);
+  }, []);
+  const closePushSettings = useCallback(() => setPushSettingsOpen(false), []);
+  const closePushToast = useCallback(() => setPushToast(null), []);
 
   const loading = state === 'loading';
 
@@ -412,18 +497,7 @@ export default function App() {
           <button className="map-assistant-trigger" type="button" aria-label="Trợ lý bản đồ" aria-expanded={activeFeature === 'assistant'} aria-controls={activeFeature === 'assistant' ? 'map-assistant-title' : undefined} onClick={() => navigateToFeature(activeFeature === 'assistant' ? 'directory' : 'assistant')}><MessageSquareText size={20} aria-hidden="true" /><span>Trợ lý</span></button>
           <CitizenNotifications key={citizenSession?.id ?? 'guest'} sessionId={citizenSession?.id ?? null}
             onRequireLogin={() => { setCitizenSession(null); setCitizenLoginAction('xem thông báo xử lý hồ sơ'); setCitizenLoginOpen(true); }}
-            onOpenCase={(notification) => {
-              const url = new URL(window.location.href);
-              const feature = notification.kind === 'sos' ? 'sos' : 'reports';
-              url.searchParams.set('feature', feature);
-              if (notification.kind === 'incident') {
-                url.searchParams.set('reportTab', 'tracking'); url.searchParams.set('reportReceipt', notification.receiptCode);
-              } else {
-                url.searchParams.set('sosStep', 'receipt'); url.searchParams.set('sosReceipt', notification.receiptCode);
-              }
-              window.history.pushState({}, '', url);
-              setActiveFeature(feature); setFeatureMenuOpen(false); setCaseNavigationVersion((value) => value + 1);
-            }} />
+            onOpenCase={(notification) => openCase(notification.kind, notification.receiptCode)} />
           {!citizenSession && <button className="citizen-login-trigger" data-tour="account" type="button" onClick={() => { setCitizenLoginAction('sử dụng ứng dụng người dân'); setCitizenLoginOpen(true); }} aria-label="Đăng nhập hoặc đăng ký tài khoản người dân" title="Tài khoản người dân"><UserRoundCheck size={22} aria-hidden="true" /></button>}
           {citizenSession && <button className="citizen-session-button" data-tour="account" type="button" onClick={() => navigateToFeature('account')} title="Mở tài khoản người dân"><UserRoundCheck size={17} /><span>{citizenSession.displayName}</span></button>}
           <button
@@ -485,6 +559,7 @@ export default function App() {
               </div>
               {overviewError && <div className="overview-error" role="alert">Chưa tải được ranh giới toàn tỉnh. <button type="button" onClick={() => setOverviewAttempt(value => value + 1)}>Thử lại</button></div>}
               {!area && overview && <p className="province-hint">Chạm ranh giới để xem địa bàn.</p>}
+              <QuickActions onReport={() => navigateToFeature('reports')} onAlerts={() => navigateToFeature('alerts')} onDirections={openDirections} onAssistant={() => navigateToFeature('assistant')} />
               {searchResultsOpen && (suggestions.length > 0 || searching) && (
                 <div className="suggestions" id="area-suggestions" role="listbox" aria-label="Kết quả tìm địa bàn">
                   {searching && suggestions.length === 0 ? (
@@ -527,6 +602,14 @@ export default function App() {
                   </div>
                 </div>
               )
+            )}
+            {!area && state === 'idle' && recentAreas.length > 0 && (
+              <section className="recent-areas" aria-labelledby="recent-areas-title">
+                <h2 id="recent-areas-title">Đã xem gần đây</h2>
+                <div>
+                  {recentAreas.map(item => <button key={item.code} type="button" onClick={() => void selectAreaCode(item.code)}><MapPinned size={16} aria-hidden="true" />{item.name}</button>)}
+                </div>
+              </section>
             )}
             </div>
           </aside>
@@ -622,10 +705,13 @@ export default function App() {
         </button>
       </nav>
 
-      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onOfficerLogin={__CITIZEN_ONLY__ ? undefined : () => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
+      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onComingSoon={() => openDirections()} onOpenNotifications={openPushSettings} notificationsReady={pushSupported()} onOfficerLogin={__CITIZEN_ONLY__ ? undefined : () => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
       {!__CITIZEN_ONLY__ && <PoliceLoginDialog open={policeLoginOpen} onSuccess={handlePoliceLoginSuccess} onClose={() => setPoliceLoginOpen(false)} />}
       <CitizenAuthSheet open={citizenLoginOpen && !citizenSession} action={citizenLoginAction} onClose={() => setCitizenLoginOpen(false)} onSuccess={(session) => { setCitizenSession(session); setCitizenLoginOpen(false); setCitizenLoginNotice('Đăng nhập tài khoản thành công.'); }} />
       {citizenLoginNotice && <div className="citizen-login-success" role="status" aria-live="polite"><ShieldCheck size={20} aria-hidden="true" /><span>{citizenLoginNotice}</span></div>}
+      <FeatureNotice notice={featureNotice} onClose={closeFeatureNotice} />
+      <NotificationSettings open={pushSettingsOpen} intro={pushSettingsIntro} currentArea={area ? { code: area.code, name: area.name } : null} prefs={pushPrefs} onPrefsChange={updatePushPrefs} onClose={closePushSettings} />
+      <PushToast toast={pushToast} onOpen={(toast) => { if (toast.target) openFromPush(toast.target); }} onClose={closePushToast} />
       <CitizenOnboardingTour open={tourOpen} onClose={(completed) => { setTourOpen(false); window.localStorage.setItem(CITIZEN_TOUR_KEY, completed ? 'completed' : 'skipped'); }} />
     </div>
   );
