@@ -87,17 +87,16 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
     }}>
       <header className="map-assistant-header">
         <MessageSquareText size={20} aria-hidden="true" />
-        <div><h2 id="map-assistant-title" tabIndex={-1} ref={headingRef}>Trợ lý bản đồ</h2><p>Tra cứu dữ liệu công khai</p></div>
+        <div><h2 id="map-assistant-title" tabIndex={-1} ref={headingRef}>Trợ lý bản đồ</h2></div>
         <button type="button" onClick={onClose} aria-label="Đóng trợ lý bản đồ"><X size={20} aria-hidden="true" /></button>
       </header>
 
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>
         {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối AI…</p>}
         {statusFailed && <div role="alert"><p>Chưa kiểm tra được kết nối trợ lý.</p><button className="map-assistant-text-button" type="button" onClick={() => setStatusAttempt(value => value + 1)}>Thử lại</button></div>}
-        {ready && !usesAi && <p className="map-assistant-mode" role="status">Trợ lý đang tra cứu theo tên xã/phường, danh bạ và cảnh báo công khai. Chưa dùng AI, nên hãy ghi rõ tên địa bàn.</p>}
+        {ready && !usesAi && <p className="map-assistant-mode" role="status">Chưa dùng AI: hãy ghi rõ tên xã/phường.</p>}
         {ready && turns.length === 0 && <div className="map-assistant-welcome">
           <h3>Bạn cần tìm gì trên bản đồ?</h3>
-          <p>Tìm xã/phường, địa chỉ trụ sở, đầu mối liên hệ hoặc cảnh báo công khai tại Lâm Đồng.</p>
           <div className="map-assistant-prompts">
             {(areaName ? ['Cho tôi số liên hệ ở đây', 'Ở đây có cảnh báo nào?'] : ['Tìm phường Xuân Hương', 'Tôi muốn tìm một xã/phường']).map(prompt => (
               <button key={prompt} type="button" onClick={() => { setQuestion(prompt); inputRef.current?.focus(); }}>{prompt}</button>
@@ -137,7 +136,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       </div>
 
       <form className="map-assistant-compose" onSubmit={event => void submit(event)}>
-        <p className="map-assistant-context">{areaName ? `Đang xem: ${areaName}` : 'Phạm vi: tỉnh Lâm Đồng'}</p>
+        {areaName && <p className="map-assistant-context">Đang xem: {areaName}</p>}
         <label htmlFor="map-ai-question">Câu hỏi của bạn</label>
         <div className="map-assistant-input">
           <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!ready || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
@@ -146,7 +145,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
             // completes, so the click would land outside the button and the question would not be sent.
             onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}><ArrowUp size={20} aria-hidden="true" /></button>
         </div>
-        <small>{usesAi && status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Không nhập thông tin cá nhân. Không tiếp nhận SOS.</small>
+        <small>{usesAi && status?.provider ? `Câu hỏi và tên địa bàn gửi tới ${status.provider}. ` : ''}Đừng nhập thông tin cá nhân. Không dùng cho SOS.</small>
       </form>
     </section>
   );

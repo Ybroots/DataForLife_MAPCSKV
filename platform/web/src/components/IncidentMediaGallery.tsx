@@ -32,7 +32,7 @@ export function IncidentMediaGallery({ scope, incidentKey, attachments }: Props)
     };
   }, [attachments, incidentKey, scope]);
 
-  if (!attachments.length) return <p className="workflow-empty">Chưa có tệp minh chứng.</p>;
+  if (!attachments.length) return scope === 'citizen' ? null : <p className="workflow-empty">Chưa có tệp minh chứng.</p>;
   return (
     <div className="incident-media-grid">
       {attachments.map((attachment) => (

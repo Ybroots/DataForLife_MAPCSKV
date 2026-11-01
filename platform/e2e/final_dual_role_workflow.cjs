@@ -38,7 +38,7 @@ async function citizenLogin(page, credentials) {
   await page.locator('.citizen-auth-sheet input[name="password"]').fill(credentials.API_CITIZEN_PASSWORD);
   await page.locator('.citizen-auth-sheet form button[type="submit"]').click();
   await page.locator('.citizen-auth-sheet').waitFor({ state: 'detached' });
-  await page.getByText('Đã đăng nhập', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Đăng xuất tài khoản' }).waitFor();
 }
 
 async function officerLogin(page, credentials) {
@@ -147,7 +147,7 @@ async function main() {
     await citizen.waitForSelector('.map-sos-button');
     await citizen.locator('.map-sos-button').click();
     await citizen.waitForSelector('.sos-hold-button');
-    await citizen.getByText(/GPS sẵn sàng/).waitFor({ timeout: 15_000 });
+    await citizen.getByText(/Vị trí này sẽ được gửi kèm SOS|sai số khoảng/).first().waitFor({ timeout: 15_000 });
     const hold = citizen.locator('.sos-hold-button');
     await hold.hover(); await citizen.mouse.down(); await citizen.waitForTimeout(3_250); await citizen.mouse.up();
     await citizen.waitForSelector('.sos-receipt-card h2', { timeout: 15_000 });

@@ -32,7 +32,10 @@ export function registerCitizenRoutes({ app, repository, options, localWorkflowM
     const locationNote = optionalText(body.locationNote, 500);
     const contactPhone = parsePhone(body.contactPhone);
     const accuracyM = parseAccuracy(body.accuracyM);
-    const attachments = parseIncidentAttachments(body.attachments);
+    // A photo or video is welcome but not required: many reports (lost item, paperwork, noise) have none.
+    const attachments = body.attachments === undefined || (Array.isArray(body.attachments) && body.attachments.length === 0)
+      ? []
+      : parseIncidentAttachments(body.attachments);
     if (contactPhone === undefined) {
       return reply.code(400).send({ error: 'INVALID_CONTACT_PHONE', message: 'Số liên hệ phải gồm 8–15 chữ số; có thể dùng dấu cách, dấu chấm hoặc dấu gạch ngang.' });
     }

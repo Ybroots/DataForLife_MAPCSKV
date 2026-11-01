@@ -1,14 +1,18 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import {
+  Camera,
   CheckCircle2,
+  Copy,
   FilePlus2,
+  Images,
   LocateFixed,
   MapPin,
   MessageSquareText,
   Paperclip,
   RefreshCw,
   Send,
+  X,
 } from 'lucide-react';
 import { addCitizenIncidentAttachment, addCitizenIncidentMessage, ApiError, createIncident, getCitizenIncident, listCitizenIncidentMessages, listCitizenIncidents, withdrawCitizenIncident } from '../api';
 import type { Incident, IncidentAttachment, IncidentMessage, IncidentStatus } from '../types';
@@ -37,6 +41,20 @@ const statusLabels: Record<IncidentStatus, string> = {
   rejected: 'Không thuộc phạm vi xử lý',
 };
 
+// What happens next, in plain words for the person who sent the report.
+const nextStepText: Record<IncidentStatus, string> = {
+  submitted: 'Phản ánh đã được gửi. Cán bộ khu vực sẽ tiếp nhận, bạn sẽ nhận thông báo khi có cập nhật.',
+  received: 'Cán bộ đã tiếp nhận và sẽ phân công người phụ trách.',
+  assigned: 'Đã có cán bộ phụ trách. Cán bộ sẽ bắt đầu xử lý và có thể nhắn bạn bổ sung thông tin.',
+  verifying: 'Cán bộ đang xác minh thông tin. Bạn có thể bổ sung ảnh hoặc nội dung ở bên dưới.',
+  processing: 'Cán bộ đang xử lý. Kết quả sẽ được báo cho bạn khi xong.',
+  resolved: 'Phản ánh đã có kết quả. Xem nội dung ở mục "Lịch sử xử lý" bên dưới.',
+  closed: 'Hồ sơ đã đóng. Nếu sự việc tái diễn, bạn hãy gửi phản ánh mới.',
+  rejected: 'Nội dung này không thuộc phạm vi của Công an khu vực. Xem lý do ở "Lịch sử xử lý" bên dưới.',
+};
+
+const dayFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
 const categoryLabels: Record<Incident['category'], string> = {
   security: 'An ninh trật tự',
   traffic: 'Giao thông',
@@ -47,7 +65,7 @@ const categoryLabels: Record<Incident['category'], string> = {
 };
 
 function message(error: unknown): string {
-  return error instanceof ApiError ? error.message : 'Chưa thể kết nối quy trình phản ánh local.';
+  return error instanceof ApiError ? error.message : 'Chưa kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.';
 }
 
 const acceptedMediaTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']);
@@ -96,6 +114,17 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   const [messageText, setMessageText] = useState('');
   const [supplementFile, setSupplementFile] = useState<File | null>(null);
   const [threadBusy, setThreadBusy] = useState(false);
+  const [sentReceipt, setSentReceipt] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!evidenceFile || !evidenceFile.type.startsWith('image/')) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(evidenceFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [evidenceFile]);
 
   useEffect(() => {
     if (selectedPosition) setPosition(selectedPosition);
@@ -159,6 +188,25 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     else { setIncidents([]); setSelectedReceipt(null); }
   }, [isAuthenticated]);
 
+  const pickEvidence = (file: File | null) => {
+    const problem = file ? mediaError(file) : null;
+    // A file the server would refuse is not kept, so the form never looks ready when it is not.
+    setEvidenceFile(problem ? null : file);
+    setError(problem ?? '');
+    if (problem) setFileInputKey((value) => value + 1);
+  };
+
+  // What still blocks "Gửi phản ánh", in the order the form is filled.
+  const missing: string[] = [];
+  if (summary.trim().length < 10) missing.push(summary.trim() ? 'tiêu đề dài hơn (từ 10 ký tự)' : 'tiêu đề');
+  if (description.trim().length < 10) missing.push(description.trim() ? 'mô tả dài hơn (từ 10 ký tự)' : 'mô tả');
+  if (!position) missing.push('vị trí');
+  if (!consent) missing.push('ô xác nhận');
+
+  const copyReceipt = async (code: string) => {
+    try { await navigator.clipboard.writeText(code); setCopied(true); window.setTimeout(() => setCopied(false), 2500); } catch { setError('Không sao chép được. Bạn hãy chép mã bằng tay.'); }
+  };
+
   const locate = () => {
     setError('');
     if (!supportsDeviceLocation()) {
@@ -192,12 +240,12 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isAuthenticated) { onRequireLogin(); return; }
-    if (!position || !consent || !evidenceFile) return;
+    if (!position || !consent || missing.length > 0) return;
     setSubmitting(true);
     setError('');
     setNotice('');
     try {
-      const invalidMedia = mediaError(evidenceFile);
+      const invalidMedia = evidenceFile ? mediaError(evidenceFile) : null;
       if (invalidMedia) {
         setError(invalidMedia);
         return;
@@ -212,14 +260,16 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyM,
-        attachments: [{
+        attachments: evidenceFile ? [{
           fileName: evidenceFile.name,
           mimeType: evidenceFile.type as IncidentAttachment['mimeType'],
           sizeBytes: evidenceFile.size,
           dataBase64: await encodeMedia(evidenceFile),
-        }],
+        }] : [],
       });
-      setNotice(`Đã lưu phản ánh local với mã ${payload.data.receiptCode}.`);
+      setNotice('');
+      setSentReceipt(payload.data.receiptCode);
+      setCopied(false);
       setIncidents((current) => [payload.data, ...current.filter((item) => item.id !== payload.data.id)]);
       selectReceipt(payload.data.receiptCode);
       setClientRequestId(createRequestId());
@@ -230,6 +280,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
       setFileInputKey((value) => value + 1);
       setConsent(false);
       changeView('tracking');
+      window.setTimeout(() => topRef.current?.closest('.feature-workspace')?.scrollTo({ top: 0 }), 60);
     } catch (caught) {
       setError(message(caught));
     } finally {
@@ -293,9 +344,6 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
 
       {view === 'create' ? (
         <form className="operational-form" onSubmit={submit}>
-          <div className="form-section-heading">
-            <div><span>Bước 1–3</span><h2 id="report-workflow-title">Nội dung, vị trí và xác nhận</h2></div>
-          </div>
           <IncidentDraftAssistant isAuthenticated={isAuthenticated} categoryLabels={categoryLabels} onRequireLogin={onRequireLogin} onDraft={applyDraft} />
           <label><span>Nhóm phản ánh <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <select name="category" autoComplete="off" value={category} onChange={(event) => setCategory(event.target.value as Incident['category'])}>
@@ -304,33 +352,42 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
           </label>
           <label><span>Tiêu đề ngắn <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <input name="summary" autoComplete="off" value={summary} onChange={(event) => setSummary(event.target.value)} minLength={10} maxLength={180} placeholder="Ví dụ: Tụ tập gây ồn sau 23 giờ" required />
-            <small>{summary.length}/180 ký tự</small>
+            {summary.length > 150 && <small>{summary.length}/180 ký tự</small>}
           </label>
           <label><span>Mô tả sự việc <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <textarea name="description" autoComplete="off" value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={4000} rows={5} placeholder="Nêu thời gian, diễn biến và dấu hiệu cần xác minh. Không đưa thông tin không cần thiết về người khác." required />
           </label>
-          <label><span>Ảnh hoặc video hiện trường <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
-            <input
-              key={fileInputKey}
-              name="evidence"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
-              capture="environment"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setEvidenceFile(file);
-                setError(file ? mediaError(file) ?? '' : '');
-              }}
-              required
-            />
-            <small>{evidenceFile ? `${evidenceFile.name} · ${(evidenceFile.size / 1024 / 1024).toFixed(2)} MB` : 'Ảnh tối đa 5 MB · video tối đa 20 MB'}</small>
-          </label>
+          <div className="evidence-field">
+            <span className="evidence-label">Ảnh hoặc video <small>(không bắt buộc)</small></span>
+            {evidenceFile ? (
+              <div className="evidence-preview">
+                {previewUrl ? <img src={previewUrl} alt="Ảnh bạn đã chọn" /> : <span className="evidence-video" aria-hidden="true"><Paperclip size={22} /></span>}
+                <div>
+                  <strong>{evidenceFile.name}</strong>
+                  <small>{evidenceFile.size < 1024 * 1024 ? `${Math.max(1, Math.round(evidenceFile.size / 1024))} KB` : `${(evidenceFile.size / 1024 / 1024).toFixed(1)} MB`}</small>
+                </div>
+                <button type="button" className="evidence-remove" onClick={() => { pickEvidence(null); setFileInputKey((value) => value + 1); }} aria-label="Bỏ tệp đã chọn"><X size={18} aria-hidden="true" /> Bỏ</button>
+              </div>
+            ) : (
+              <div className="evidence-actions">
+                <label className="evidence-button">
+                  <Camera size={20} aria-hidden="true" /> Chụp ảnh
+                  <input key={`cam-${fileInputKey}`} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => pickEvidence(event.target.files?.[0] ?? null)} />
+                </label>
+                <label className="evidence-button">
+                  <Images size={20} aria-hidden="true" /> Chọn ảnh / video
+                  <input key={`pick-${fileInputKey}`} className="sr-only" name="evidence" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => pickEvidence(event.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            )}
+            <small className="evidence-hint">Ảnh tối đa 5 MB · video tối đa 20 MB</small>
+          </div>
           <WorkflowLocationMap position={position} onSelect={(nextPosition) => { setPosition(nextPosition); setAccuracyM(null); }} />
           <div className={position ? 'workflow-location ready' : 'workflow-location'}>
             <MapPin size={21} aria-hidden="true" />
             <div>
               <strong>{position ? 'Đã có vị trí gửi kèm' : 'Chưa có vị trí'}</strong>
-              <span>{position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}${accuracyM ? ` · sai số khoảng ${Math.round(accuracyM)} m` : ''}` : 'Chọn điểm trên bản đồ hoặc dùng GPS của thiết bị.'}</span>
+              {position && <span>{accuracyM ? `Sai số khoảng ${Math.round(accuracyM)} m` : 'Đã chọn trên bản đồ'}</span>}
             </div>
             <button type="button" onClick={locate} disabled={locating}><LocateFixed size={17} aria-hidden="true" /> {locating ? 'Đang lấy…' : 'Dùng GPS'}</button>
           </div>
@@ -349,23 +406,39 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
           </div>
           <label className="consent-row">
             <input name="truthfulnessConsent" type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-            <span>Tôi xác nhận nội dung phản ánh là đúng theo hiểu biết của mình, đồng ý gửi vị trí và chịu trách nhiệm về thông tin đã cung cấp. Tôi hiểu việc cố ý báo tin sai sự thật có thể bị xử lý theo pháp luật.</span>
+            <span>Tôi cam đoan nội dung đúng sự thật và đồng ý gửi kèm vị trí. Cố ý báo tin sai có thể bị xử lý theo pháp luật.</span>
           </label>
           {!isAuthenticated && <VneIdLoginPrompt action="gửi phản ánh" onLogin={onRequireLogin} compact />}
-          <button className="primary-action" type={isAuthenticated ? 'submit' : 'button'} onClick={isAuthenticated ? undefined : onRequireLogin} disabled={isAuthenticated && (submitting || !position || !consent || !evidenceFile)}>
+          {isAuthenticated && missing.length > 0 && <p className="form-missing" role="status">Còn thiếu: {missing.join(', ')}.</p>}
+          <button className="primary-action" type={isAuthenticated ? 'submit' : 'button'} onClick={isAuthenticated ? undefined : onRequireLogin} disabled={isAuthenticated && (submitting || missing.length > 0)}>
             {submitting ? <span className="loader light" /> : <Send size={18} aria-hidden="true" />}
             {submitting ? 'Đang lưu phản ánh…' : isAuthenticated ? 'Gửi phản ánh' : 'Đăng nhập để gửi'}
           </button>
         </form>
       ) : (
         !isAuthenticated ? <VneIdLoginPrompt action="theo dõi phản ánh" onLogin={onRequireLogin} /> : <div className="case-tracking-layout">
+          <div ref={topRef} className="scroll-anchor" />
+          {sentReceipt && (
+            <section className="sent-card" role="status" aria-live="polite">
+              <CheckCircle2 size={28} aria-hidden="true" />
+              <div>
+                <h3>Đã gửi phản ánh thành công</h3>
+                <p>Mã hồ sơ của bạn: <code>{sentReceipt}</code></p>
+                <p>Cán bộ khu vực sẽ tiếp nhận và cập nhật ngay tại mục này. Bạn cũng sẽ nhận thông báo khi có tiến triển.</p>
+                <div className="sent-actions">
+                  <button type="button" onClick={() => void copyReceipt(sentReceipt)}><Copy size={16} aria-hidden="true" /> {copied ? 'Đã sao chép' : 'Sao chép mã'}</button>
+                  <button type="button" onClick={() => setSentReceipt(null)}>Đóng</button>
+                </div>
+              </div>
+            </section>
+          )}
           <div className="case-list" aria-label="Danh sách phản ánh">
             <div className="case-list-heading"><strong>Phản ánh của tôi</strong><button type="button" onClick={() => void loadIncidents()} disabled={loading} aria-label="Tải lại danh sách"><RefreshCw size={17} aria-hidden="true" /></button></div>
-            {incidents.length === 0 && !loading && <p className="workflow-empty">Chưa có phản ánh nào trong tài khoản local này.</p>}
+            {incidents.length === 0 && !loading && <p className="workflow-empty">Bạn chưa gửi phản ánh nào. Chọn "Tạo phản ánh" để bắt đầu.</p>}
             {incidents.map((item) => (
               <button key={item.id} type="button" className={selectedIncident?.id === item.id ? 'case-list-item active' : 'case-list-item'} onClick={() => selectReceipt(item.receiptCode)}>
                 <span className={`status-dot ${item.status}`} aria-hidden="true" />
-                <span><strong>{item.summary}</strong><small>{item.receiptCode} · {statusLabels[item.status]}</small></span>
+                <span><strong>{item.summary}</strong><small>{statusLabels[item.status]} · {dayFormatter.format(new Date(item.createdAt))}</small></span>
               </button>
             ))}
           </div>
@@ -375,11 +448,11 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 <div><span className={`status-chip ${selectedIncident.status}`}>{statusLabels[selectedIncident.status]}</span><h2>{selectedIncident.summary}</h2><code>{selectedIncident.receiptCode}</code></div>
                 <CheckCircle2 size={27} aria-hidden="true" />
               </div>
+              <p className="next-step"><strong>Tiếp theo:</strong> {nextStepText[selectedIncident.status]}</p>
               <p>{selectedIncident.description}</p>
               <dl className="case-facts">
                 <div><dt>Địa bàn</dt><dd>{selectedIncident.location.serviceAreaName ?? selectedIncident.location.localityName}</dd></div>
-                <div><dt>Phụ trách</dt><dd>{selectedIncident.assignedOfficer?.displayName ?? 'Chưa phân công'}</dd></div>
-                <div><dt>Minh chứng</dt><dd>{selectedIncident.attachments.length ? `${selectedIncident.attachments.length} tệp đã lưu` : 'Chưa có tệp'}</dd></div>
+                {selectedIncident.assignedOfficer && <div><dt>Phụ trách</dt><dd>{selectedIncident.assignedOfficer.displayName}</dd></div>}
               </dl>
               {['submitted', 'received'].includes(selectedIncident.status) && (
                 <div className="case-withdraw">
@@ -390,26 +463,29 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 </div>
               )}
               <section className="case-subsection" aria-labelledby="citizen-media-title">
-                <h3 id="citizen-media-title"><Paperclip size={18} aria-hidden="true" /> Minh chứng hồ sơ</h3>
+                <h3 id="citizen-media-title"><Paperclip size={18} aria-hidden="true" /> Ảnh / video</h3>
                 <IncidentMediaGallery scope="citizen" incidentKey={selectedIncident.receiptCode} attachments={selectedIncident.attachments} />
                 <div className="supplement-row">
-                  <input aria-label="Chọn tệp bổ sung" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => setSupplementFile(event.target.files?.[0] ?? null)} />
-                  <button className="secondary-action" type="button" disabled={!supplementFile || threadBusy} onClick={() => void uploadSupplement()}><Paperclip size={16} /> Bổ sung</button>
+                  <label className="evidence-button supplement-pick"><Images size={20} aria-hidden="true" /> {supplementFile ? supplementFile.name : 'Chọn ảnh / video bổ sung'}<input className="sr-only" aria-label="Chọn tệp bổ sung" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => setSupplementFile(event.target.files?.[0] ?? null)} /></label>
+                  {supplementFile && <button className="primary-action" type="button" disabled={threadBusy} onClick={() => void uploadSupplement()}><Paperclip size={16} /> Gửi tệp này</button>}
                 </div>
               </section>
               <section className="case-subsection" aria-labelledby="citizen-thread-title">
                 <h3 id="citizen-thread-title"><MessageSquareText size={18} aria-hidden="true" /> Trao đổi với cán bộ</h3>
                 <div className="case-thread" aria-live="polite">
-                  {messages.length === 0 && <p className="workflow-empty">Chưa có nội dung trao đổi.</p>}
+                  
                   {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{entry.requestMedia && <span>Yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
                 </div>
                 <form className="thread-compose" onSubmit={sendMessage}>
                   <label className="sr-only" htmlFor="citizen-message">Nội dung trao đổi</label>
                   <textarea id="citizen-message" value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={2} maxLength={2000} placeholder="Bổ sung thông tin cho cán bộ…" required />
-                  <button className="primary-action" type="submit" disabled={threadBusy || messageText.trim().length < 2}><Send size={17} /> Gửi</button>
+                  {messageText.trim().length >= 2 && <button className="primary-action" type="submit" disabled={threadBusy}><Send size={17} /> Gửi</button>}
                 </form>
               </section>
-              <WorkflowTimeline history={selectedIncident.history} statusLabels={statusLabels} />
+              <section className="case-subsection" aria-labelledby="citizen-history-title">
+                <h3 id="citizen-history-title">Lịch sử xử lý</h3>
+                <WorkflowTimeline history={selectedIncident.history} statusLabels={statusLabels} />
+              </section>
             </article>
           )}
         </div>

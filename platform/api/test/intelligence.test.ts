@@ -132,6 +132,18 @@ describe('intelligence API', () => {
     return response.json().data as { id: string; receiptCode: string };
   }
 
+  it('accepts a report without a photo but still rejects a malformed attachment', async () => {
+    app = await testApp();
+    const base = { category: 'administrative', summary: 'Hỏi thủ tục đăng ký tạm trú', description: 'Cần biết giấy tờ cần chuẩn bị để đăng ký tạm trú.', latitude: 11.944, longitude: 108.441 };
+    const none = await app.inject({ method: 'POST', url: '/v1/citizen/incidents', headers: citizen, payload: { ...base, clientRequestId: 'req-no-photo-1' } });
+    expect(none.statusCode).toBe(201);
+    expect(none.json().data.attachments).toEqual([]);
+    const empty = await app.inject({ method: 'POST', url: '/v1/citizen/incidents', headers: citizen, payload: { ...base, clientRequestId: 'req-no-photo-2', attachments: [] } });
+    expect(empty.statusCode).toBe(201);
+    const bad = await app.inject({ method: 'POST', url: '/v1/citizen/incidents', headers: citizen, payload: { ...base, clientRequestId: 'req-bad-photo', attachments: [{ fileName: 'x.png' }] } });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('drafts a report for a signed-in citizen only when AI is configured', async () => {
     app = await testApp();
     expect((await app.inject({ method: 'GET', url: '/v1/ai/status' })).json().data.configured).toBe(false);

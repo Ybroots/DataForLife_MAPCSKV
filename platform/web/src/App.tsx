@@ -558,8 +558,7 @@ export default function App() {
                 {area && <button type="button" onClick={showProvince}>Toàn tỉnh</button>}
               </div>
               {overviewError && <div className="overview-error" role="alert">Chưa tải được ranh giới toàn tỉnh. <button type="button" onClick={() => setOverviewAttempt(value => value + 1)}>Thử lại</button></div>}
-              {!area && overview && <p className="province-hint">Chạm ranh giới để xem địa bàn.</p>}
-              <QuickActions onReport={() => navigateToFeature('reports')} onAlerts={() => navigateToFeature('alerts')} onDirections={openDirections} onAssistant={() => navigateToFeature('assistant')} />
+              <QuickActions onAlerts={() => navigateToFeature('alerts')} onDirections={openDirections} onAssistant={() => navigateToFeature('assistant')} />
               {searchResultsOpen && (suggestions.length > 0 || searching) && (
                 <div className="suggestions" id="area-suggestions" role="listbox" aria-label="Kết quả tìm địa bàn">
                   {searching && suggestions.length === 0 ? (
@@ -597,8 +596,7 @@ export default function App() {
                 <div className="empty-state">
                   <span className="empty-state-icon"><ShieldCheck size={22} aria-hidden="true" /></span>
                   <div>
-                    <strong>{overview ? `${overview.features.length} xã/phường trong dữ liệu Lâm Đồng` : 'Danh bạ địa bàn'}</strong>
-                    <span>Chọn xã/phường trên bản đồ hoặc trong danh sách để xem thông tin, trụ sở và danh bạ.</span>
+                    <strong>Chọn một xã/phường trên bản đồ hoặc tìm ở trên.</strong>
                   </div>
                 </div>
               )
@@ -706,7 +704,7 @@ export default function App() {
         </button>
       </nav>
 
-      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onComingSoon={() => openDirections()} onOpenNotifications={openPushSettings} notificationsReady={pushSupported()} onOfficerLogin={__CITIZEN_ONLY__ ? undefined : () => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
+      <FeatureDrawer open={featureMenuOpen} activeFeature={activeFeature} onClose={() => setFeatureMenuOpen(false)} onSelect={(feature) => { navigateToFeature(feature); if (feature === 'directory') setMobileView('directory'); }} onStartTour={startTour} onOpenNotifications={openPushSettings} notificationsReady={pushSupported()} onOfficerLogin={__CITIZEN_ONLY__ ? undefined : () => { setFeatureMenuOpen(false); setPoliceLoginOpen(true); }} />
       {!__CITIZEN_ONLY__ && <PoliceLoginDialog open={policeLoginOpen} onSuccess={handlePoliceLoginSuccess} onClose={() => setPoliceLoginOpen(false)} />}
       <CitizenAuthSheet open={citizenLoginOpen && !citizenSession} action={citizenLoginAction} onClose={() => setCitizenLoginOpen(false)} onSuccess={(session) => { setCitizenSession(session); setCitizenLoginOpen(false); setCitizenLoginNotice('Đăng nhập tài khoản thành công.'); }} />
       {citizenLoginNotice && <div className="citizen-login-success" role="status" aria-live="polite"><ShieldCheck size={20} aria-hidden="true" /><span>{citizenLoginNotice}</span></div>}

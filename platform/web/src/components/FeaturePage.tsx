@@ -34,14 +34,6 @@ interface FeaturePageProps {
   onStartTour: () => void;
 }
 
-const featureDescriptions: Record<Exclude<FeatureId, 'directory' | 'assistant'>, string> = {
-  alerts: 'Cảnh báo đang hiệu lực do cán bộ địa bàn phát hành.',
-  reports: 'Gửi phản ánh kèm vị trí, nhận mã tiếp nhận và theo dõi toàn bộ tiến trình xử lý.',
-  sos: 'Luồng khẩn cấp local có bước kiểm tra cuối, mã tiếp nhận và đồng bộ trạng thái từ cổng CSKV.',
-  feedback: 'Chỉ cho phép đánh giá sau khi mã vụ việc được xác nhận hoàn thành.',
-  account: 'Quản lý phiên đăng nhập, phản ánh đã gửi và các tùy chọn hỗ trợ.',
-};
-
 function mapsDirectionUrl(latitude: number, longitude: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
 }
@@ -86,17 +78,10 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
             <ArrowLeft size={19} aria-hidden="true" />
             <span>Về bản đồ</span>
           </a>
-          {feature !== 'reports' && feature !== 'sos' && (
-            <span className="mode-badge active">
-              Hoạt động
-            </span>
-          )}
         </header>
 
         {feature !== 'sos' && feature !== 'account' && !featureNeedsCitizenLogin && <div className="feature-heading">
-          <p className="eyebrow">{feature === 'reports' ? 'Gửi phản ánh' : 'Tính năng tích hợp'}</p>
           <h1 ref={headingRef} tabIndex={-1}>{FEATURE_LABELS[feature]}</h1>
-          <p>{featureDescriptions[feature]}</p>
         </div>}
 
         {feature === 'alerts' && (
@@ -104,7 +89,6 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
             <div className="section-title-row">
               <div>
                 <h2 id="alerts-title">Cảnh báo {areaName ? `tại ${areaName}` : 'theo địa bàn'}</h2>
-                <p>Dữ liệu do cán bộ trực ban phát hành trong phạm vi địa bàn.</p>
               </div>
               <button className="secondary-action" type="button" onClick={onShowAlertsOnMap}>
                 <MapPinned size={18} aria-hidden="true" /> Xem trên bản đồ

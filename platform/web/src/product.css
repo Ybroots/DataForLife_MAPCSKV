@@ -651,3 +651,100 @@ input, textarea, select { accent-color: var(--color-primary); }
 .queue-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .queue-thumb em { position: absolute; right: 3px; bottom: 3px; padding: 0 5px; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: rgba(0,0,0,.65); border-radius: 999px; }
 @media (max-width: 1023px) { .queue-card:has(.queue-thumb) { grid-template-columns: 28px minmax(0,1fr) 56px 16px; } }
+
+/* Citizen report: optional photo, what is missing, sent confirmation, next step, readable timeline. */
+.evidence-field { display: grid; gap: 8px; }
+.evidence-label { font-size: 14px; font-weight: 600; color: var(--color-ink); }
+.evidence-label small { display: block; margin-top: 2px; font-weight: 400; color: var(--color-muted); font-size: 13px; }
+.evidence-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.evidence-button { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; font-size: 15px; font-weight: 600; color: var(--color-primary); background: var(--color-surface); border: 1.5px dashed var(--color-primary); border-radius: 12px; cursor: pointer; text-align: center; }
+.evidence-button:focus-within { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.evidence-preview { display: grid; grid-template-columns: 64px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 10px; background: var(--color-canvas); border: 1px solid var(--color-line); border-radius: 12px; }
+.evidence-preview img, .evidence-video { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #e9eef0; display: grid; place-items: center; }
+.evidence-preview strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.evidence-preview small, .evidence-hint { color: var(--color-muted); font-size: 13px; }
+.evidence-remove { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; padding: 0 12px; font-weight: 600; color: var(--color-danger); background: transparent; border: 1px solid var(--color-danger); border-radius: 10px; cursor: pointer; }
+.form-missing { margin: 0; padding: 10px 12px; font-size: 14px; font-weight: 600; color: #7a5200; background: #fff4d6; border: 1px solid #ecd28c; border-radius: 10px; }
+.scroll-anchor { scroll-margin-top: 12px; height: 0; }
+.sent-card { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 12px; padding: 16px; margin-bottom: 14px; color: #0b4d3d; background: #e7f6f1; border: 1px solid #bfe3d7; border-radius: 14px; grid-column: 1 / -1; }
+.sent-card svg { color: #0b8a6a; }
+.sent-card h3 { margin: 0 0 4px; font-size: 18px; }
+.sent-card p { margin: 4px 0; font-size: 15px; line-height: 1.5; }
+.sent-card code { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+.sent-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sent-actions button { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 16px; font-weight: 600; color: #0b4d3d; background: #fff; border: 1px solid #8fcbb8; border-radius: 10px; cursor: pointer; }
+.next-step { margin: 12px 0; padding: 12px 14px; font-size: 15px; line-height: 1.5; color: #174d61; background: #e8f4f7; border-radius: 10px; }
+.workflow-timeline { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
+.workflow-timeline > li { position: relative; display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 10px; padding-bottom: 16px; }
+.workflow-timeline > li:last-child { padding-bottom: 0; }
+.workflow-timeline > li::before { content: ""; position: absolute; top: 28px; bottom: 0; left: 13px; width: 2px; background: var(--color-line); }
+.workflow-timeline > li:last-child::before { display: none; }
+.workflow-timeline .timeline-node { grid-template-columns: auto; position: static; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; color: #fff; background: #0b8a6a; border: 0; border-radius: 50%; }
+.workflow-timeline > li:last-child .timeline-node { background: var(--color-primary); }
+.workflow-timeline .timeline-node::before { display: none; }
+.workflow-timeline .timeline-heading strong { font-size: 15px; }
+.workflow-timeline .timeline-heading time { font-size: 13px; }
+.workflow-timeline p { font-size: 14px; }
+@media (max-width: 380px) { .evidence-actions { grid-template-columns: 1fr; } }
+
+/* Map home: four equal shortcuts that all fit (no hidden sideways scroll). */
+.quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; overflow: visible; padding-inline: 0; }
+.quick-action { flex-direction: column; justify-content: center; gap: 2px; min-height: 52px; padding: 6px 4px; font-size: 12.5px; line-height: 1.2; text-align: center; border-radius: 12px; }
+.quick-action span { display: block; }
+
+/* Top bar on phones: icons get a short word underneath so nobody has to guess. */
+@media (max-width: 1023px) {
+  .topbar-actions { gap: 6px; }
+  .topbar .map-assistant-trigger, .topbar .citizen-notification-bell, .topbar .feature-menu-button { flex-direction: column; gap: 0; min-width: 52px; min-height: 44px; max-height: 46px; padding: 3px 5px; font-size: 10.5px; line-height: 1.1; white-space: nowrap; }
+  .topbar .map-assistant-trigger svg, .topbar .citizen-notification-bell svg, .topbar .feature-menu-button svg { width: 19px; height: 19px; }
+  .topbar .map-assistant-trigger::after { content: "Trợ lý"; }
+  .topbar .citizen-notification-bell::after { content: "Thông báo"; }
+  .topbar .feature-menu-button span { display: inline; position: static; width: auto; height: auto; overflow: visible; clip: auto; font-size: 10.5px; }
+  .topbar .map-assistant-trigger::after, .topbar .citizen-notification-bell::after { font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+  .topbar .citizen-notification-bell { position: relative; }
+}
+@media (max-width: 360px) { .topbar .brand-copy { display: none; } }
+
+/* Assistant sheet: smaller input so the example questions stay visible. */
+@media (max-width: 1023px) and (min-height: 521px) {
+  .map-assistant { height: min(66dvh, 600px); }
+  .map-assistant-compose label[for="map-ai-question"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .map-assistant-input textarea { min-height: 48px; height: 48px; }
+  .map-assistant-compose small { font-size: 12px; }
+}
+.supplement-pick { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.supplement-row .evidence-button { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 1023px) {
+  .topbar .map-assistant-trigger, .topbar .citizen-notification-bell, .topbar .feature-menu-button { justify-content: center; gap: 2px; padding: 2px 4px; overflow: visible; }
+  .topbar .map-assistant-trigger svg, .topbar .citizen-notification-bell svg, .topbar .feature-menu-button svg { width: 17px; height: 17px; }
+}
+@media (max-width: 380px) {
+  .topbar .map-assistant-trigger, .topbar .citizen-notification-bell, .topbar .feature-menu-button { min-width: 48px; font-size: 10px; }
+  .topbar .map-assistant-trigger::after, .topbar .citizen-notification-bell::after, .topbar .feature-menu-button span { font-size: 10px; }
+}
+.sos-ready-status:empty { display: none; }
+
+/* Report form: one compact location row; tracking: inputs match the form, buttons appear only when usable. */
+.workflow-location { grid-template-columns: auto minmax(0,1fr) auto; align-items: center; padding: 10px 12px; }
+.workflow-location button { grid-column: auto; width: auto; min-height: 44px; }
+.workflow-location > div:empty, .workflow-location > div { align-self: center; }
+@media (max-width: 760px) { .workflow-location { grid-template-columns: auto minmax(0,1fr) auto; } .workflow-location button { grid-column: auto; width: auto; } }
+.thread-compose { grid-template-columns: 1fr; }
+.thread-compose textarea, .citizen-workflow .thread-compose textarea { min-height: 56px; padding: 10px 12px; font: inherit; font-size: 15px; color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 10px; }
+.thread-compose textarea:focus { outline: 3px solid var(--color-primary); outline-offset: 1px; }
+.thread-compose .primary-action { width: 100%; }
+.supplement-row { display: grid; gap: 8px; grid-template-columns: 1fr; }
+
+/* Tour: thanh gợi ý gọn, không chặn thao tác, không phủ tối màn hình. */
+section.citizen-tour { pointer-events: none; }
+section.citizen-tour .tour-spotlight { border: 2px solid #fff; box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 6px rgba(200,16,46,.2); pointer-events: none; }
+section.citizen-tour .tour-card { position: fixed; top: auto; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; width: auto; max-width: 440px; margin-inline: auto; transform: none; padding: 12px 14px; display: grid; gap: 6px; pointer-events: auto; box-shadow: var(--shadow-raised); }
+section.citizen-tour.tour-top .tour-card { bottom: auto; top: 68px; }
+section.citizen-tour .tour-card header { position: absolute; top: 8px; right: 8px; gap: 6px; align-items: center; }
+section.citizen-tour .tour-card header small { color: var(--color-muted, #64748b); font-size: 12px; font-weight: 600; }
+section.citizen-tour .tour-card header button { width: 32px; height: 32px; flex: 0 0 32px; }
+section.citizen-tour .tour-card h2 { font-size: 15px; font-weight: 700; margin: 0; padding-right: 84px; }
+section.citizen-tour .tour-card > p { margin: 0; font-size: 13px; line-height: 1.45; }
+section.citizen-tour .tour-card footer { margin-top: 4px; padding-top: 0; border-top: 0; gap: 8px; }
+section.citizen-tour .tour-card footer button { min-height: 40px; font-size: 13px; padding: 6px 14px; }
+@media (min-width: 900px) { section.citizen-tour .tour-card { left: auto; right: 24px; margin-inline: 0; bottom: 24px; } section.citizen-tour.tour-top .tour-card { top: 80px; } }

@@ -98,7 +98,7 @@ function readSosDraft(): SosDraft | null {
 export function EmergencyCallStrip() {
   return (
     <div className="official-emergency-strip">
-      <div><ShieldAlert size={20} aria-hidden="true" /><span><strong>SOS trong ứng dụng là kênh pilot nội bộ</strong><small>Nếu nguy hiểm tức thời, hãy gọi số khẩn cấp phù hợp trên điện thoại.</small></span></div>
+      <div><ShieldAlert size={20} aria-hidden="true" /><span><strong>Đang nguy hiểm? Gọi ngay</strong><small>SOS trong ứng dụng đang chạy thử.</small></span></div>
       <nav className="emergency-call-actions" aria-label="Gọi số khẩn cấp chính thức">
         <a href="tel:112" aria-label="Gọi Tổng đài khẩn cấp quốc gia 112">
           <PhoneCall size={18} aria-hidden="true" />
@@ -426,7 +426,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             </button>
             <p id="sos-hold-status" className={isAuthenticated && position ? 'sos-ready-status ready' : 'sos-ready-status'} aria-live="polite">
               {isAuthenticated
-                ? position ? 'Đã đăng nhập · GPS sẵn sàng' : locating ? 'Đang xác định vị trí…' : 'Cần xác định vị trí để gửi SOS'
+                ? position ? '' : locating ? 'Đang xác định vị trí…' : 'Cần xác định vị trí để gửi SOS'
                 : 'Đăng nhập tài khoản trước khi kích hoạt SOS'}
             </p>
           </div>
@@ -435,14 +435,15 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
           {!isAuthenticated && <VneIdLoginPrompt action="sử dụng SOS" onLogin={onRequireLogin} />}
 
           <section className="sos-location-panel" aria-labelledby="sos-location-title">
-            <header><span><MapPin size={18} aria-hidden="true" /></span><div><strong id="sos-location-title">Vị trí hiện tại</strong><small>GPS của thiết bị sẽ được gửi kèm SOS</small></div><i className={position ? 'online' : ''} aria-live="polite">{locating ? 'Đang cập nhật' : position ? 'Đã xác định' : 'Chưa sẵn sàng'}</i></header>
+            <h2 className="sr-only" id="sos-location-title">Vị trí hiện tại</h2>
             <div className={position ? 'sos-current-location ready' : 'sos-current-location'}>
               <span className="sos-location-fix"><LocateFixed size={24} aria-hidden="true" /></span>
               <div>
-                <small>Tọa độ GPS thiết bị</small>
-                <strong>{position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}` : locating ? 'Đang xác định vị trí…' : 'Chưa nhận được vị trí'}</strong>
+                <strong title={position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}` : undefined}>{position
+                  ? accuracyM !== null ? (accuracyM <= 50 ? `Khá chính xác (sai số khoảng ${Math.round(accuracyM)} m)` : `Chưa thật chính xác (sai số khoảng ${Math.round(accuracyM)} m)`) : 'Đã nhận vị trí từ điện thoại'
+                  : locating ? 'Đang xác định vị trí…' : 'Chưa nhận được vị trí'}</strong>
                 <span>{position
-                  ? accuracyM !== null ? `Độ chính xác khoảng ${Math.round(accuracyM)} m` : 'Đã nhận tọa độ gần nhất từ thiết bị'
+                  ? accuracyM !== null && accuracyM > 50 ? 'Nếu có thể, ra nơi thoáng rồi bấm "Cập nhật".' : 'Vị trí này sẽ được gửi kèm SOS.'
                   : 'Hãy cho phép truy cập vị trí để gửi SOS.'}</span>
               </div>
               <button type="button" onClick={locate} disabled={locating} aria-label={position ? 'Cập nhật vị trí GPS hiện tại' : 'Lấy vị trí GPS hiện tại'}>
@@ -472,7 +473,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             </div>
           </details>
 
-          <p className="sos-legal-confirmation" id="sos-legal-hint"><AlertTriangle size={20} aria-hidden="true" /><span><strong>Chỉ dùng trong trường hợp khẩn cấp.</strong> Nhấn giữ đủ 3 giây đồng nghĩa bạn xác nhận thông tin và vị trí gửi đi là đúng sự thật.</span></p>
+          <p className="sos-legal-confirmation" id="sos-legal-hint"><AlertTriangle size={20} aria-hidden="true" /><span><strong>Chỉ dùng khi khẩn cấp.</strong> Giữ đủ 3 giây là bạn xác nhận thông tin gửi đi đúng sự thật.</span></p>
         </div>
       )}
 

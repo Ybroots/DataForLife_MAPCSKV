@@ -58,7 +58,7 @@ export function WorkflowLocationMap({ position, onSelect, emergency = false }: W
 
   return (
     <div className={emergency ? 'workflow-map-card emergency' : 'workflow-map-card'}>
-      <div className="workflow-map-card-heading"><MapPinned size={18} aria-hidden="true" /><span><strong>Chọn vị trí trên bản đồ</strong><small>Chạm đúng điểm xảy ra sự việc để cập nhật tọa độ.</small></span></div>
+      <div className="workflow-map-card-heading"><MapPinned size={18} aria-hidden="true" /><span><strong>Chạm vào bản đồ để chọn vị trí</strong></span></div>
       <div ref={containerRef} className="workflow-map-canvas" aria-label={emergency ? 'Bản đồ chọn vị trí SOS' : 'Bản đồ chọn vị trí phản ánh'} />
     </div>
   );
