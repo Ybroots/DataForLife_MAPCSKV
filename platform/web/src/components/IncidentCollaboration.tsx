@@ -56,8 +56,9 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
 
   return (
     <section className="ops-card collaboration-card">
-      <div className="ops-card-title"><h3>Trao đổi & minh chứng</h3><MessageSquareText size={20} aria-hidden="true" /></div>
       <IncidentMediaGallery scope="officer" incidentKey={incident.id} attachments={incident.attachments} />
+      <details className="case-thread-details">
+      <summary><MessageSquareText size={18} aria-hidden="true" /> Trao đổi với người dân{messages.length > 0 ? ` (${messages.length})` : ''}</summary>
       <div className="supplement-row officer-upload">
         <input aria-label="Chọn ảnh hoặc video nghiệp vụ" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         <button className="secondary-action" type="button" disabled={!file || busy} onClick={() => void upload()}><Paperclip size={16} /> Lưu minh chứng</button>
@@ -73,6 +74,7 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
         <button className="ops-submit" type="submit" disabled={busy || message.trim().length < 2}><Send size={17} /> Gửi người dân</button>
       </form>
       {notice && <p className="inline-notice" role="status">{notice}</p>}
+      </details>
     </section>
   );
 }

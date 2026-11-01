@@ -106,7 +106,7 @@ export function SosEmergencyOverlay({
           {soundBlocked && (
             <button type="button" onClick={onUnlockSound}><Volume2 size={18} aria-hidden="true" /> Bấm để bật còi báo động</button>
           )}
-          {!soundEnabled && <span>Còi đang tắt trên máy này (nút “Còi SOS” ở đầu trang).</span>}
+          {!soundEnabled && <span>Còi đang tắt trên máy này (nút “Còi tắt” ở đầu trang).</span>}
         </div>
         <p className="sos-emergency-hint">
           “Nhận xử lý ngay” giao SOS cho bạn và báo cho người dân biết đã có cán bộ nhận. Nếu chỉ xem trước, cảnh báo sẽ hiện lại sau 2 phút khi chưa ai nhận.

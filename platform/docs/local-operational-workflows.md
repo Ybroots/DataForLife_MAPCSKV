@@ -7,8 +7,7 @@ Phạm vi: PostGIS/API/app người dân/workspace CSKV trong môi trường loc
 
 - App người dân (`/`) mở bản đồ làm màn hình chính trên điện thoại; các tab chính
   là Bản đồ, Danh bạ, Phản ánh và SOS.
-- Workspace CSKV (`/?portal=police`) có hàng đợi theo địa bàn, bộ lọc SOS/phản
-  ánh, chi tiết vị trí, người phụ trách, hành động tiếp theo và timeline audit.
+- Workspace CSKV (`/?portal=police`) có hàng đợi theo địa bàn (ba tab Cần làm/Của tôi/Tất cả), chi tiết vị trí, người phụ trách, hành động tiếp theo và timeline audit.
 
 ## Phản ánh
 

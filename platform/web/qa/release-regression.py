@@ -252,7 +252,7 @@ def main():
                             expect(page.locator('.queue-card').first).to_be_visible()
                         elif pane == 'detail':
                             expect(page.locator('.case-hero')).to_be_visible()
-                            expect(page.locator('.transition-form')).to_be_visible()
+                            expect(page.locator('.case-action-card')).to_be_visible()
                         elif pane == 'map':
                             expect(page.locator('.police-duty-map-canvas canvas')).to_be_visible()
                         elif pane == 'operations':

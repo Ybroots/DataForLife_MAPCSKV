@@ -56,25 +56,31 @@ async function officerLogin(page, credentials) {
   await alarm.waitFor({ state: 'detached' });
 }
 
-async function transition(page, action, note, terminal = false) {
-  await page.getByRole('button', { name: action, exact: true }).click();
-  const textarea = page.locator('.transition-form textarea[name="transitionNote"]');
-  await textarea.fill(note);
-  if (action === 'Ghi nhận kết quả') {
-    const publicToggle = page.locator('.transition-form input[name="publicMessage"]');
-    if (!(await publicToggle.isChecked())) await publicToggle.check();
+// One action = one button on the case card. A written note is filled when the action asks for one,
+// or added through "Thêm lời nhắn" when it is optional. Irreversible actions need a second tap.
+async function transition(page, action, note, { confirm = false, tellCitizen = false } = {}) {
+  const card = page.locator('.case-action-card');
+  const others = card.locator('.case-action-others');
+  let button = card.getByRole('button', { name: action, exact: true });
+  if (!(await button.count()) && (await others.count())) {
+    await others.locator('summary').click();
+    await others.getByRole('button', { name: action, exact: true }).click();
+    button = card.locator('.case-action-button');
   }
-  const submit = page.locator('.transition-form button[type="submit"]');
+  const textarea = card.locator('textarea[name="transitionNote"]');
+  if (note) {
+    if (!(await textarea.count())) await card.getByRole('button', { name: 'Nhắn người dân' }).click();
+    await textarea.fill(note);
+    await card.locator('input[name="publicMessage"]').setChecked(tellCitizen);
+  }
+  const submit = card.locator('.case-action-button');
   const transitioned = page.waitForResponse(response => response.url().endsWith('/transitions') && response.request().method() === 'POST');
   await submit.click();
-  if (terminal) {
-    await page.getByText('Kiểm tra lần cuối', { exact: true }).waitFor();
-    await submit.click();
-  }
+  if (confirm) await page.getByText('Việc này không hoàn tác được.', { exact: true }).waitFor(), await submit.click();
   const response = await transitioned;
   if (!response.ok()) throw new Error(`Transition ${action} failed: ${response.status()}`);
   console.log(`PASS transition ${action}`);
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
 }
 
 async function cleanup(receipts, databaseUrl) {
@@ -180,20 +186,17 @@ async function main() {
     const queueSearch = officer.locator('input[name="queueQuery"]');
     await queueSearch.fill(incidentReceipt);
     await officer.locator('.queue-card').first().click();
-    await transition(officer, 'Xác nhận tiếp nhận', 'Đã kiểm tra nội dung và vị trí phản ánh.');
-    await transition(officer, 'Phân công xử lý', 'CSKV Xuân Hương trực tiếp nhận xử lý hồ sơ.');
-    await transition(officer, 'Bắt đầu xác minh', 'Đã liên hệ người dân và xác minh thông tin ban đầu.');
-    await transition(officer, 'Chuyển sang xử lý', 'Đang triển khai biện pháp xử lý tại địa bàn.');
-    await transition(officer, 'Ghi nhận kết quả', 'Đã kiểm tra hiện trường, xử lý ổn định và thông báo người dân.', true);
+    await transition(officer, 'Nhận hồ sơ', 'Đã kiểm tra nội dung và vị trí phản ánh.');
+    await transition(officer, 'Bắt đầu xử lý', '');
+    await transition(officer, 'Đã xử lý xong', 'Đã kiểm tra hiện trường, xử lý ổn định và thông báo người dân.', { tellCitizen: true });
     await officer.screenshot({ path: path.join(ARTIFACTS, '06-officer-report-resolved.png'), fullPage: true });
 
     await officer.locator('.police-mobile-nav').getByRole('button', { name: 'Hàng đợi', exact: true }).click();
     await queueSearch.fill(sosReceipt);
     await officer.locator('.queue-card').first().click();
-    if (await officer.getByRole('button', { name: 'Đưa vào hàng đợi', exact: true }).count()) await transition(officer, 'Đưa vào hàng đợi', 'Đã đưa tín hiệu SOS vào hàng đợi ưu tiên.');
-    await transition(officer, 'Xác nhận SOS', 'Đã xác nhận tín hiệu và liên hệ người dân khẩn cấp.');
-    await transition(officer, 'Đang triển khai lực lượng', 'Lực lượng CSKV đang di chuyển đến vị trí phát SOS.');
-    await transition(officer, 'Ghi nhận kết quả', 'Đã tiếp cận vị trí, tình huống an toàn và hoàn tất hỗ trợ.', true);
+    await transition(officer, 'Nhận SOS ngay', '');
+    await transition(officer, 'Đang đến hiện trường', 'Lực lượng CSKV đang di chuyển đến vị trí phát SOS.', { tellCitizen: true });
+    await transition(officer, 'Đã xử lý xong', 'Đã tiếp cận vị trí, tình huống an toàn và hoàn tất hỗ trợ.', { tellCitizen: true });
     await officer.screenshot({ path: path.join(ARTIFACTS, '07-officer-sos-resolved.png'), fullPage: true });
 
     await citizen.goto(`${BASE_URL}?feature=feedback`, { waitUntil: 'networkidle' });
@@ -210,7 +213,7 @@ async function main() {
     await citizen.screenshot({ path: path.join(ARTIFACTS, '08-citizen-rating.png'), fullPage: true });
 
     await officer.locator('.police-mobile-nav').getByRole('button', { name: 'Hàng đợi', exact: true }).click();
-    await officer.locator('.queue-scopes').getByRole('button', { name: 'Tất cả', exact: true }).click();
+    await officer.locator('.queue-scopes').getByRole('button', { name: /^Tất cả/ }).click();
     await queueSearch.fill(incidentReceipt);
     await officer.locator('.queue-card').first().click();
     await officer.getByRole('heading', { name: 'Đánh giá của người dân' }).waitFor();

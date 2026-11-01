@@ -285,6 +285,9 @@ export interface OfficerQueueItemResponse {
   duplicateOfReceiptCode?: string | null;
   /** Hệ thống gợi ý có thể trùng với hồ sơ này, chờ cán bộ xác nhận. */
   suggestedDuplicateReceiptCode?: string | null;
+  /** Ảnh đầu tiên của phản ánh, để hiện ảnh thu nhỏ ngay trên danh sách. */
+  previewAttachmentId?: string | null;
+  photoCount?: number;
 }
 
 export interface OfficerNotificationResponse {

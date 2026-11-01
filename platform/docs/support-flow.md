@@ -79,8 +79,8 @@ Người dân dùng danh bạ, hotline và trợ lý AI trên bản đồ. Câu 
 
 - Khi có SOS chưa ai nhận (trạng thái `triggered`/`dispatched`) trong địa bàn, mọi cán bộ đang mở cổng thấy màn hình đỏ toàn màn hình, còi hú liên tục và rung (trên điện thoại). Hàng đợi tải lại mỗi 8 giây nên chậm nhất khoảng 8 giây sau khi người dân bấm.
 - **Nhận xử lý ngay**: chuyển SOS sang `acknowledged`, giao cho cán bộ bấm, và gửi cho người dân dòng “Cán bộ khu vực đã nhận tín hiệu SOS và đang liên hệ với bạn.” Màn hình đỏ của các cán bộ khác tự tắt ở lần tải sau.
-- **Xem hồ sơ trước**: mở hồ sơ, tắt màn hình đỏ cho SOS đó; dải đỏ phía trên vẫn còn, chuông nhắc 30 giây một lần, và màn hình đỏ hiện lại sau 2 phút nếu vẫn chưa ai nhận.
-- **Tắt còi**: chỉ tắt tiếng cho SOS đang hiện; SOS mới làm còi kêu lại. Nút “Còi SOS” ở đầu trang tắt hẳn tiếng trên máy đó (màn hình đỏ vẫn hiện).
+- **Xem hồ sơ trước**: mở hồ sơ, tắt màn hình đỏ cho SOS đó; SOS vẫn nằm đầu hàng đợi (viền đỏ), chuông nhắc 30 giây một lần, và màn hình đỏ hiện lại sau 2 phút nếu vẫn chưa ai nhận.
+- **Tắt còi**: chỉ tắt tiếng cho SOS đang hiện; SOS mới làm còi kêu lại. Nút “Còi bật/Còi tắt” ở thanh trên tắt hẳn tiếng trên máy đó (màn hình đỏ vẫn hiện).
 - Trình duyệt chỉ phát tiếng sau khi cán bộ đã bấm hoặc gõ trên trang. Sau khi tải lại trang, màn hình đỏ hiện ngay và có nút “Bấm để bật còi báo động”.
 - Giới hạn: chỉ hoạt động khi cổng cán bộ đang mở. Nếu tab bị ẩn lâu hơn 5 phút, Chrome giãn lịch tải lại xuống khoảng 1 phút một lần, nên còi có thể chậm đến 1 phút; máy trực nên để cổng cán bộ ở tab đang mở. Khi đóng trình duyệt hoặc ứng dụng chạy nền trên điện thoại thì không có còi; việc đó cần thông báo đẩy cho cán bộ (chưa làm).
 

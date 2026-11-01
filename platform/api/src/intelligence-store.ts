@@ -119,9 +119,9 @@ export class IntelligenceStore {
   }
 
   /** Gắn mã hồ sơ chính (đã gộp) hoặc mã hồ sơ gợi ý trùng vào hàng đợi cán bộ, một truy vấn cho cả danh sách. */
-  async decorateQueue<T extends { kind: 'incident' | 'sos'; id: string }>(items: T[]): Promise<Array<T & { duplicateOfReceiptCode: string | null; suggestedDuplicateReceiptCode: string | null }>> {
+  async decorateQueue<T extends { kind: 'incident' | 'sos'; id: string }>(items: T[]): Promise<Array<T & { duplicateOfReceiptCode: string | null; suggestedDuplicateReceiptCode: string | null; previewAttachmentId: string | null; photoCount: number }>> {
     const ids = items.filter((item) => item.kind === 'incident').map((item) => item.id);
-    if (!ids.length) return items.map((item) => ({ ...item, duplicateOfReceiptCode: null, suggestedDuplicateReceiptCode: null }));
+    if (!ids.length) return items.map((item) => ({ ...item, duplicateOfReceiptCode: null, suggestedDuplicateReceiptCode: null, previewAttachmentId: null, photoCount: 0 }));
     const result = await this.pool.query<{ id: string; primary_receipt: string | null; suggested_receipt: string | null }>(
       `SELECT i.id::text, p.receipt_code AS primary_receipt, CASE WHEN i.duplicate_of_id IS NULL THEN s.receipt_code END AS suggested_receipt
        FROM incident_reports i
@@ -131,9 +131,25 @@ export class IntelligenceStore {
       [ids],
     );
     const byId = new Map(result.rows.map((row) => [row.id, row]));
+    // First photo of each report (the citizen's own, oldest first) becomes the thumbnail in the queue.
+    const photos = await this.pool.query<{ incident_id: string; first_id: string; photo_count: string }>(
+      `SELECT incident_id::text, (array_agg(id::text ORDER BY (purpose = 'initial') DESC, created_at, id))[1] AS first_id, count(*)::text AS photo_count
+       FROM incident_attachments
+       WHERE incident_id = ANY($1::uuid[]) AND mime_type LIKE 'image/%'
+       GROUP BY incident_id`,
+      [ids],
+    );
+    const photoById = new Map(photos.rows.map((row) => [row.incident_id, row]));
     return items.map((item) => {
       const row = item.kind === 'incident' ? byId.get(item.id) : undefined;
-      return { ...item, duplicateOfReceiptCode: row?.primary_receipt ?? null, suggestedDuplicateReceiptCode: row?.suggested_receipt ?? null };
+      const photo = item.kind === 'incident' ? photoById.get(item.id) : undefined;
+      return {
+        ...item,
+        duplicateOfReceiptCode: row?.primary_receipt ?? null,
+        suggestedDuplicateReceiptCode: row?.suggested_receipt ?? null,
+        previewAttachmentId: photo?.first_id ?? null,
+        photoCount: photo ? Number(photo.photo_count) : 0,
+      };
     });
   }
 

@@ -110,11 +110,13 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
 
   const suggestedId = incident.suggestedDuplicateOf?.id;
   const closed = ['closed', 'rejected'].includes(incident.status);
+  const showDuplicates = Boolean(linked) || children.length > 0 || Boolean(candidates && candidates.length > 0);
+  const showAi = Boolean(review) || aiConfigured;
   const attachmentIndex = new Map(incident.attachments.map((attachment, index) => [attachment.id, index + 1]));
 
   return (
     <>
-      <section className="ops-card incident-duplicates-card" aria-labelledby={`dup-title-${incident.id}`}>
+      {showDuplicates && <section className="ops-card incident-duplicates-card" aria-labelledby={`dup-title-${incident.id}`}>
         <div className="ops-card-title"><h3 id={`dup-title-${incident.id}`}>Phản ánh trùng</h3><Copy size={19} aria-hidden="true" /></div>
         {linked && (
           <div className="duplicate-linked">
@@ -133,10 +135,6 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
             </ul>
           </div>
         )}
-        {!linked && !children.length && candidates === null && <p className="insight-muted">Đang tìm phản ánh gần đó…</p>}
-        {!linked && !children.length && candidates?.length === 0 && (
-          <p className="insight-muted">Không có phản ánh nào trong bán kính 500 m và 12 giờ quanh thời điểm gửi.</p>
-        )}
         {!linked && !children.length && candidates && candidates.length > 0 && (
           <ul className="duplicate-candidates">
             {candidates.map((item) => {
@@ -150,8 +148,7 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
                   </div>
                   <strong>{item.summary}</strong>
                   <small>
-                    Cách {item.distanceM} m · {minutesLabel(item.minutesApart)} · {item.sameCategory ? 'cùng lĩnh vực' : categoryLabels[item.category] ?? item.category}
-                    {' · '}nội dung giống {Math.round(item.textSimilarity * 100)}%
+                    Cách {item.distanceM} m · {minutesLabel(item.minutesApart)}{item.sameCategory ? '' : ` · ${categoryLabels[item.category] ?? item.category}`}
                     {item.duplicateOf ? ` · đã gộp vào ${item.duplicateOf.receiptCode}` : ''}
                   </small>
                   <div className="duplicate-actions">
@@ -165,12 +162,10 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
             })}
           </ul>
         )}
-        <small className="insight-footnote">Gợi ý dựa trên khoảng cách, thời gian, lĩnh vực và nội dung. Cán bộ quyết định có gộp hay không.</small>
-      </section>
+      </section>}
 
-      <section className="ops-card incident-ai-card" aria-labelledby={`ai-title-${incident.id}`}>
+      {showAi && <section className="ops-card incident-ai-card" aria-labelledby={`ai-title-${incident.id}`}>
         <div className="ops-card-title"><h3 id={`ai-title-${incident.id}`}>AI gợi ý lĩnh vực và đọc ảnh</h3><Sparkles size={19} aria-hidden="true" /></div>
-        {!review && !aiConfigured && <p className="insight-muted">AI chưa được bật trên máy chủ.</p>}
         {!review && aiConfigured && (
           <button type="button" className="insight-primary" disabled={busy !== null || closed} onClick={() => void askAi()}>
             <Sparkles size={16} aria-hidden="true" /> {busy === 'ai' ? 'AI đang đọc hồ sơ và ảnh…' : 'Nhờ AI gợi ý'}
@@ -216,8 +211,7 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
             )}
           </div>
         )}
-        <small className="insight-footnote">AI chỉ gợi ý để phân loại và chuyển hồ sơ nhanh hơn; việc xác minh và kết luận do cán bộ thực hiện.</small>
-      </section>
+      </section>}
       {error && <p className="inline-notice error" role="alert">{error}</p>}
     </>
   );

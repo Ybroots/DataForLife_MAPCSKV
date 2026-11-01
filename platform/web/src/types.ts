@@ -8,6 +8,7 @@ export interface AreaSummary {
 export interface MapAssistantStatus {
   configured: boolean;
   provider: 'OpenAI' | 'Gemini' | null;
+  lookupAvailable?: boolean;
   emergencyDispatchConnected: false;
 }
 
@@ -289,6 +290,8 @@ export interface OfficerQueueItem {
   updatedAt: string;
   duplicateOfReceiptCode?: string | null;
   suggestedDuplicateReceiptCode?: string | null;
+  previewAttachmentId?: string | null;
+  photoCount?: number;
 }
 
 export interface WorkflowActor {

@@ -18,7 +18,7 @@ async page => {
       if (overflow) throw new Error(`${pane} overflow at ${width}x${height}`);
       if (pane === 'detail') {
         await page.locator('.case-hero').waitFor();
-        if (!await page.locator('.transition-form').isVisible()) throw new Error('Case action form missing');
+        if (!await page.locator('.case-action-card').isVisible()) throw new Error('Case action form missing');
       }
       checks.push(`${pane} ${width}x${height}: pass`);
     }

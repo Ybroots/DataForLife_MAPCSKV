@@ -3,6 +3,7 @@
 import base64
 from pathlib import Path
 import os
+import re
 import sys
 from playwright.sync_api import sync_playwright, expect
 
@@ -109,16 +110,9 @@ with sync_playwright() as playwright:
     check(officer.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Cổng CSKV không tràn ngang ở 390 px")
     officer.screenshot(path=str(ARTIFACTS / "officer-map-mobile.png"), full_page=True)
 
-    # Filter sheet focus must remain trapped and state must survive reload through URL params.
+    # The queue scope (three tabs) must survive reload through URL params.
     officer.get_by_role("button", name="Hàng đợi").last.click()
-    officer.get_by_role("button", name="Mở bộ lọc hồ sơ").click()
-    filter_sheet = officer.get_by_role("dialog", name="Bộ lọc hồ sơ")
-    expect(filter_sheet).to_be_visible()
-    for _ in range(18):
-        officer.keyboard.press("Tab")
-        check(filter_sheet.evaluate("(root) => root.contains(document.activeElement)"), "Focus bộ lọc không thoát ra nền")
-    filter_sheet.get_by_role("button", name="Tất cả", exact=True).first.click()
-    filter_sheet.get_by_role("button", name="Áp dụng bộ lọc").click()
+    officer.locator(".queue-scopes").get_by_role("button", name=re.compile(r"^Tất cả")).click()
     check("scope=all" in officer.url, "Bộ lọc CSKV được lưu trong URL")
     officer.reload(wait_until="networkidle")
     expect(officer.get_by_text("CSKV trực địa bàn Xuân Hương").first).to_be_visible(timeout=15_000)

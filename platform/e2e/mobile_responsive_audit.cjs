@@ -156,9 +156,8 @@ async function main() {
   await police.getByRole('button', { name: 'Hàng đợi', exact: true }).click();
   await police.waitForSelector('.queue-card');
   results.push(await inspect(police, 'police-queue', policeViewport, true));
-  await police.getByRole('button', { name: 'Mở bộ lọc hồ sơ' }).click();
-  results.push(await inspect(police, 'police-filter-sheet', policeViewport, true));
-  await police.getByRole('button', { name: 'Đóng bộ lọc' }).last().click();
+  await police.locator('.queue-scopes').getByRole('button', { name: /^Tất cả/ }).click();
+  results.push(await inspect(police, 'police-queue-all', policeViewport, true));
   await police.locator('.queue-card').first().click();
   await police.waitForSelector('.case-hero');
   results.push(await inspect(police, 'police-case-detail', policeViewport, true));
@@ -199,7 +198,7 @@ async function main() {
     if (viewport.width <= 767) {
       await page.locator('.police-mobile-nav').getByRole('button', { name: 'Hàng đợi', exact: true }).click();
     } else {
-      await page.locator('.notification-button').click();
+      await page.locator('.police-topnav').getByRole('button', { name: /^Hàng đợi/ }).click();
     }
     await page.waitForSelector('.queue-search input');
     results.push(await inspect(page, 'police-queue', viewport, true));

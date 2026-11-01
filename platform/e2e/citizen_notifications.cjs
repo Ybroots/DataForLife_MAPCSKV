@@ -24,14 +24,27 @@ async function officerCase(page, receipt) {
   await page.locator('.police-mobile-nav').getByRole('button',{name:'Hàng đợi',exact:true}).click();
   await page.locator('input[name="queueQuery"]').fill(receipt);
   await page.locator('.queue-card').first().click();
+  await page.locator('.case-hero').filter({hasText:receipt}).waitFor();
 }
-async function transition(page, label, note, publicMessage=false, terminal=false) {
-  await page.getByRole('button',{name:label,exact:true}).click();
-  await page.locator('textarea[name="transitionNote"]').fill(note);
-  await page.locator('input[name="publicMessage"]').setChecked(publicMessage);
-  const submit=page.locator('.transition-form button[type="submit"]');
-  if(terminal) { await submit.click(); await page.getByText('Kiểm tra lần cuối',{exact:true}).waitFor(); }
-  await Promise.all([page.waitForResponse(r=>r.url().endsWith('/transitions') && r.request().method()==='POST' && r.ok()),submit.click()]);
+async function transition(page, label, note, publicMessage=false, confirm=false) {
+  const card=page.locator('.case-action-card');
+  const others=card.locator('.case-action-others');
+  if(!(await card.getByRole('button',{name:label,exact:true}).count()) && await others.count()) {
+    await others.locator('summary').click();
+    await others.getByRole('button',{name:label,exact:true}).click();
+  }
+  const textarea=card.locator('textarea[name="transitionNote"]');
+  if(note) {
+    if(!(await textarea.count())) await card.getByRole('button',{name:'Nhắn người dân'}).click();
+    await textarea.fill(note);
+    await card.locator('input[name="publicMessage"]').setChecked(publicMessage);
+  }
+  const submit=card.locator('.case-action-button');
+  const done=page.waitForResponse(r=>r.url().endsWith('/transitions') && r.request().method()==='POST' && r.ok());
+  await submit.click();
+  if(confirm) { await page.getByText('Việc này không hoàn tác được.',{exact:true}).waitFor(); await submit.click(); }
+  await done;
+  await page.waitForTimeout(400);
 }
 async function cleanup() {
   if(!created.length) return;
@@ -86,11 +99,14 @@ async function main() {
     await officer.locator('input[name="password"]').fill(credentials.API_OFFICER_PASSWORD);
     await officer.locator('form button[type="submit"]').click();
     await officer.locator('.police-portal').waitFor();
+    // The citizen SOS already waiting raises the full-screen alarm: close it before opening cases.
+    const alarm=officer.locator('.sos-emergency-overlay');
+    try { await alarm.waitFor({timeout:8000}); await alarm.getByRole('button',{name:'Xem hồ sơ trước'}).click(); await alarm.waitFor({state:'detached'}); } catch {}
     await officerCase(officer,report.receiptCode);
-    await transition(officer,'Xác nhận tiếp nhận','INTERNAL_NOTIFICATION_SECRET không công khai');
-    await citizen.locator('.citizen-notification-count').filter({hasText:String(initial.unreadCount+1)}).waitFor({timeout:20000});
+    await transition(officer,'Nhận hồ sơ','INTERNAL_NOTIFICATION_SECRET không công khai');
+    await citizen.locator('.citizen-notification-count').filter({hasText:String(initial.unreadCount+2)}).waitFor({timeout:20000});
     await openInbox(citizen);
-    const reportItem=citizen.locator('.citizen-notification-item').filter({hasText:report.receiptCode}).first();
+    const reportItem=citizen.locator('.citizen-notification-item').filter({hasText:report.receiptCode}).filter({hasText:'Phản ánh đã được tiếp nhận'}).first(); // "Nhận hồ sơ" sends two notices (received, assigned)
     await reportItem.getByText('Phản ánh đã được tiếp nhận',{exact:true}).waitFor();
     assert(!(await citizen.locator('.citizen-notification-inbox').innerText()).includes('INTERNAL_NOTIFICATION_SECRET'));
     const notificationId=await reportItem.getAttribute('data-notification-id');
@@ -105,17 +121,17 @@ async function main() {
     const afterRead=await api(context,'/v1/citizen/notifications');
     assert(afterRead.items.find(n=>n.id===notificationId).readAt,'read status persists after reload');
 
+    await officer.locator('.case-thread-details > summary').click();
     await officer.locator('#officer-message').fill('Vui lòng bổ sung ảnh hiện trường để cán bộ xác minh.');
     await officer.getByLabel('Yêu cầu ảnh/video').check();
     await Promise.all([officer.waitForResponse(r=>r.url().endsWith('/messages') && r.request().method()==='POST' && r.ok()),officer.getByRole('button',{name:'Gửi người dân',exact:true}).click()]);
     await openInbox(citizen);
     await citizen.getByText('Cán bộ yêu cầu bổ sung thông tin',{exact:true}).first().waitFor();
     await citizen.getByRole('button',{name:'Đóng thông báo'}).click();
-    await transition(officer,'Phân công xử lý','Đã phân công cán bộ tiếp tục xử lý.',true);
-    await transition(officer,'Chuyển sang xử lý','Đang xử lý nội dung phản ánh.',true);
-    await transition(officer,'Ghi nhận kết quả','Đã hoàn tất kiểm tra và xử lý phản ánh.',true,true);
+    await transition(officer,'Bắt đầu xử lý','Đang xử lý nội dung phản ánh.',true);
+    await transition(officer,'Đã xử lý xong','Đã hoàn tất kiểm tra và xử lý phản ánh.',true);
     await officerCase(officer,sos.receiptCode);
-    await transition(officer,'Xác nhận SOS','Đã xác nhận và liên hệ người gửi SOS.',true);
+    await transition(officer,'Nhận SOS ngay','',true);
     await openInbox(citizen);
     await citizen.getByRole('button',{name:'Làm mới thông báo'}).click();
     await citizen.getByText('Cán bộ đã tiếp nhận SOS',{exact:true}).first().waitFor();
