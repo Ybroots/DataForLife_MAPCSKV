@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "tsx src/migrate.ts",
+    "db:setup-demo": "tsx src/setup-demo-db.ts",
     "accounts:provision-officers": "tsx src/provision-officers.ts"
   },
   "dependencies": {

@@ -11,6 +11,7 @@
     "dev:api": "npm --workspace @cskv/api run dev",
     "dev:web": "npm --workspace @cskv/web run dev",
     "db:migrate": "npm --workspace @cskv/api run db:migrate",
+    "db:setup-demo": "npm --workspace @cskv/api run db:setup-demo",
     "data:plan": "npm --workspace @cskv/data-migration run plan",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

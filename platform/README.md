@@ -30,14 +30,19 @@ công CSKV đã phê duyệt. Nguồn và phương pháp được ghi tại
 
 ## Khởi động local
 
+Hướng dẫn từng bước cho người mới nhận repo nằm ở [`../README.md`](../README.md). Tóm tắt:
+
 ```powershell
-Copy-Item .env.example .env
-npm install
+Copy-Item .env.example .env        # rồi sửa mật khẩu/secret trong .env
+npm ci
 docker compose up -d postgres
-npm run db:migrate
+npm run db:setup-demo              # dựng CSDL demo (địa bàn Xuân Hương 24781)
 npm run dev:api
 npm run dev:web
 ```
+
+> `npm run db:migrate` chỉ dành cho bản sao dữ liệu thật: migration `004` cắt ranh giới
+> theo dữ liệu thật của phường nên báo lỗi trên CSDL trống. Người mới dùng `db:setup-demo`.
 
 API mặc định dùng PostGIS. Để kiểm thử UI bằng dữ liệu minh họa, đặt
 `API_DATA_SOURCE=fixture` trước khi chạy API hoặc dùng `npm --workspace

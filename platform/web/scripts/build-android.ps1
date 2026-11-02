@@ -16,7 +16,8 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) { throw 'JDK missing. Set JAVA_HOME.' }
     if (-not (Test-Path -LiteralPath $env:ANDROID_HOME)) { throw 'Android SDK missing. Set ANDROID_HOME.' }
     # Never inherit a local browser API override into an APK intended for citizens.
-    $env:VITE_API_BASE_URL = if ($Qa) { 'http://10.0.2.2:3001' } else { 'https://bandosocskv.com/api' }
+    # Máy chủ khác (bản tự triển khai): đặt CSKV_API_URL, ví dụ https://api.example.vn/api. Mặc định là bandosocskv.com.
+    $env:VITE_API_BASE_URL = if ($Qa) { 'http://10.0.2.2:3001' } elseif ($env:CSKV_API_URL) { $env:CSKV_API_URL } else { 'https://bandosocskv.com/api' }
     # Push notifications are enabled only when the project has its Firebase config. Without the file the app still
     # works and the notification entry shows "in development" (the plugin is never called). See docs\push-notifications.md.
     $hasFirebase = Test-Path -LiteralPath (Join-Path $nativeRoot 'app\google-services.json')
