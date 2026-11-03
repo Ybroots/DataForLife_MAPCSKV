@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Copy,
   FilePlus2,
+  History,
   Images,
   LoaderCircle,
   LocateFixed,
@@ -23,9 +24,10 @@ import { WorkflowLocationMap } from './WorkflowLocationMap';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { createRequestId } from '../request-id';
 import { IncidentDraftAssistant } from './IncidentDraftAssistant';
-import { VoiceInputButton } from './VoiceInputButton';
 import { prepareImage } from '../image-compress';
+import { showToast } from '../toast';
 import type { IncidentDraft } from '../types';
+import { clearReportDraft, loadReportDraft, saveReportDraft, type ReportDraft } from '../report-draft';
 
 interface CitizenReportsPageProps {
   selectedPosition: { latitude: number; longitude: number } | null;
@@ -51,7 +53,7 @@ const nextStepText: Record<IncidentStatus, string> = {
   assigned: 'Đã có cán bộ phụ trách. Cán bộ sẽ bắt đầu xử lý và có thể nhắn bạn bổ sung thông tin.',
   verifying: 'Cán bộ đang xác minh thông tin. Bạn có thể bổ sung ảnh hoặc nội dung ở bên dưới.',
   processing: 'Cán bộ đang xử lý. Kết quả sẽ được báo cho bạn khi xong.',
-  resolved: 'Phản ánh đã có kết quả. Xem nội dung ở mục "Lịch sử xử lý" bên dưới.',
+  resolved: 'Phản ánh đã có kết quả. Xem nội dung ở mục "Lịch sử xử lý" ngay bên dưới.',
   closed: 'Hồ sơ đã đóng. Nếu sự việc tái diễn, bạn hãy gửi phản ánh mới.',
   rejected: 'Nội dung này không thuộc phạm vi của Công an khu vực. Xem lý do ở "Lịch sử xử lý" bên dưới.',
 };
@@ -101,14 +103,21 @@ function mediaError(file: File): string | null {
 }
 
 export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequireLogin }: CitizenReportsPageProps) {
+  // Bản nháp đã lưu trên máy (nếu app bị tắt giữa chừng) được khôi phục khi mở lại màn này.
+  const [initialDraft] = useState<ReportDraft | null>(() => loadReportDraft());
+  const [draftRestored, setDraftRestored] = useState(Boolean(initialDraft));
+  // Báo lỗi ngay tại từng ô: chỉ hiện sau khi người dân rời ô đó hoặc đã bấm Gửi mà còn thiếu.
+  const [attempted, setAttempted] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const touch = (field: string) => setTouched((current) => (current[field] ? current : { ...current, [field]: true }));
   const [view, setView] = useState<'create' | 'tracking'>(() => new URL(window.location.href).searchParams.get('reportTab') === 'tracking' ? 'tracking' : 'create');
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(() => new URL(window.location.href).searchParams.get('reportReceipt'));
-  const [category, setCategory] = useState<Incident['category']>('security');
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
-  const [locationNote, setLocationNote] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
+  const [category, setCategory] = useState<Incident['category']>(initialDraft && initialDraft.category in categoryLabels ? initialDraft.category as Incident['category'] : 'security');
+  const [summary, setSummary] = useState(initialDraft?.summary ?? '');
+  const [description, setDescription] = useState(initialDraft?.description ?? '');
+  const [locationNote, setLocationNote] = useState(initialDraft?.locationNote ?? '');
+  const [contactPhone, setContactPhone] = useState(initialDraft?.contactPhone ?? '');
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [position, setPosition] = useState(selectedPosition);
@@ -193,10 +202,48 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     }
   };
 
+  // Theo dõi hồ sơ "trực tiếp": khi đang mở tab Theo dõi, 30 giây tải lại một lần; trạng thái đổi thì báo bằng popup.
+  const statusSnapshot = useRef(new Map<string, string>());
+  useEffect(() => {
+    statusSnapshot.current = new Map(incidents.map((item) => [item.id, item.status]));
+  }, [incidents]);
+  useEffect(() => {
+    if (!isAuthenticated || view !== 'tracking') return;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      if (document.hidden || !navigator.onLine) return;
+      void listCitizenIncidents().then((payload) => {
+        if (cancelled) return;
+        for (const item of payload.data) {
+          const before = statusSnapshot.current.get(item.id);
+          if (before && before !== item.status) showToast({ kind: 'info', topic: 'report', title: `Hồ sơ ${item.receiptCode} vừa được cập nhật`, message: statusLabels[item.status] });
+        }
+        setIncidents((current) => {
+          const extra = current.filter((item) => !payload.data.some((fresh) => fresh.id === item.id));
+          const next = [...payload.data, ...extra];
+          return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+        });
+      }).catch(() => undefined);
+    }, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [isAuthenticated, view]);
+
   useEffect(() => {
     if (isAuthenticated) void loadIncidents();
     else { setIncidents([]); setSelectedReceipt(null); }
   }, [isAuthenticated]);
+
+  // Tự lưu nháp sau khi người dân ngừng gõ ~0,4 giây.
+  useEffect(() => {
+    const timer = window.setTimeout(() => saveReportDraft({ category, summary, description, locationNote, contactPhone }), 400);
+    return () => window.clearTimeout(timer);
+  }, [category, summary, description, locationNote, contactPhone]);
+
+  const discardDraft = () => {
+    clearReportDraft();
+    setCategory('security'); setSummary(''); setDescription(''); setLocationNote(''); setContactPhone('');
+    setDraftRestored(false);
+  };
 
   const pickToken = useRef(0);
   const [preparing, setPreparing] = useState(false);
@@ -237,8 +284,22 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   if (!consent) missing.push('ô xác nhận');
   if (preparing) missing.push('đợi ảnh xử lý xong');
 
+  const fieldErrors: Record<'summary' | 'description' | 'position' | 'consent', string> = {
+    summary: summary.trim().length >= 10 ? '' : summary.trim() ? 'Tiêu đề cần từ 10 ký tự trở lên.' : 'Hãy nhập tiêu đề ngắn (từ 10 ký tự).',
+    description: description.trim().length >= 10 ? '' : description.trim() ? 'Mô tả cần từ 10 ký tự trở lên.' : 'Hãy mô tả sự việc (từ 10 ký tự).',
+    position: position ? '' : 'Chưa có vị trí. Bấm "Dùng GPS" hoặc chạm một điểm trên bản đồ.',
+    consent: consent ? '' : 'Cần tích ô cam đoan trước khi gửi.',
+  };
+  const shown = (field: keyof typeof fieldErrors) => (attempted || touched[field] ? fieldErrors[field] : '');
+  const focusField = (id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    window.setTimeout(() => target.focus({ preventScroll: true }), 250);
+  };
+
   const copyReceipt = async (code: string) => {
-    try { await navigator.clipboard.writeText(code); setCopied(true); window.setTimeout(() => setCopied(false), 2500); } catch { setError('Không sao chép được. Bạn hãy chép mã bằng tay.'); }
+    try { await navigator.clipboard.writeText(code); setCopied(true); showToast({ kind: 'info', topic: 'report', title: 'Đã sao chép mã hồ sơ' }); window.setTimeout(() => setCopied(false), 2500); } catch { setError('Không sao chép được. Bạn hãy chép mã bằng tay.'); }
   };
 
   const locate = () => {
@@ -274,7 +335,14 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isAuthenticated) { onRequireLogin(); return; }
-    if (!position || !consent || missing.length > 0) return;
+    if (preparing) { setError('Ảnh đang được xử lý, vui lòng đợi vài giây rồi bấm Gửi lại.'); return; }
+    if (!position || !consent || missing.length > 0) {
+      // Còn thiếu: báo lỗi tại từng ô rồi đưa người dân tới ô đầu tiên cần sửa (không để nút Gửi "chết" không rõ lý do).
+      setAttempted(true);
+      const first = fieldErrors.summary ? 'report-summary' : fieldErrors.description ? 'report-description' : fieldErrors.position ? 'report-location' : 'report-consent';
+      focusField(first);
+      return;
+    }
     setSubmitting(true);
     setError('');
     setNotice('');
@@ -302,11 +370,16 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
         }] : [],
       });
       setNotice('');
+      showToast({ kind: 'success', topic: 'report', title: 'Đã gửi phản ánh', message: `Mã hồ sơ: ${payload.data.receiptCode}` });
       setSentReceipt(payload.data.receiptCode);
       setCopied(false);
       setIncidents((current) => [payload.data, ...current.filter((item) => item.id !== payload.data.id)]);
       selectReceipt(payload.data.receiptCode);
       setClientRequestId(createRequestId());
+      clearReportDraft();
+      setDraftRestored(false);
+      setAttempted(false);
+      setTouched({});
       setSummary('');
       setDescription('');
       setLocationNote('');
@@ -343,6 +416,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
       setIncidents((current) => current.map((item) => item.id === updated.id ? updated : item));
       setWithdrawConfirmation(false);
       setNotice('Đã rút phản ánh. Hồ sơ được đóng và lưu lại trong lịch sử.');
+      showToast({ kind: 'info', topic: 'report', title: 'Đã rút phản ánh' });
     } catch (caught) { setError(message(caught)); } finally { setThreadBusy(false); }
   };
 
@@ -361,6 +435,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
       setIncidents((current) => current.map((item) => item.id === selectedIncident.id ? { ...item, attachments: [...item.attachments, created] } : item));
       setSupplementFile(null);
       setNotice('Đã bổ sung tệp minh chứng vào hồ sơ.');
+      showToast({ kind: 'success', topic: 'report', title: 'Đã bổ sung tệp vào hồ sơ' });
     } catch (caught) { setError(message(caught)); } finally { setThreadBusy(false); }
   };
 
@@ -377,7 +452,8 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
       </div>
 
       {view === 'create' ? (
-        <form className="operational-form" onSubmit={submit}>
+        <form className="operational-form" onSubmit={submit} noValidate>
+          {draftRestored && <p className="draft-restored" role="status">Đã khôi phục nội dung bạn đang soạn lần trước. <button type="button" onClick={discardDraft}>Xóa bản nháp</button></p>}
           <IncidentDraftAssistant isAuthenticated={isAuthenticated} categoryLabels={categoryLabels} onRequireLogin={onRequireLogin} onDraft={applyDraft} />
           <label><span>Nhóm phản ánh <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <select name="category" autoComplete="off" value={category} onChange={(event) => setCategory(event.target.value as Incident['category'])}>
@@ -385,14 +461,16 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
             </select>
           </label>
           <label><span>Tiêu đề ngắn <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
-            <span className="voice-field"><input name="summary" autoComplete="off" value={summary} onChange={(event) => setSummary(event.target.value)} minLength={10} maxLength={180} placeholder="Ví dụ: Tụ tập gây ồn sau 23 giờ" required /><VoiceInputButton value={summary} onChange={setSummary} maxLength={180} label="tiêu đề" /></span>
+            <input id="report-summary" name="summary" autoComplete="off" enterKeyHint="next" value={summary} onChange={(event) => setSummary(event.target.value)} onBlur={() => touch('summary')} aria-invalid={Boolean(shown('summary'))} aria-describedby={shown('summary') ? 'report-summary-error' : undefined} minLength={10} maxLength={180} placeholder="Ví dụ: Tụ tập gây ồn sau 23 giờ" required />
             {summary.length > 150 && <small>{summary.length}/180 ký tự</small>}
+            {shown('summary') && <small id="report-summary-error" className="field-error" role="alert">{shown('summary')}</small>}
           </label>
           <label><span>Mô tả sự việc <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
-            <span className="voice-field voice-field-area"><textarea name="description" autoComplete="off" value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={4000} rows={5} placeholder="Nêu thời gian, diễn biến và dấu hiệu cần xác minh. Không đưa thông tin không cần thiết về người khác." required /><VoiceInputButton value={description} onChange={setDescription} maxLength={4000} label="mô tả" /></span>
+            <textarea id="report-description" name="description" autoComplete="off" value={description} onChange={(event) => setDescription(event.target.value)} onBlur={() => touch('description')} aria-invalid={Boolean(shown('description'))} aria-describedby={shown('description') ? 'report-description-error' : undefined} minLength={10} maxLength={4000} rows={5} placeholder="Nêu thời gian, diễn biến và dấu hiệu cần xác minh. Không đưa thông tin không cần thiết về người khác." required />
+            {shown('description') && <small id="report-description-error" className="field-error" role="alert">{shown('description')}</small>}
           </label>
           <div className="evidence-field">
-            <span className="evidence-label">Ảnh hoặc video <small>(không bắt buộc)</small></span>
+            <span className="evidence-label">Ảnh hoặc video</span>
             {evidenceFile ? (
               <div className="evidence-preview">
                 {previewUrl ? <img src={previewUrl} alt="Ảnh bạn đã chọn" /> : <span className="evidence-video" aria-hidden="true"><Paperclip size={22} /></span>}
@@ -415,10 +493,9 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
               </div>
             )}
             {preparing && <small className="evidence-hint" role="status"><LoaderCircle size={14} className="spin" aria-hidden="true" /> Đang thu nhỏ ảnh…</small>}
-            <small className="evidence-hint">Ảnh được tự thu nhỏ · video tối đa 20 MB</small>
           </div>
           <WorkflowLocationMap position={position} onSelect={(nextPosition) => { setPosition(nextPosition); setAccuracyM(null); }} />
-          <div className={position ? 'workflow-location ready' : 'workflow-location'}>
+          <div id="report-location" tabIndex={-1} className={position ? 'workflow-location ready' : 'workflow-location'} aria-invalid={Boolean(shown('position'))}>
             <MapPin size={21} aria-hidden="true" />
             <div>
               <strong>{position ? 'Đã có vị trí gửi kèm' : 'Chưa có vị trí'}</strong>
@@ -426,26 +503,22 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
             </div>
             <button type="button" onClick={locate} disabled={locating}><LocateFixed size={17} aria-hidden="true" /> {locating ? 'Đang lấy…' : 'Dùng GPS'}</button>
           </div>
-          {import.meta.env.DEV && !position && (
-            <button className="text-action" type="button" onClick={() => { setPosition({ latitude: 11.944, longitude: 108.441 }); setAccuracyM(15); }}>
-              Dùng điểm demo Xuân Hương
-            </button>
-          )}
+          {shown('position') && <small className="field-error" role="alert">{shown('position')}</small>}
           <div className="form-grid">
             <label>Mô tả vị trí
               <input name="locationNote" autoComplete="off" value={locationNote} onChange={(event) => setLocationNote(event.target.value)} maxLength={500} placeholder="Mốc dễ nhận biết, số nhà…" />
             </label>
             <label>Số liên hệ
-              <input name="contactPhone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={30} placeholder="Dùng khi cần làm rõ" />
+              <input name="contactPhone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={30} placeholder="Không bắt buộc" />
             </label>
           </div>
           <label className="consent-row">
-            <input name="truthfulnessConsent" type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+            <input id="report-consent" name="truthfulnessConsent" type="checkbox" checked={consent} onChange={(event) => { setConsent(event.target.checked); touch('consent'); }} aria-invalid={Boolean(shown('consent'))} />
             <span>Tôi cam đoan nội dung đúng sự thật và đồng ý gửi kèm vị trí. Cố ý báo tin sai có thể bị xử lý theo pháp luật.</span>
           </label>
+          {shown('consent') && <small className="field-error" role="alert">{shown('consent')}</small>}
           {!isAuthenticated && <VneIdLoginPrompt action="gửi phản ánh" onLogin={onRequireLogin} compact />}
-          {isAuthenticated && missing.length > 0 && <p className="form-missing" role="status">Còn thiếu: {missing.join(', ')}.</p>}
-          <button className="primary-action" type={isAuthenticated ? 'submit' : 'button'} onClick={isAuthenticated ? undefined : onRequireLogin} disabled={isAuthenticated && (submitting || missing.length > 0)}>
+          <button className="primary-action" type={isAuthenticated ? 'submit' : 'button'} onClick={isAuthenticated ? undefined : onRequireLogin} disabled={isAuthenticated && submitting}>
             {submitting ? <span className="loader light" /> : <Send size={18} aria-hidden="true" />}
             {submitting ? 'Đang lưu phản ánh…' : isAuthenticated ? 'Gửi phản ánh' : 'Đăng nhập để gửi'}
           </button>
@@ -489,6 +562,10 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 <div><dt>Địa bàn</dt><dd>{selectedIncident.location.serviceAreaName ?? selectedIncident.location.localityName}</dd></div>
                 {selectedIncident.assignedOfficer && <div><dt>Phụ trách</dt><dd>{selectedIncident.assignedOfficer.displayName}</dd></div>}
               </dl>
+              <section className="case-subsection" aria-labelledby="citizen-history-title">
+                <h3 id="citizen-history-title"><History size={18} aria-hidden="true" /> Lịch sử xử lý</h3>
+                <WorkflowTimeline history={selectedIncident.history} statusLabels={statusLabels} />
+              </section>
               {['submitted', 'received'].includes(selectedIncident.status) && (
                 <div className="case-withdraw">
                   {withdrawConfirmation && <p className="inline-notice error" role="alert">Rút phản ánh sẽ đóng hồ sơ và không thể hoàn tác. Bạn chắc chắn chứ?</p>}
@@ -516,10 +593,6 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                   <textarea id="citizen-message" value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={2} maxLength={2000} placeholder="Bổ sung thông tin cho cán bộ…" required />
                   {messageText.trim().length >= 2 && <button className="primary-action" type="submit" disabled={threadBusy}><Send size={17} /> Gửi</button>}
                 </form>
-              </section>
-              <section className="case-subsection" aria-labelledby="citizen-history-title">
-                <h3 id="citizen-history-title">Lịch sử xử lý</h3>
-                <WorkflowTimeline history={selectedIncident.history} statusLabels={statusLabels} />
               </section>
             </article>
           )}

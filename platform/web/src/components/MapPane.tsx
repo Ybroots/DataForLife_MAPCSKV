@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { readDevicePosition, supportsDeviceLocation } from '../device-location';
-import { Building2, ChevronRight, Info, Layers3, LoaderCircle, LocateFixed, MapPin, Phone, Shield, ShieldAlert, Siren, TriangleAlert, X } from 'lucide-react';
+import { DEMO_LOCATION_ENABLED } from '../demo-location';
+import { showToast } from '../toast';
+import { Building2, ChevronRight, Info, Layers3, LoaderCircle, LocateFixed, Phone, Shield, ShieldAlert, Siren, TriangleAlert, X } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -21,6 +23,8 @@ interface MapPaneProps {
   onOpenSos: () => void;
   toolMenuOpen: boolean;
   onToolMenuOpenChange: (open: boolean) => void;
+  /** Gọi trước khi xử lý một lần chạm lên bản đồ; trả về true nếu lần chạm đã được dùng (ví dụ đóng bảng danh bạ) và bản đồ không được chọn vùng khác. */
+  onMapTapGuard?: () => boolean;
 }
 
 const SOURCE_ID = 'verified-area';
@@ -92,11 +96,31 @@ function telHref(phone: string): string {
   return `tel:${phone.replace(/[^0-9+]/g, '')}`;
 }
 
-export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoordinateSelect, showDemoAlerts, onOpenSos, toolMenuOpen, onToolMenuOpenChange }: MapPaneProps) {
+/** Góc nhìn bản đồ gần nhất: mở lại bản đồ (từ Phản ánh, SOS, Tài khoản…) giữ đúng chỗ người dùng đang xem. */
+let lastCamera: { center: [number, number]; zoom: number; bearing: number; pitch: number; areaCode: string | null } | null = null;
+
+export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoordinateSelect, showDemoAlerts, onOpenSos, toolMenuOpen, onToolMenuOpenChange, onMapTapGuard }: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const onCoordinateSelectRef = useRef(onCoordinateSelect);
   const onAreaSelectRef = useRef(onAreaSelect);
+  const mapTapGuardRef = useRef(onMapTapGuard);
+  // Giữ góc nhìn khi người dùng vừa định vị (hoặc chạm chọn một điểm) và khi họ tự kéo/phóng bản đồ:
+  // việc tra cứu xã trả về sau đó, hay một lần đổi cỡ cửa sổ, không được tự thu bản đồ về toàn xã.
+  const selectedPositionRef = useRef(selectedPosition);
+  const cameraLockedRef = useRef(false);
+  // Bản đồ được dựng lại khi quay về từ trang khác: dùng lại góc nhìn cũ, không tự thu về toàn xã/toàn tỉnh.
+  const restoredAreaRef = useRef<AreaLookup | null | undefined>(lastCamera && lastCamera.areaCode === (area?.code ?? null) ? area : undefined);
+  const areaCodeRef = useRef<string | null>(area?.code ?? null);
+  const userMovedRef = useRef(restoredAreaRef.current !== undefined);
+  /** true khi khung nhìn đang là khung đã khôi phục cho đúng địa bàn này: không fit lại. */
+  const keepRestoredView = (current: AreaLookup | null) => {
+    if (restoredAreaRef.current === undefined) return false;
+    if (restoredAreaRef.current === current) return true;
+    restoredAreaRef.current = undefined;
+    return false;
+  };
+  const holdCamera = () => cameraLockedRef.current && selectedPositionRef.current !== null;
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const alertMarkersRef = useRef<maplibregl.Marker[]>([]);
   const demoOfficerMarkersRef = useRef<maplibregl.Marker[]>([]);
@@ -151,7 +175,8 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
     if (!map || !popup) return;
     if (toggle && popup.isOpen()) { closePointPopup(); return; }
     closePointPopup();
-    setSelectedServiceAreaCode(point.serviceAreaCode);
+    // Bấm icon trên bản đồ (toggle=true): chỉ hiện thông tin của icon đó, đóng bảng khu vực. Chọn điểm từ danh sách trong bảng khu vực: giữ bảng khu vực.
+    setSelectedServiceAreaCode(toggle ? null : point.serviceAreaCode);
     onToolMenuOpenChange(false);
     activePopupRef.current = popup;
     setActivePointId(point.id);
@@ -197,7 +222,11 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
   useEffect(() => {
     onCoordinateSelectRef.current = onCoordinateSelect;
     onAreaSelectRef.current = onAreaSelect;
-  }, [onCoordinateSelect, onAreaSelect]);
+    mapTapGuardRef.current = onMapTapGuard;
+    selectedPositionRef.current = selectedPosition;
+    if (!selectedPosition) cameraLockedRef.current = false;
+    areaCodeRef.current = area?.code ?? null;
+  }, [area, onCoordinateSelect, onAreaSelect, onMapTapGuard, selectedPosition]);
 
   useEffect(() => {
     const selectedFromLookup = area?.serviceAreas.find((serviceArea) => serviceArea.selected)?.code ?? null;
@@ -219,8 +248,10 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      center: [108.25, 11.55],
-      zoom: 7,
+      center: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.center : [108.25, 11.55],
+      zoom: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.zoom : 7,
+      bearing: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.bearing : 0,
+      pitch: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.pitch : 0,
       attributionControl: false,
       style: createPublicMapStyle(),
     });
@@ -306,6 +337,8 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       }
     });
     map.on('click', (event: MapMouseEvent) => {
+      // Bảng danh bạ đang mở: chạm ra ngoài chỉ đóng bảng (như nút X), không chọn sang vùng khác.
+      if (mapTapGuardRef.current?.()) return;
       const selectedFeature = map.getLayer(SERVICE_AREA_FILL_LAYER_ID)
         ? map.queryRenderedFeatures(event.point, { layers: [SERVICE_AREA_FILL_LAYER_ID] })[0]
         : undefined;
@@ -324,7 +357,18 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
         onAreaSelectRef.current(provinceFeature.properties.code);
         return;
       }
+      cameraLockedRef.current = true;
       onCoordinateSelectRef.current(event.lngLat.lat, event.lngLat.lng);
+    });
+    // Người dùng tự kéo/phóng bản đồ: từ đó không tự đưa về toàn xã khi cửa sổ đổi cỡ.
+    const markUserMove = (event: { originalEvent?: unknown }) => { if (event.originalEvent) userMovedRef.current = true; };
+    map.on('dragstart', markUserMove);
+    map.on('zoomstart', markUserMove);
+    map.on('rotatestart', markUserMove);
+    map.on('pitchstart', markUserMove);
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      lastCamera = { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), areaCode: areaCodeRef.current };
     });
     mapRef.current = map;
 
@@ -347,21 +391,29 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
   useEffect(() => {
     // The directory is an overlay: the map stays visible and must still resize.
     let frame = 0;
-    const resizeAndFit = () => {
+    const resizeAndFit = (areaChanged: boolean) => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         const map = mapRef.current;
         if (!map) return;
         map.resize();
+        if (keepRestoredView(area)) return;
+        // Đổi cỡ cửa sổ (bàn phím, popup, thanh hệ thống) chỉ cập nhật khung vẽ, không đổi góc nhìn người dùng đang xem.
+        if (!areaChanged && (userMovedRef.current || holdCamera())) return;
+        if (areaChanged) {
+          if (holdCamera()) return;
+          userMovedRef.current = false;
+        }
         if (area?.boundary) fitAreaBoundary(map, area.boundary, containerRef.current, 0);
         else if (provinceBoundary) fitAreaBoundary(map, provinceBoundary, containerRef.current, 0);
       });
     };
-    resizeAndFit();
-    window.addEventListener('resize', resizeAndFit);
+    resizeAndFit(true);
+    const onWindowResize = () => resizeAndFit(false);
+    window.addEventListener('resize', onWindowResize);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', resizeAndFit);
+      window.removeEventListener('resize', onWindowResize);
     };
   }, [area, provinceBoundary]);
 
@@ -424,7 +476,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       if (!area?.boundary) {
         source.setData({ type: 'FeatureCollection', features: [] });
         containerRef.current?.removeAttribute('data-boundary-rendered');
-        if (provinceBoundary) fitAreaBoundary(map, provinceBoundary, containerRef.current);
+        if (provinceBoundary && !holdCamera() && !keepRestoredView(area)) fitAreaBoundary(map, provinceBoundary, containerRef.current);
         return;
       }
       const feature = {
@@ -434,7 +486,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       };
       const data = { type: 'FeatureCollection' as const, features: [feature] };
       source.setData(data);
-      fitAreaBoundary(map, area.boundary!, containerRef.current);
+      if (!holdCamera() && !keepRestoredView(area)) fitAreaBoundary(map, area.boundary!, containerRef.current);
       containerRef.current?.setAttribute('data-boundary-rendered', area.code);
     };
     if (map.getSource(SOURCE_ID)) updateBoundary();
@@ -513,7 +565,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       markerElement.className = 'station-demo-marker';
       markerElement.dataset.mapPointId = point.id;
       markerElement.dataset.serviceAreaCode = point.serviceAreaCode;
-      markerElement.setAttribute('aria-label', `Mở thông tin ${point.name}. Vị trí demo.`);
+      markerElement.setAttribute('aria-label', `Mở thông tin ${point.name}`);
       for (const eventName of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) {
         markerElement.addEventListener(eventName, (event) => event.stopPropagation());
       }
@@ -527,14 +579,11 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
 
       const popupContent = document.createElement('div');
       popupContent.className = 'station-demo-popup';
-      const demoLabel = document.createElement('small');
-      demoLabel.className = 'station-demo-label';
-      demoLabel.textContent = 'VỊ TRÍ DEMO';
       const popupTitle = document.createElement('strong');
       popupTitle.textContent = point.name;
       const popupAddress = document.createElement('p');
       popupAddress.textContent = point.detail;
-      popupContent.append(demoLabel, popupTitle, popupAddress);
+      popupContent.append(popupTitle, popupAddress);
       if (point.phone) {
         const phoneLink = document.createElement('a');
         phoneLink.className = 'station-demo-phone';
@@ -543,10 +592,6 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
         phoneLink.setAttribute('aria-label', `Gọi ${point.name} theo số ${point.phone}`);
         popupContent.append(phoneLink);
       }
-      const demoNote = document.createElement('small');
-      demoNote.className = 'station-location-note';
-      demoNote.textContent = 'Tọa độ minh họa, không dùng để chỉ đường. Số điện thoại là đầu mối công khai của phường.';
-      popupContent.append(demoNote);
 
       registerPopup(point, popupContent);
       markerElement.addEventListener('click', (event) => {
@@ -722,23 +767,22 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
             </>
           )}
           <label><input name="radiusVisible" type="checkbox" checked={radiusVisible} onChange={(event) => setRadiusVisible(event.target.checked)} /> <span>Bán kính tra cứu 3 km</span></label>
-          {(area?.serviceAreas?.length ?? 0) > 0 && <label><input name="demoOfficersVisible" type="checkbox" checked={demoOfficersVisible} onChange={(event) => setDemoOfficersVisible(event.target.checked)} /> <span>Trụ sở và điểm CSKV demo</span></label>}
+          {(area?.serviceAreas?.length ?? 0) > 0 && <label><input name="demoOfficersVisible" type="checkbox" checked={demoOfficersVisible} onChange={(event) => setDemoOfficersVisible(event.target.checked)} /> <span>Trụ sở và CSKV</span></label>}
           <label><input name="alertsVisible" type="checkbox" checked={alertsVisible} onChange={(event) => setAlertsVisible(event.target.checked)} /> <span>Cảnh báo địa bàn</span></label>
           {alertsFailed && <small><ShieldAlert size={15} aria-hidden="true" /> Chưa tải được cảnh báo. Hãy tải lại trang để thử lại.</small>}
-          {(area?.serviceAreas?.length ?? 0) > 0 && <small><ShieldAlert size={15} aria-hidden="true" /> Điểm tiếp dân trên bản đồ là dữ liệu demo.</small>}
-          {(area?.serviceAreas?.length ?? 0) > 0 && <small>{zoneReferenceKind(area) === 'former_wards' ? `Ranh ${area!.serviceAreas.length} phường cũ được tái dựng để tham chiếu, chưa phải ranh phân công CSKV đã phê duyệt.` : 'Các khu vực được chia minh họa theo hình học; chưa phải ranh đơn vị cũ hay ranh phân công CSKV đã phê duyệt.'}</small>}
+          {(area?.serviceAreas?.length ?? 0) > 0 && <small>Ranh khu vực và vị trí trụ sở, CSKV chỉ để tham chiếu.</small>}
         </div>
       )}
       <div ref={containerRef} className="map-canvas" data-testid="map-canvas" />
       {selectedServiceArea && (
         <aside className="map-zone-panel" style={{ '--zone-color': selectedServiceArea.displayColor } as CSSProperties} aria-live="polite" aria-label={`Thông tin ${selectedServiceArea.name}`}>
           <header>
-            <span><small>KHU VỰC ĐANG XEM</small><strong>{selectedServiceArea.name}</strong></span>
+            <span><strong>{selectedServiceArea.name}</strong></span>
             <button type="button" onClick={() => { closePointPopup(); setSelectedServiceAreaCode(null); }} aria-label="Đóng thông tin khu vực"><X size={19} aria-hidden="true" /></button>
           </header>
           <div className="map-zone-metrics">
-            <span><strong>{selectedAreaPoints.length}</strong><small>điểm đang hiển thị</small></span>
-            <span><strong>{selectedServiceArea.areaKm2?.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) ?? '—'} km²</strong><small>diện tích khu</small></span>
+            <span><strong>{selectedAreaPoints.length}</strong><small>điểm</small></span>
+            <span><strong>{selectedServiceArea.areaKm2?.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) ?? '—'} km²</strong><small>diện tích</small></span>
           </div>
           <div className="map-zone-point-list">
             {selectedAreaPoints.map((point) => (
@@ -756,12 +800,11 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
             ))}
             {selectedAreaPoints.length === 0 && <p>Chưa có điểm công khai trong lớp bản đồ đang bật.</p>}
           </div>
-          <small className="map-zone-demo-note"><MapPin size={13} aria-hidden="true" /> Ranh tham chiếu · Vị trí trụ sở/CSKV demo.</small>
         </aside>
       )}
       <div className="map-action-dock">
         <button className="map-sos-button" data-tour="sos" type="button" onClick={onOpenSos} aria-label="Mở quy trình SOS khẩn cấp" title="SOS khẩn cấp">
-          <Siren size={22} aria-hidden="true" /><span><strong>SOS</strong><small>Mở quy trình</small></span>
+          <Siren size={22} aria-hidden="true" /><span><strong>SOS</strong></span>
         </button>
         <button
           className="my-location-button"
@@ -774,6 +817,9 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
             setLocating(true);
             readDevicePosition((pos) => {
               setLocating(false);
+              showToast({ kind: 'success', topic: 'location', title: 'Đã xác định vị trí của bạn' });
+              cameraLockedRef.current = true;
+              userMovedRef.current = false;
               onCoordinateSelectRef.current(pos.coords.latitude, pos.coords.longitude);
               mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15, duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260 });
             }, () => {
@@ -781,10 +827,11 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
               setLocationError('Chưa lấy được vị trí. Bật định vị, cho phép trình duyệt truy cập rồi thử lại.');
             }, { timeout: 12000, maximumAge: 60000 });
           }}
-          aria-label={locating ? 'Đang xác định vị trí' : 'Vị trí của tôi'}
-          title="Vị trí của tôi"
+          aria-label={locating ? 'Đang xác định vị trí' : DEMO_LOCATION_ENABLED ? 'Vị trí của tôi (chế độ Demo: vị trí cố định)' : 'Vị trí của tôi'}
+          title={DEMO_LOCATION_ENABLED ? 'Vị trí của tôi (Demo)' : 'Vị trí của tôi'}
         >
           {locating ? <LoaderCircle className="spin" size={20} aria-hidden="true" /> : <LocateFixed size={20} aria-hidden="true" />}
+          {DEMO_LOCATION_ENABLED && <span className="demo-location-badge" aria-hidden="true">Demo</span>}
         </button>
       </div>
       <div className="map-credits">
@@ -811,7 +858,6 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       </div>
       {locationError && <div className="map-location-error" role="alert"><span>{locationError}</span><button type="button" onClick={() => setLocationError('')} aria-label="Đóng thông báo vị trí"><X size={18} aria-hidden="true" /></button></div>}
       {tileWarning && <div className="map-network-warning" role="status"><span>Nền bản đồ tải chậm hoặc bị gián đoạn.</span><button type="button" onClick={() => window.location.reload()}>Tải lại bản đồ</button></div>}
-      {!selectedPosition && !selectedServiceArea && <div className="map-hint">Chạm một khu vực để xem các điểm bên trong</div>}
     </section>
   );
 }

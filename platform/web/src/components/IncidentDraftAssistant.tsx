@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, PhoneCall, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { PhoneCall, Sparkles } from 'lucide-react';
 import { ApiError, draftIncidentWithAi, getAiStatus } from '../api';
 import type { Incident, IncidentDraft } from '../types';
 
@@ -33,61 +33,28 @@ const MIN_LENGTH = 10;
 const MAX_LENGTH = 2000;
 
 /**
- * "Kể lại sự việc": người dân gõ hoặc nói, AI điền sẵn nhóm, tiêu đề, mô tả (kèm thời điểm) và mô tả vị trí.
+ * "Kể lại sự việc": người dân gõ lời kể, AI điền sẵn nhóm, tiêu đề, mô tả (kèm thời điểm) và mô tả vị trí.
  * Không tự gửi: người dân xem lại từng ô, tự chọn vị trí trên bản đồ, đính kèm ảnh rồi mới bấm gửi.
  */
 export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequireLogin, onDraft }: IncidentDraftAssistantProps) {
   const [available, setAvailable] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<IncidentDraft | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const Speech = speechRecognitionCtor();
 
   useEffect(() => {
     const controller = new AbortController();
     getAiStatus(controller.signal)
       .then((status) => setAvailable(status.configured && status.features.includes('incident_draft')))
       .catch(() => setAvailable(false));
-    return () => { controller.abort(); recognitionRef.current?.stop(); };
+    return () => { controller.abort(); };
   }, []);
 
   if (!available) return null;
 
-  const toggleVoice = () => {
-    if (listening) { recognitionRef.current?.stop(); return; }
-    if (!Speech) return;
-    setError('');
-    const recognition = new Speech();
-    recognition.lang = 'vi-VN';
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      let heard = '';
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const item = event.results[index];
-        if (item?.isFinal) heard += item[0].transcript;
-      }
-      if (heard.trim()) setText((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${heard.trim()}`.slice(0, MAX_LENGTH));
-    };
-    recognition.onerror = (event) => {
-      setError(event.error === 'not-allowed' ? 'Trình duyệt chưa cho dùng micro. Bạn có thể gõ nội dung.' : 'Không nghe rõ. Hãy nói lại hoặc gõ nội dung.');
-    };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      setListening(true);
-    } catch {
-      setError('Không bật được micro. Bạn có thể gõ nội dung.');
-    }
-  };
-
   const draft = async () => {
     if (!isAuthenticated) { onRequireLogin(); return; }
-    recognitionRef.current?.stop();
     setBusy(true);
     setError('');
     try {
@@ -124,18 +91,11 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
         />
       </label>
       <div className="incident-draft-actions">
-        {Speech && (
-          <button type="button" className={listening ? 'incident-draft-voice on' : 'incident-draft-voice'} onClick={toggleVoice} aria-pressed={listening} disabled={busy}>
-            {listening ? <MicOff size={17} aria-hidden="true" /> : <Mic size={17} aria-hidden="true" />}
-            {listening ? 'Dừng nghe' : 'Nói'}
-          </button>
-        )}
         <button type="button" className="incident-draft-submit" onClick={() => void draft()} disabled={busy || length < MIN_LENGTH}>
           {busy ? <span className="loader" /> : <Sparkles size={17} aria-hidden="true" />}
           {busy ? 'AI đang đọc…' : 'Điền giúp tôi'}
         </button>
       </div>
-      {listening && <p className="incident-draft-status" role="status">Đang nghe… Nói rõ thời gian, địa điểm và sự việc.</p>}
       {error && <p className="incident-draft-error" role="alert">{error}</p>}
       {result && (
         <div className="incident-draft-result" role="status">

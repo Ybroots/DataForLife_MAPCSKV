@@ -1,11 +1,13 @@
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
-import { BarChart3, BellRing, Bot, Camera, CheckCircle2, ClipboardCheck, Database, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
+import { BarChart3, BellRing, Bot, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
 import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
 import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
 
 import { OfficerStatisticsPanel } from './OfficerStatisticsPanel';
 import { OfficerMapDataManager } from './OfficerMapDataManager';
+import { OfficerCitizenReset } from './OfficerCitizenReset';
+import { PASSWORD_RECOVERY_ENABLED } from '../password-recovery';
 import type { AlertPoint } from './AlertLocationPicker';
 
 const AlertLocationPicker = lazy(async () => {
@@ -13,7 +15,7 @@ const AlertLocationPicker = lazy(async () => {
   return { default: module.AlertLocationPicker };
 });
 
-type Tab = 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'roadmap';
+type Tab = 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'accounts' | 'roadmap';
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
@@ -96,11 +98,13 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
         <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
         <button role="tab" aria-selected={tab === 'patrol'} className={tab === 'patrol' ? 'active' : ''} onClick={() => setTab('patrol')}><Route size={18} /> Tuần tra</button>
         <button role="tab" aria-selected={tab === 'shift'} className={tab === 'shift' ? 'active' : ''} onClick={() => setTab('shift')}><ClipboardCheck size={18} /> Cuối ca</button>
+        {PASSWORD_RECOVERY_ENABLED && <button role="tab" aria-selected={tab === 'accounts'} className={tab === 'accounts' ? 'active' : ''} onClick={() => setTab('accounts')}><KeyRound size={18} /> Tài khoản dân</button>}
         <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Tích hợp</button>
       </div>
 
       {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} />}
       {tab === 'mapdata' && <OfficerMapDataManager />}
+      {tab === 'accounts' && PASSWORD_RECOVERY_ENABLED && <OfficerCitizenReset />}
 
       {tab === 'alerts' && <form className="operations-form" onSubmit={submitAlert}>
         <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3><p>Chọn vị trí trên bản đồ hoặc nhập tọa độ. Cảnh báo hiện ngay trên bản đồ người dân trong thời gian hiệu lực và gửi thông báo tới thiết bị đã bật thông báo.</p></div></div>

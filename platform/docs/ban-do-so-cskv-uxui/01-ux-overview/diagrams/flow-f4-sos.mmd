@@ -1,0 +1,13 @@
+flowchart TD
+  A([Gặp nguy hiểm]) --> B[Bấm SOS trên bản đồ]
+  B --> C[C08 Màn SOS]
+  C --> D{Kiểm tra}
+  D -->|Chưa có GPS| E[Hướng dẫn bật GPS + nút Gọi 113]
+  D -->|Chưa có cán bộ trực / ngoài ranh giới| F[Vô hiệu SOS, nút gọi 112/113 nổi bật]
+  D -->|Sẵn sàng| G[Giữ nút 3 giây]
+  G -->|Thả sớm| C
+  G -->|Đủ 3 giây| H[Gửi SOS + rung]
+  H --> I[Chờ cán bộ nhận - có nút Gọi 113]
+  I -->|Báo nhầm| J[Modal xác nhận hủy] --> K([SOS đã hủy])
+  I -->|Cán bộ nhận| L[Cán bộ đã nhận - đang đến]
+  L --> M([Đã xử lý xong - có thông báo])

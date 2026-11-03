@@ -1,0 +1,11 @@
+flowchart TD
+  A([SOS tới địa bàn]) --> B[O03 Báo động toàn màn hình + còi]
+  B -->|Nhận SOS ngay| C[Ghi: đã phát → đã nhận, báo người dân]
+  B -->|Tắt còi 30 giây| B
+  B -->|Quá 2 phút chưa ai nhận| D[Đổi tiêu đề + báo cán bộ dự phòng] --> B
+  C --> E[Gọi người dân, đến hiện trường]
+  E --> F{Kết quả}
+  F -->|Xong| G[Đã xử lý xong + ghi tình trạng an toàn]
+  F -->|Cần phối hợp| H[Chuyển đơn vị khác]
+  F -->|Người dân hủy| I[Ghi cách xác minh việc hủy]
+  G --> J[Đóng SOS] --> K([Lưu trữ])

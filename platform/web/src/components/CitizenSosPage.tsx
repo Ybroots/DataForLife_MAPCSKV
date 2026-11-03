@@ -1,5 +1,6 @@
 import { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation } from '../device-location';
+import { showToast } from '../toast';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -342,6 +343,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
         deviceTimestamp: new Date().toISOString(),
       });
       setEvents((current) => [payload.data, ...current.filter((item) => item.id !== payload.data.id)]);
+      showToast({ kind: 'success', topic: 'sos', title: 'Đã gửi yêu cầu SOS', message: `Mã tiếp nhận: ${payload.data.receiptCode}` });
       selectReceipt(payload.data.receiptCode);
       changeStep('receipt');
     } catch (caught) {
@@ -364,6 +366,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
       const payload = await cancelCitizenSos(activeEvent.receiptCode, 'Người dân xác nhận thao tác nhầm và yêu cầu hủy.');
       setEvents((current) => current.map((item) => item.id === payload.data.id ? payload.data : item));
       setCancelConfirmation(false);
+      showToast({ kind: 'info', topic: 'sos', title: 'Đã hủy yêu cầu SOS' });
     } catch (caught) {
       setError(message(caught));
     }
@@ -376,6 +379,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
     try {
       const updated = await reportCitizenSosSafe(activeEvent.receiptCode);
       setEvents((current) => current.map((item) => item.id === updated.id ? updated : item));
+      showToast({ kind: 'success', topic: 'sos', title: 'Đã báo an toàn' });
     } catch (caught) {
       setError(message(caught));
     } finally {

@@ -22,5 +22,6 @@
       "insetsHandling": "css",
       "initialViewportFitValueHint": "cover"
     }
-  }
+  },
+  "backgroundColor": "#0B2447"
 }

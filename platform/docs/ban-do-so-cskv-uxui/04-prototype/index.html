@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prototype · Bản đồ số CSKV</title>
+<link rel="stylesheet" href="../02-design-system/tokens.css">
+<link rel="stylesheet" href="../02-design-system/ds.css">
+<link rel="stylesheet" href="proto.css">
+</head>
+<body>
+<header class="pt-top">
+  <div class="pt-brand"><span class="logo" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><div><strong>Prototype tương tác</strong><small>Bản đồ số Cảnh sát khu vực · v1.0.0</small></div></div>
+  <div class="tabs pt-flows" role="tablist" aria-label="Chọn luồng">
+    <button class="tab is-active" role="tab" id="tab-citizen" aria-selected="true" data-flow="citizen">Người dân (điện thoại)</button>
+    <button class="tab" role="tab" id="tab-officer" aria-selected="false" data-flow="officer">Cán bộ (máy tính)</button>
+  </div>
+  <button class="btn btn-secondary" id="reset" type="button">Làm lại từ đầu</button>
+</header>
+
+<main class="pt-main">
+  <aside class="pt-side" aria-label="Hướng dẫn kịch bản">
+    <section class="pt-card">
+      <h2 class="t-h3">Kịch bản thử</h2>
+      <p class="muted t-sm" id="flow-intro"></p>
+      <ol class="pt-steps" id="steps"></ol>
+    </section>
+    <section class="pt-card">
+      <h2 class="t-h3">Mô phỏng sự kiện</h2>
+      <p class="muted t-sm">Những việc xảy ra ở bên ngoài màn hình (cán bộ nhận, mất mạng…).</p>
+      <div class="pt-events" id="events"></div>
+    </section>
+    <section class="pt-card">
+      <h2 class="t-h3">Trạng thái của màn này</h2>
+      <p class="muted t-sm" id="screen-name"></p>
+      <div class="pt-chips" id="states" role="group" aria-label="Chọn trạng thái hiển thị"></div>
+    </section>
+  </aside>
+  <section class="pt-stage" aria-label="Màn hình prototype">
+    <div class="pt-frame" id="frame"><div id="stage"></div></div>
+  </section>
+</main>
+<div class="sr-only" id="live" aria-live="polite"></div>
+
+<script src="../03-screens/assets/ui-lib.js"></script>
+<script src="proto.js"></script>
+</body>
+</html>

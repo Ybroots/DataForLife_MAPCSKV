@@ -6,8 +6,10 @@ import './styles.css';
 import './product.css';
 import './components/map-assistant.css';
 import { initializeNativeApp } from './native-app';
+import { initI18n } from './i18n';
 
 initializeNativeApp();
+initI18n();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

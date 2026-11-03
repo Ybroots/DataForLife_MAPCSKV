@@ -1,0 +1,14 @@
+/* Chỉ phục vụ trang tài liệu */
+.doc { max-width: 1480px; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-7); }
+.doc > header { display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5); }
+.doc nav.crumb a { color: var(--color-primary); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+.spec ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: var(--space-1); }
+.frames { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+.frame { display: flex; flex-direction: column; gap: var(--space-2); }
+.frame figcaption { font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.frame figcaption span { color: var(--color-muted); font-weight: var(--fw-regular); }
+.toggle { display: inline-flex; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
+.gallery a { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); color: inherit; text-decoration: none; }
+.gallery img { width: 100%; height: 260px; object-fit: cover; object-position: top; border: 1px solid var(--color-line); border-radius: var(--radius-md); }

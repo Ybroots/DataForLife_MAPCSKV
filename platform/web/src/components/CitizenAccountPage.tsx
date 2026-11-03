@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ChevronRight, FileWarning, HelpCircle, KeyRound, LogOut, Star, UserRoundCheck } from 'lucide-react';
-import { ApiError, changeCitizenPassword } from '../api';
+import { ChevronRight, FileWarning, HelpCircle, KeyRound, LifeBuoy, LogOut, Mail, Star, UserRoundCheck } from 'lucide-react';
+import { showToast } from '../toast';
+import { ApiError, changeCitizenPassword, createCitizenRecoveryCode, getCitizenEmailStatus, requestCitizenEmailVerification, verifyCitizenEmail, type CitizenEmailStatus } from '../api';
 import type { CitizenSession } from '../types';
+import { PASSWORD_RECOVERY_ENABLED } from '../password-recovery';
+import { RecoveryCodeNotice } from './CitizenRecovery';
 
 interface CitizenAccountPageProps {
   session: CitizenSession | null;
@@ -30,6 +33,7 @@ function ChangePasswordForm() {
       await changeCitizenPassword(current, next);
       form.reset();
       setMessage({ ok: true, text: 'Đã đổi mật khẩu.' });
+      showToast({ kind: 'success', topic: 'account', title: 'Đã đổi mật khẩu' });
     } catch (error) {
       setMessage({ ok: false, text: error instanceof ApiError ? error.message : 'Chưa đổi được mật khẩu. Vui lòng thử lại.' });
     } finally { setBusy(false); }
@@ -43,6 +47,102 @@ function ChangePasswordForm() {
       {message && <p ref={statusRef} className={message.ok ? 'form-ok' : 'form-error'} role="status">{message.text}</p>}
       <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu mật khẩu mới'}</button>
     </form>
+  </details>;
+}
+
+/** Tạo (hoặc tạo lại) mã khôi phục mật khẩu. Tài khoản cũ chưa có mã cần tạo ở đây; tạo lại thì mã cũ hết hiệu lực. */
+function RecoveryCodeSection() {
+  const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const current = String(new FormData(form).get('currentPassword') ?? '');
+    setBusy(true); setError('');
+    try {
+      const result = await createCitizenRecoveryCode(current);
+      form.reset();
+      setCode(result.recoveryCode);
+      showToast({ kind: 'warning', topic: 'account', title: 'Đã tạo mã khôi phục mới', message: 'Hãy lưu mã trước khi đóng.' });
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Chưa tạo được mã khôi phục. Vui lòng thử lại.');
+    } finally { setBusy(false); }
+  }
+  return <details className="account-password">
+    <summary><span><LifeBuoy /></span><strong>Mã khôi phục mật khẩu</strong><ChevronRight /></summary>
+    {code
+      ? <RecoveryCodeNotice code={code} heading="Mã khôi phục mới của bạn" intro="Mã cũ (nếu có) không còn dùng được. Hãy lưu mã mới trước khi đóng." doneLabel="Xong, ẩn mã" onDone={() => setCode(null)} />
+      : <form onSubmit={(event) => void submit(event)}>
+        <p className="recovery-lead">Nhập mật khẩu hiện tại để tạo mã mới (mã cũ hết hiệu lực).</p>
+        <label>Mật khẩu hiện tại<input name="currentPassword" type="password" autoComplete="current-password" required minLength={8} /></label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Đang tạo…' : 'Tạo mã khôi phục'}</button>
+      </form>}
+  </details>;
+}
+
+/** Email khôi phục: thêm email, nhận mã 6 số để xác minh. Có email đã xác minh thì quên mật khẩu tự lấy lại được qua email. */
+function EmailRecoverySection() {
+  const [status, setStatus] = useState<CitizenEmailStatus | null>(null);
+  const [step, setStep] = useState<'view' | 'code'>('view');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const refresh = () => { getCitizenEmailStatus().then(setStatus).catch(() => setStatus({ available: false, email: null, verified: false })); };
+  useEffect(refresh, []);
+
+  async function requestCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    setBusy(true); setMessage(null);
+    try {
+      const result = await requestCitizenEmailVerification(String(data.get('email') ?? ''), String(data.get('currentPassword') ?? ''));
+      form.reset();
+      setPendingEmail(result.email);
+      setStep('code');
+      showToast({ kind: 'info', topic: 'account', title: 'Đã gửi mã xác minh', message: result.email });
+      setMessage({ ok: true, text: `Đã gửi mã 6 số tới ${result.email}. Mã có hiệu lực 15 phút, hãy kiểm tra cả thư rác.` });
+    } catch (error) {
+      setMessage({ ok: false, text: error instanceof ApiError ? error.message : 'Chưa gửi được mã. Vui lòng thử lại.' });
+    } finally { setBusy(false); }
+  }
+
+  async function confirmCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const code = String(new FormData(form).get('code') ?? '').trim();
+    setBusy(true); setMessage(null);
+    try {
+      await verifyCitizenEmail(code);
+      form.reset();
+      setStep('view');
+      setMessage({ ok: true, text: 'Đã xác minh email. Từ nay bạn có thể lấy lại mật khẩu qua email này.' });
+      showToast({ kind: 'success', topic: 'account', title: 'Đã xác minh email' });
+      refresh();
+    } catch (error) {
+      setMessage({ ok: false, text: error instanceof ApiError ? error.message : 'Chưa xác minh được. Vui lòng thử lại.' });
+    } finally { setBusy(false); }
+  }
+
+  return <details className="account-password">
+    <summary><span><Mail /></span><strong>Email khôi phục mật khẩu</strong><ChevronRight /></summary>
+    {status && <p className="recovery-lead">
+      {status.verified && status.email ? `Email khôi phục: ${status.email} (đã xác minh).` : status.email ? `Email ${status.email} chưa được xác minh.` : 'Bạn chưa thêm email khôi phục.'}
+      {!status.available && ' Gửi email chưa được kết nối trên hệ thống này, nên chưa thêm được email.'}
+    </p>}
+    {status?.available && step === 'view' && <form onSubmit={(event) => void requestCode(event)}>
+      <label>{status.verified ? 'Đổi sang email khác' : 'Địa chỉ email'}<input name="email" type="email" autoComplete="email" required placeholder="ten@example.com" /></label>
+      <label>Mật khẩu hiện tại<input name="currentPassword" type="password" autoComplete="current-password" required minLength={8} /></label>
+      <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Đang gửi…' : 'Gửi mã xác minh'}</button>
+    </form>}
+    {status?.available && step === 'code' && <form onSubmit={(event) => void confirmCode(event)}>
+      <label>Mã 6 số trong email {pendingEmail}<input name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} pattern="[0-9]{6}" placeholder="123456" /></label>
+      <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Đang xác minh…' : 'Xác minh email'}</button>
+      <button className="recovery-back" type="button" onClick={() => { setStep('view'); setMessage(null); }}>Nhập lại email</button>
+    </form>}
+    {message && <p className={message.ok ? 'form-ok' : 'form-error'} role="status">{message.text}</p>}
   </details>;
 }
 
@@ -61,6 +161,8 @@ export function CitizenAccountPage({ session, areaName, onLogin, onLogout, onNav
       <button type="button" onClick={onStartTour}><span><HelpCircle /></span><div><strong>Hướng dẫn sử dụng</strong></div><ChevronRight /></button>
     </nav>
     {session && <ChangePasswordForm />}
+    {session && PASSWORD_RECOVERY_ENABLED && <EmailRecoverySection />}
+    {session && PASSWORD_RECOVERY_ENABLED && <RecoveryCodeSection />}
     {session && <button className="account-logout-button" type="button" onClick={onLogout}><LogOut /> Đăng xuất tài khoản</button>}
   </section>;
 }

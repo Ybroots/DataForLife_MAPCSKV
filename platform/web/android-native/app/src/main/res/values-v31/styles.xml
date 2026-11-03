@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: hệ thống tự vẽ màn chờ từ các thuộc tính này (bỏ qua ảnh nền toàn màn hình). -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/cskv_splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:windowSplashScreenBrandingImage">@drawable/splash_brand</item>
+        <item name="android:background">@drawable/splash</item>
+    </style>
+</resources>

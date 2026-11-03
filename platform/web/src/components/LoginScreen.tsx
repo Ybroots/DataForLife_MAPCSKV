@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, LogIn, ShieldCheck, UserCheck, Users, ArrowRight } from 'lucide-react';
 import { ApiError, registerCitizen, signInCitizen, signInOfficer } from '../api';
 import type { CitizenSession, WorkflowActor } from '../types';
+import { PASSWORD_RECOVERY_ENABLED } from '../password-recovery';
+import { EmailVerifyStep, ForgotPasswordForm, RecoveryCodeNotice } from './CitizenRecovery';
 import directoryLogoUrl from '../../../../assets/images/logo-transparent.png';
 
 interface LoginScreenProps {
@@ -11,7 +13,11 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficerLoginSuccess }: LoginScreenProps) {
-  const [view, setView] = useState<'roles' | 'citizen-login' | 'citizen-register' | 'officer-login'>('roles');
+  const [view, setView] = useState<'roles' | 'citizen-login' | 'citizen-register' | 'citizen-forgot' | 'officer-login'>('roles');
+  const [notice, setNotice] = useState('');
+  const [recovery, setRecovery] = useState<{ code: string; reason: 'register' | 'reset'; session?: CitizenSession; emailSent?: boolean; emailFailed?: boolean } | null>(null);
+  const [emailStep, setEmailStep] = useState<CitizenSession | null>(null);
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -44,6 +50,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
 
   const submitCitizen = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setNotice('');
     const phone = username.replace(/\s/g, '');
     if (!/^0\d{9}$/.test(phone)) {
       setError('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng số 0.');
@@ -61,17 +68,30 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
       setError('Mật khẩu cần ít nhất 10 ký tự, gồm chữ và số.');
       return;
     }
+    if (view === 'citizen-register' && PASSWORD_RECOVERY_ENABLED && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Địa chỉ email chưa hợp lệ. Bạn có thể để trống và thêm sau trong mục Tài khoản.');
+      return;
+    }
     if (view === 'citizen-register' && password !== passwordConfirmation) {
       setError('Mật khẩu nhập lại chưa khớp.');
       return;
     }
     setSubmitting(true);
     try {
-      const session = view === 'citizen-register'
-        ? await registerCitizen(phone, displayName.trim(), password)
-        : await signInCitizen(phone, password);
       setError('');
-      onCitizenLoginSuccess(session);
+      if (view === 'citizen-register') {
+        const trimmedEmail = PASSWORD_RECOVERY_ENABLED ? email.trim() : '';
+        const registered = await registerCitizen(phone, displayName.trim(), password, trimmedEmail || undefined);
+        const session = { id: registered.id, displayName: registered.displayName };
+        const emailSent = registered.emailVerification === 'sent';
+        const emailFailed = Boolean(trimmedEmail) && !emailSent;
+        // Có mã khôi phục thì giữ lại màn này cho đến khi người dân xác nhận đã lưu mã; sau đó (nếu có email) là bước xác minh email.
+        if (registered.recoveryCode && PASSWORD_RECOVERY_ENABLED) setRecovery({ code: registered.recoveryCode, reason: 'register', session, emailSent, emailFailed });
+        else if (emailSent) setEmailStep(session);
+        else { setEmail(''); onCitizenLoginSuccess(session); }
+      } else {
+        onCitizenLoginSuccess(await signInCitizen(phone, password));
+      }
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Không thể kết nối hệ thống đăng nhập.');
     } finally {
@@ -145,7 +165,61 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
           </>
         )}
 
-        {(view === 'citizen-login' || view === 'citizen-register') && (
+        {emailStep && (
+          <div className="citizen-inline-login-panel">
+            <div className="citizen-inline-login-header">
+              <UserCheck size={34} aria-hidden="true" />
+              <div><p>TÀI KHOẢN NGƯỜI DÂN</p><h2>Xác minh email</h2></div>
+            </div>
+            <EmailVerifyStep onDone={() => { const session = emailStep; setEmailStep(null); setEmail(''); onCitizenLoginSuccess(session); }} />
+          </div>
+        )}
+
+        {recovery && (
+          <div className="citizen-inline-login-panel">
+            <div className="citizen-inline-login-header">
+              <UserCheck size={34} aria-hidden="true" />
+              <div><p>TÀI KHOẢN NGƯỜI DÂN</p><h2>Lưu mã khôi phục</h2></div>
+            </div>
+            <RecoveryCodeNotice
+              code={recovery.code}
+              heading={recovery.reason === 'register' ? 'Tài khoản đã được tạo' : 'Đã đặt lại mật khẩu'}
+              intro={recovery.reason === 'register'
+                ? `Đây là mã khôi phục mật khẩu của bạn. Nếu sau này quên mật khẩu, bạn dùng mã này cùng số điện thoại để đặt lại. ${recovery.emailFailed ? 'Chưa gửi được mã xác minh tới email bạn nhập; bạn có thể thêm email lại trong mục Tài khoản.' : recovery.emailSent ? 'Bước tiếp theo: xác minh email.' : 'Bạn cũng nên thêm email trong mục Tài khoản để tự lấy lại mật khẩu qua email.'}`
+                : 'Mật khẩu mới đã có hiệu lực và các máy khác đã bị đăng xuất. Mã khôi phục cũ không còn dùng được, đây là mã mới của bạn.'}
+              doneLabel={recovery.reason === 'register' ? (recovery.emailSent ? 'Tiếp tục: xác minh email' : 'Tiếp tục') : 'Đăng nhập bằng mật khẩu mới'}
+              onDone={() => {
+                const pending = recovery;
+                setRecovery(null);
+                if (pending.reason === 'register' && pending.session) {
+                  if (pending.emailSent) setEmailStep(pending.session); else { setEmail(''); onCitizenLoginSuccess(pending.session); }
+                }
+                else { setView('citizen-login'); setPassword(''); setPasswordConfirmation(''); }
+              }}
+            />
+          </div>
+        )}
+
+        {!recovery && !emailStep && view === 'citizen-forgot' && (
+          <div className="citizen-inline-login-panel">
+            <button className="officer-login-back" type="button" onClick={() => { setView('citizen-login'); setError(''); }}>
+              <ArrowLeft size={16} aria-hidden="true" /> Quay lại
+            </button>
+            <div className="citizen-inline-login-header">
+              <UserCheck size={34} aria-hidden="true" />
+              <div><p>TÀI KHOẢN NGƯỜI DÂN</p><h2>Quên mật khẩu</h2></div>
+            </div>
+            <ForgotPasswordForm
+              variant="inline"
+              initialPhone={username}
+              onBack={() => { setView('citizen-login'); setError(''); }}
+              onReset={(code, phone) => { setUsername(phone); setRecovery({ code, reason: 'reset' }); }}
+              onEmailReset={(phone) => { setUsername(phone); setPassword(''); setView('citizen-login'); setNotice('Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.'); }}
+            />
+          </div>
+        )}
+
+        {!recovery && !emailStep && (view === 'citizen-login' || view === 'citizen-register') && (
           <div className="citizen-inline-login-panel">
             <button className="officer-login-back" type="button" onClick={backToRoles}>
               <ArrowLeft size={16} aria-hidden="true" /> Quay lại
@@ -154,7 +228,6 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
               <UserCheck size={34} aria-hidden="true" />
               <div><p>TÀI KHOẢN NGƯỜI DÂN</p><h2>{view === 'citizen-login' ? 'Đăng nhập' : 'Đăng ký tài khoản'}</h2></div>
             </div>
-            <p className="officer-login-lead">Tài khoản này dùng cho phản ánh, SOS và theo dõi tiến trình trên hệ thống.</p>
             <div className="citizen-auth-modes" role="tablist" aria-label="Chọn hình thức xác thực">
               <button type="button" role="tab" aria-selected={view === 'citizen-login'} onClick={() => { setView('citizen-login'); setError(''); }}>Đăng nhập</button>
               <button type="button" role="tab" aria-selected={view === 'citizen-register'} onClick={() => { setView('citizen-register'); setError(''); }}>Đăng ký</button>
@@ -169,13 +242,18 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
               <div className="officer-password-field">
                 <label htmlFor="ls-citizen-password">Mật khẩu</label>
                 <span className="officer-password-wrap">
-                  <input id="ls-citizen-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={view === 'citizen-register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} aria-invalid={Boolean(error)} required />
+                  <input id="ls-citizen-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={view === 'citizen-register' ? 'new-password' : 'current-password'} placeholder={view === 'citizen-register' ? 'Ít nhất 10 ký tự, gồm chữ và số' : undefined} value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} aria-invalid={Boolean(error)} required />
                   <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                 </span>
               </div>
               {view === 'citizen-register' && <label htmlFor="ls-citizen-password-confirmation">Nhập lại mật khẩu
                 <input id="ls-citizen-password-confirmation" name="passwordConfirmation" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={passwordConfirmation} onChange={(event) => { setPasswordConfirmation(event.target.value); setError(''); }} aria-invalid={Boolean(error)} required />
               </label>}
+              {view === 'citizen-register' && PASSWORD_RECOVERY_ENABLED && <label htmlFor="ls-citizen-email">Email
+                <input id="ls-citizen-email" name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} placeholder="Không bắt buộc, ví dụ ten@example.com" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} />
+              </label>}
+              {view === 'citizen-login' && <button className="citizen-forgot-link" type="button" onClick={() => { setView('citizen-forgot'); setError(''); setNotice(''); }}>Quên mật khẩu?</button>}
+              {notice && <p className="recovery-ok" role="status">{notice}</p>}
               {error && <p className="officer-login-error" role="alert">{error}</p>}
               <button className="citizen-inline-login-submit" type="submit" disabled={submitting}><LogIn size={19} /> {submitting ? 'Đang xử lý…' : view === 'citizen-login' ? 'Đăng nhập' : 'Tạo tài khoản'}</button>
             </form>

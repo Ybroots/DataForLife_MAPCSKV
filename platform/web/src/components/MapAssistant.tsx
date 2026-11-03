@@ -136,13 +136,12 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       <form className="map-assistant-compose" onSubmit={event => void submit(event)}>
         <label htmlFor="map-ai-question">Câu hỏi của bạn</label>
         <div className="map-assistant-input">
-          <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!ready || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ví dụ: Tìm số liên hệ phường Xuân Hương" />
+          <textarea ref={inputRef} id="map-ai-question" name="map-ai-question" rows={2} minLength={3} maxLength={600} required disabled={!ready || pending} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Hỏi về địa bàn, danh bạ… (không ghi thông tin cá nhân)" />
           <button type="submit" disabled={!ready || pending || question.trim().length < 3} aria-label="Gửi câu hỏi"
             // Keep focus in the field: on phones a blur hides the keyboard and shifts the sheet before the tap
             // completes, so the click would land outside the button and the question would not be sent.
             onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}><ArrowUp size={20} aria-hidden="true" /></button>
         </div>
-        <small>Không nhập thông tin cá nhân. Không dùng cho SOS.</small>
       </form>
     </section>
   );

@@ -1,0 +1,17 @@
+flowchart TD
+  A([Bấm tab Phản ánh]) --> B{Đã đăng nhập?}
+  B -->|Chưa| C[C02 Tờ trượt đăng nhập/đăng ký]
+  C -->|Thành công| D
+  C -->|Đóng| Z([Quay lại màn trước, giữ nội dung đã nhập])
+  B -->|Rồi| D[C06 Biểu mẫu]
+  D --> E[Chọn loại việc]
+  E --> F[Mô tả: gõ hoặc bấm micro]
+  F --> G[Thêm ảnh/video - không bắt buộc]
+  G --> H[Kiểm tra vị trí GPS]
+  H --> I{Hợp lệ?}
+  I -->|Thiếu/ngắn| J[Hiện lỗi dưới ô, giữ dữ liệu] --> F
+  I -->|Đủ| K[Bấm Gửi phản ánh]
+  K --> L{Có mạng?}
+  L -->|Không| M[Lưu nháp + cảnh báo vàng + nút Gửi lại] --> K
+  L -->|Có| N[Màn thành công: mã hồ sơ PA-…]
+  N --> O[C07 Theo dõi hồ sơ]

@@ -1,0 +1,39 @@
+/* Khung trình bày prototype — chỉ dùng token. Thành phần giao diện lấy từ ds.css. */
+body { min-height: 100vh; }
+.pt-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); padding: var(--space-3) var(--space-5); color: var(--color-on-primary); background: var(--color-primary); }
+.pt-brand { display: flex; align-items: center; gap: var(--space-3); margin-right: auto; }
+.pt-brand strong { display: block; font-family: var(--font-heading); font-size: var(--fs-h3); line-height: var(--fs-h3-lh); }
+.pt-brand small { font-size: var(--fs-xs); }
+.pt-brand .logo { display: grid; place-items: center; width: var(--size-avatar); height: var(--size-avatar); border-radius: var(--radius-pill); color: var(--color-primary); background: var(--color-surface); }
+/* Tiêu đề màn được focus bằng mã (cho trình đọc màn hình) — không vẽ khung */
+#stage [tabindex="-1"]:focus { outline: none; }
+.pt-top .tabs { background: var(--color-primary-deep); border-radius: var(--radius-control); padding: var(--space-1); gap: var(--space-1); border: 0; }
+.pt-top .tab { color: var(--color-on-primary); border-radius: var(--radius-control); border: 0; }
+.pt-top .tab.is-active { color: var(--color-primary); background: var(--color-surface); }
+.pt-top .btn-secondary { color: var(--color-on-primary); background: transparent; border-color: var(--color-on-primary); }
+.pt-top .btn-secondary:hover { background: var(--color-primary-deep); }
+
+.pt-main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-5); align-items: start; max-width: 1760px; margin: 0 auto; padding: var(--space-5); }
+.pt-side { display: flex; flex-direction: column; gap: var(--space-4); }
+.pt-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.pt-steps { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.pt-steps li { counter-increment: s; display: flex; gap: var(--space-3); padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); line-height: var(--fs-sm-lh); border-radius: var(--radius-md); border: 1px solid transparent; }
+.pt-steps li::before { content: counter(s); flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--color-muted); background: var(--color-canvas); border: 1px solid var(--color-subtle); border-radius: var(--radius-pill); }
+.pt-steps li.is-now { background: var(--color-primary-soft); border-color: var(--color-primary); }
+.pt-steps li.is-now::before { color: var(--color-on-primary); background: var(--color-primary); border-color: var(--color-primary); }
+.pt-steps li.is-done { color: var(--color-muted); }
+.pt-steps li.is-done::before { content: "✓"; color: var(--color-on-primary); background: var(--color-success); border-color: var(--color-success); }
+.pt-events, .pt-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pt-chips .chip { cursor: pointer; }
+.pt-events .btn { min-height: var(--size-touch); font-size: var(--fs-sm); }
+
+.pt-stage { display: flex; justify-content: center; min-width: 0; }
+.pt-frame { position: relative; flex: 0 0 auto; }
+#stage { transform-origin: top left; }
+#stage .phone, #stage .desk { margin: 0; }
+.pt-note { margin-top: var(--space-3); text-align: center; }
+
+@media (max-width: 1023px) {
+  .pt-main { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
+  .pt-side { order: 2; }
+}

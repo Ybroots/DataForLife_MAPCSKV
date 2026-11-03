@@ -1,0 +1,9 @@
+flowchart TD
+  A([Nhận thông báo đẩy / mở chuông]) --> B[C09 Thông báo]
+  B -->|Chạm thông báo| C[C07 Chi tiết hồ sơ]
+  C --> D{Trạng thái}
+  D -->|Chưa xong| E[Xem timeline + gửi bổ sung]
+  D -->|Đã có kết quả| F{Hài lòng?}
+  F -->|Có| G[C14 Đánh giá sao]
+  F -->|Chưa| H[Báo lại: hồ sơ mở lại, cán bộ nhận thông báo]
+  G --> I([Cảm ơn - kết thúc])

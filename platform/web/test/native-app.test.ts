@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { closeTopOverlay } from '../src/native-app';
+import { closeTopOverlay, resetShellScroll } from '../src/native-app';
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: vi.fn() } }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: vi.fn(), minimizeApp: vi.fn() } }));
@@ -39,5 +39,15 @@ describe('Android Back button overlay handling', () => {
   });
   it('reports nothing to close so the app can go back or minimise', () => {
     expect(closeTopOverlay(root([dialog(null, null)]))).toBe(false);
+  });
+});
+
+describe('Android shell scroll guard', () => {
+  it('returns scrolled shells to the origin and ignores missing ones', () => {
+    const shell = { scrollTop: 120, scrollLeft: 18 };
+    const clean = { scrollTop: 0, scrollLeft: 0 };
+    resetShellScroll([shell, null, undefined, clean]);
+    expect(shell).toEqual({ scrollTop: 0, scrollLeft: 0 });
+    expect(clean).toEqual({ scrollTop: 0, scrollLeft: 0 });
   });
 });

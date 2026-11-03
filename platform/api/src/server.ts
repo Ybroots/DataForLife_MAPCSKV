@@ -6,6 +6,7 @@ import type { DirectoryRepository } from './types.js';
 import { createAssistantPlanner } from './map-assistant.js';
 import { createJsonModel } from './ai-client.js';
 import { Pool } from 'pg';
+import { createMailerFromEnv } from './mailer.js';
 import { createPushSender, PostgresPushStore, PushDispatcher, type PushStore } from './push.js';
 
 loadPlatformEnv();
@@ -55,6 +56,7 @@ const app = await buildApp(repository, {
   aiModel: createJsonModel(process.env),
   aiDailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT || 200),
   releaseValidation: process.env.API_RELEASE_VALIDATION === 'true' && process.env.NODE_ENV !== 'production',
+  mailer: createMailerFromEnv(process.env) ?? undefined,
 });
 
 app.addHook('onClose', async () => {
@@ -67,4 +69,5 @@ const port = Number(process.env.API_PORT || 3001);
 
 await app.listen({ host, port });
 pushDispatcher?.start();
-console.log(`CSKV API listening on http://${host}:${port} (${repository.sourceName}; push ${pushDispatcher ? 'on' : 'off'})`);
+const mailerStatus = createMailerFromEnv(process.env, () => undefined)?.kind ?? 'off';
+console.log(`CSKV API listening on http://${host}:${port} (${repository.sourceName}; push ${pushDispatcher ? 'on' : 'off'}; email ${mailerStatus})`);

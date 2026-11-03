@@ -54,6 +54,16 @@ export const PILOT_AREA_LABELS: Readonly<Record<string, string>> = {
   '24778': 'Lâm Viên',
 };
 
+/**
+ * Tên cán bộ CSKV MINH HỌA (không phải người thật): mỗi khu vực một tên khác nhau để trình diễn.
+ * Mỗi địa bàn bắt đầu ở một vị trí riêng trong danh sách nên ba phường không trùng tên nhau.
+ */
+export const DEMO_OFFICER_NAMES: readonly string[] = [
+  'Nguyễn Văn An', 'Trần Minh Khôi', 'Lê Hoàng Nam', 'Phạm Quốc Bảo', 'Hoàng Đức Thịnh', 'Vũ Thanh Tùng',
+  'Đặng Gia Huy', 'Bùi Anh Tuấn', 'Ngô Trọng Nghĩa', 'Đỗ Hữu Phước', 'Lý Minh Châu', 'Phan Thế Vinh',
+];
+const DEMO_OFFICER_NAME_OFFSET: Readonly<Record<string, number>> = { '24781': 0, '24805': 5, '24778': 9 };
+
 /** 'former_wards': khu vực tái dựng từ phường cũ; 'geometric': khu vực chia minh họa theo hình học. */
 export function zoneReferenceKind(area: Pick<AreaLookup, 'serviceAreas'> | null): 'former_wards' | 'geometric' | null {
   if (!area?.serviceAreas.length) return null;
@@ -70,6 +80,11 @@ function zoneLongLabel(zone: ServiceArea): string {
   return zone.legacyWardCode ? `P.${zone.legacyWardCode} cũ` : zone.name;
 }
 
+function demoOfficerName(areaCode: string, zoneIndex: number): string {
+  const offset = DEMO_OFFICER_NAME_OFFSET[areaCode] ?? 0;
+  return DEMO_OFFICER_NAMES[(offset + zoneIndex) % DEMO_OFFICER_NAMES.length] ?? 'Nguyễn Văn An';
+}
+
 export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[] {
   // Dữ liệu trình diễn chỉ dành cho các địa bàn thí điểm, không áp cho phường khác được tra cứu.
   const wardLabel = area ? PILOT_AREA_LABELS[area.code] : undefined;
@@ -83,8 +98,8 @@ export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[
     const contact = contacts.length ? contacts[index % contacts.length] : null;
     points.push({
       id: `officer:${zone.code}`, kind: 'officer', serviceAreaCode: zone.code,
-      name: `${contact?.displayName ?? 'Đầu mối CSKV'} · ${zoneLongLabel(zone)}`,
-      detail: 'Liên hệ công khai của phường; vị trí pin minh họa.',
+      name: `CSKV ${demoOfficerName(area.code, index)} · ${zoneLongLabel(zone)}`,
+      detail: 'Số điện thoại đầu mối công khai của phường.',
       phone: contact?.phone ?? null, ...zone.center, demo: true,
     });
     // Xuân Hương giữ trụ sở chính ở Phường 3 cũ; địa bàn khác dùng khu đầu tiên.

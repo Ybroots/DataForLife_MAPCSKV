@@ -17,9 +17,25 @@
     <link rel="icon" href="../../assets/images/logo-transparent.png" type="image/png" />
     <link rel="apple-touch-icon" href="../../assets/images/logo-transparent.png" />
     <title>Bản đồ số Cảnh sát khu vực</title>
+    <style>
+      /* Màn chờ khi ứng dụng đang tải: hiện ngay, trước cả CSS/JS; React thay thế khi vẽ xong. */
+      .boot-screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; box-sizing: border-box; background: #0b2447; color: #fff; text-align: center; font-family: "Be Vietnam Pro", "Noto Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      .boot-screen img { width: min(42vw, 168px); height: auto; display: block; }
+      .boot-screen h1 { margin: 6px 0 0; max-width: 20em; font-size: clamp(19px, 5.6vw, 26px); line-height: 1.3; font-weight: 700; text-wrap: balance; }
+      .boot-screen h1 span { display: block; margin-top: 2px; color: #ffd65a; font-size: .86em; font-weight: 500; }
+      .boot-screen i { width: 26px; height: 26px; margin-top: 10px; border: 3px solid rgba(255,255,255,.25); border-top-color: #ffd65a; border-radius: 50%; animation: boot-spin .9s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-screen i { animation-duration: 3s; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" role="status" aria-live="polite">
+        <img src="../../assets/images/logo-transparent.png" alt="" width="168" height="137" />
+        <h1>Bản đồ số Cảnh sát khu vực <span>tỉnh Lâm Đồng</span></h1>
+        <i aria-hidden="true"></i>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

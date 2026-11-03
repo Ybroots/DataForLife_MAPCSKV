@@ -2,4 +2,6 @@
 <resources>
     <!-- Màu nhấn của thông báo, trùng màu chủ đạo của ứng dụng. -->
     <color name="cskv_notification">#D71935</color>
+    <!-- Nền màn chờ (xanh navy, khớp màn chờ trong ứng dụng). -->
+    <color name="cskv_splash_bg">#0B2447</color>
 </resources>

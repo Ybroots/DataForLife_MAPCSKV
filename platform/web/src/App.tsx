@@ -8,16 +8,16 @@ import { PoliceLoginDialog, PoliceLoginScreen } from './components/PoliceLogin';
 import type { PolicePortal as PolicePortalComponent } from './components/PolicePortal';
 import { LoginScreen } from './components/LoginScreen';
 import { CitizenAuthSheet } from './components/CitizenAuthSheet';
+import { clearReportDraft } from './report-draft';
 import { CitizenOnboardingTour } from './components/CitizenOnboardingTour';
 import { CitizenNotifications } from './components/CitizenNotifications';
-import { FeatureNotice } from './components/FeatureNotice';
-import type { FeatureNoticeContent } from './components/FeatureNotice';
-import { QuickActions } from './components/QuickActions';
 import { NotificationSettings } from './components/NotificationSettings';
 import { PushToast } from './components/PushToast';
+import { OfflineBanner } from './components/OfflineBanner';
+import { AppToasts } from './components/AppToasts';
+import { showToast } from './toast';
 import { initPush, pushSupported, PUSH_EVENT, readPushPrefs, syncPushDevice, takePendingPushOpen, writePushPrefs } from './push-notifications';
 import type { PushEventDetail, PushPrefs, PushTarget } from './push-notifications';
-import { stationDirectionsUrl } from './directions';
 import { readRecentAreas, rememberArea } from './recent-areas';
 import type { RecentArea } from './recent-areas';
 import { ScreenErrorBoundary } from './components/ScreenErrorBoundary';
@@ -104,7 +104,6 @@ export default function App() {
   const [citizenLoginAction, setCitizenLoginAction] = useState('tiếp tục');
   const [citizenLoginNotice, setCitizenLoginNotice] = useState('');
   const [tourOpen, setTourOpen] = useState(false);
-  const [featureNotice, setFeatureNotice] = useState<FeatureNoticeContent | null>(null);
   const [recentAreas, setRecentAreas] = useState<RecentArea[]>(() => readRecentAreas());
   const [pushPrefs, setPushPrefs] = useState<PushPrefs>(() => readPushPrefs());
   const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
@@ -358,6 +357,7 @@ export default function App() {
 
   const showAlertsOnMap = () => {
     setShowDemoAlerts(true);
+    showToast({ kind: 'info', topic: 'alert', title: 'Đang hiển thị cảnh báo trên bản đồ' });
     setMapRequested(true);
     setMobileView('map');
     navigateToFeature('directory');
@@ -386,22 +386,10 @@ export default function App() {
   };
 
   const handleCitizenLogout = async () => {
-    try { await signOutCitizen(); } finally { setCitizenSession(null); }
+    try { await signOutCitizen(); } finally { clearReportDraft(); setCitizenSession(null); }
     navigateToFeature('directory');
+    showToast({ kind: 'info', topic: 'account', title: 'Đã đăng xuất' });
   };
-
-  const closeFeatureNotice = useCallback(() => setFeatureNotice(null), []);
-
-  const openDirections = useCallback(() => {
-    const url = area ? stationDirectionsUrl(area) : null;
-    if (url) { window.open(url, '_blank', 'noopener'); return; }
-    setFeatureNotice({
-      title: 'Chỉ đường đang được phát triển',
-      hint: area
-        ? 'Địa bàn này chưa có tọa độ hoặc địa chỉ trụ sở để dẫn đường.'
-        : 'Trong lúc chờ, hãy chọn một xã/phường rồi bấm "Mở chỉ đường Google Maps" ở mục Trụ sở Công an.',
-    });
-  }, [area]);
 
   const startTour = useCallback(() => {
     navigateToFeature('directory'); setMapRequested(true); setMobileView('map'); setFeatureMenuOpen(false);
@@ -539,12 +527,14 @@ export default function App() {
                   value={query}
                   onFocus={() => { setSearchResultsOpen(true); setMapToolsOpen(false); if (activeFeature === 'assistant') navigateToFeature('directory'); }}
                   onChange={(event) => updateSearch(event.target.value)}
+                  // Xóa ô tìm nhưng không gõ gì: trả lại tên địa bàn đang xem (bản đồ và danh bạ giữ nguyên).
+                  onBlur={() => { if (area && !query.trim()) window.setTimeout(() => setQuery((current) => current.trim() ? current : area.name), 150); }}
                   placeholder="Tìm xã/phường hoặc mã địa bàn…"
                   aria-controls="area-suggestions"
                   aria-expanded={suggestions.length > 0}
                 />
                 {query && (
-                  <button type="button" onClick={clearSearch} aria-label="Xóa nội dung tìm kiếm"><X size={17} aria-hidden="true" /></button>
+                  <button type="button" onClick={() => { clearSearch(); if (area) areaSearchRef.current?.focus({ preventScroll: true }); }} aria-label="Xóa nội dung tìm kiếm"><X size={17} aria-hidden="true" /></button>
                 )}
                 <button type="button" className="directory-toggle" onClick={() => setMobileView((view) => view === 'map' ? 'directory' : 'map')} aria-label={mobileView === 'map' ? 'Mở danh bạ địa bàn' : 'Thu gọn danh bạ'} aria-expanded={mobileView === 'directory'} aria-controls="directory-results"><ContactRound size={20} aria-hidden="true" /></button>
               </div>
@@ -558,7 +548,6 @@ export default function App() {
                 {area && <button type="button" onClick={showProvince}>Toàn tỉnh</button>}
               </div>
               {overviewError && <div className="overview-error" role="alert">Chưa tải được ranh giới toàn tỉnh. <button type="button" onClick={() => setOverviewAttempt(value => value + 1)}>Thử lại</button></div>}
-              <QuickActions onAlerts={() => navigateToFeature('alerts')} onDirections={openDirections} onAssistant={() => navigateToFeature('assistant')} />
               {searchResultsOpen && (suggestions.length > 0 || searching) && (
                 <div className="suggestions" id="area-suggestions" role="listbox" aria-label="Kết quả tìm địa bàn">
                   {searching && suggestions.length === 0 ? (
@@ -625,6 +614,13 @@ export default function App() {
                 onOpenSos={() => navigateToFeature('sos')}
                 toolMenuOpen={mapToolsOpen}
                 onToolMenuOpenChange={changeMapTools}
+                onMapTapGuard={() => {
+                  // Điện thoại: bảng danh bạ đang mở thì chạm lên bản đồ phía sau chỉ đóng bảng, giống nút X (không nhảy sang xã khác).
+                  if (!isCompactLayout || mobileView !== 'directory') return false;
+                  setMobileView('map');
+                  window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.directory-toggle')?.focus({ preventScroll: true }));
+                  return true;
+                }}
               />
             </Suspense>
           )}
@@ -708,8 +704,9 @@ export default function App() {
       {!__CITIZEN_ONLY__ && <PoliceLoginDialog open={policeLoginOpen} onSuccess={handlePoliceLoginSuccess} onClose={() => setPoliceLoginOpen(false)} />}
       <CitizenAuthSheet open={citizenLoginOpen && !citizenSession} action={citizenLoginAction} onClose={() => setCitizenLoginOpen(false)} onSuccess={(session) => { setCitizenSession(session); setCitizenLoginOpen(false); setCitizenLoginNotice('Đăng nhập tài khoản thành công.'); }} />
       {citizenLoginNotice && <div className="citizen-login-success" role="status" aria-live="polite"><ShieldCheck size={20} aria-hidden="true" /><span>{citizenLoginNotice}</span></div>}
-      <FeatureNotice notice={featureNotice} onClose={closeFeatureNotice} />
       <NotificationSettings open={pushSettingsOpen} intro={pushSettingsIntro} currentArea={area ? { code: area.code, name: area.name } : null} prefs={pushPrefs} onPrefsChange={updatePushPrefs} onClose={closePushSettings} />
+      <OfflineBanner />
+      <AppToasts />
       <PushToast toast={pushToast} onOpen={(toast) => { if (toast.target) openFromPush(toast.target); }} onClose={closePushToast} />
       <CitizenOnboardingTour open={tourOpen} onClose={(completed) => { setTourOpen(false); window.localStorage.setItem(CITIZEN_TOUR_KEY, completed ? 'completed' : 'skipped'); }} />
     </div>

@@ -1,11 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { DirectoryRepository } from './types.js';
 import { readOfficerSessionCookie, verifyOfficerSession, type OfficerCredential } from './officer-auth.js';
-import { verifyCitizenSession, readCitizenSessionCookie, type CitizenCredential } from './citizen-auth.js';
+import { isCitizenSessionRevoked, readCitizenSession, readCitizenSessionCookie, type CitizenCredential } from './citizen-auth.js';
 import type { AssistantPlanner } from './map-assistant.js';
 import type { JsonModel } from './ai-client.js';
 import type { PushStore } from './push.js';
 import { headerIdentity } from './request-parsing.js';
+import type { Mailer } from './mailer.js';
 
 export interface AppOptions {
   corsOrigin: string;
@@ -27,6 +28,8 @@ export interface AppOptions {
   pushStore?: PushStore;
   /** true khi máy chủ có khóa FCM và thật sự gửi được thông báo đẩy. */
   pushEnabled?: boolean;
+  /** Dịch vụ gửi email (mã xác minh email, đặt lại mật khẩu). Không có thì chức năng email ghi rõ là chưa kết nối. */
+  mailer?: Mailer;
   /** Test hooks and tuning for the in-process abuse limits. Defaults are pilot proposals, not policy. */
   limits?: {
     clock?: () => number;
@@ -70,7 +73,8 @@ export function createRouteContext(app: FastifyInstance, repository: DirectoryRe
       if (testIdentity) return testIdentity;
     }
     if (!options.citizenSessionSecret) return null;
-    return verifyCitizenSession(readCitizenSessionCookie(request.headers.cookie), options.citizenSessionSecret);
+    const session = readCitizenSession(readCitizenSessionCookie(request.headers.cookie), options.citizenSessionSecret);
+    return session && !isCitizenSessionRevoked(session.citizenId, session.issuedAt) ? session.citizenId : null;
   };
 
   const workflowDisabled = async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {

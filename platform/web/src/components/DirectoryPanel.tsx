@@ -2,6 +2,7 @@ import { Building2, ChevronDown, MapPin, Navigation, Phone, PhoneForwarded, User
 import type { AreaLookup, Hotline } from '../types';
 import { UnitDirectory } from './UnitDirectory';
 import { stationDirectionsUrl } from '../directions';
+import { CountUp } from './CountUp';
 
 interface DirectoryPanelProps {
   area: AreaLookup;
@@ -11,10 +12,6 @@ interface DirectoryPanelProps {
 
 function formatNumber(value: number | null): string {
   return value === null ? 'Đang cập nhật' : value.toLocaleString('vi-VN');
-}
-
-function formatPopulation(value: number | null): string {
-  return value === null ? 'Đang cập nhật' : `${formatNumber(value)} người`;
 }
 
 function telHref(phone: string): string {
@@ -41,8 +38,8 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
       </div>
 
       <dl className="area-metrics" aria-label="Thông tin địa bàn">
-        <div><dt>Dân số</dt><dd>{formatPopulation(area.population)}</dd></div>
-        <div><dt>Diện tích</dt><dd>{area.areaKm2 === null ? 'Đang cập nhật' : `${formatNumber(area.areaKm2)} km²`}</dd></div>
+        <div><dt>Dân số</dt><dd>{area.population === null ? 'Đang cập nhật' : <CountUp key={area.code} value={area.population} suffix=" người" />}</dd></div>
+        <div><dt>Diện tích</dt><dd>{area.areaKm2 === null ? 'Đang cập nhật' : <CountUp key={area.code} value={area.areaKm2} decimals={Number.isInteger(area.areaKm2) ? 0 : 2} suffix=" km²" />}</dd></div>
       </dl>
 
       <details className="directory-section" open>
@@ -50,7 +47,6 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
           <span className="section-icon"><Building2 size={20} aria-hidden="true" /></span>
           <span className="section-copy">
             <strong>Trụ sở Công an</strong>
-            <small>Địa chỉ tiếp nhận theo địa bàn</small>
           </span>
           <ChevronDown className="section-chevron" size={20} aria-hidden="true" />
         </summary>
@@ -59,9 +55,6 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
             <div className="station-card">
               <strong>{area.station.name}</strong>
               <p>{area.station.address || 'Địa chỉ đang được xác minh'}</p>
-              {area.station.locationSource === 'address_only' && (
-                <small>Chưa có tọa độ trụ sở chính thức; bản đồ chỉ hiển thị ranh giới địa bàn.</small>
-              )}
               {directionsUrl && (
                 <a className="directions-button" href={directionsUrl} target="_blank" rel="noreferrer">
                   <Navigation size={17} aria-hidden="true" /> Mở chỉ đường Google Maps
@@ -77,7 +70,6 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
           <span className="section-icon"><UserRoundCheck size={20} aria-hidden="true" /></span>
           <span className="section-copy">
             <strong>Đầu mối theo địa bàn</strong>
-            <small>Thông tin công khai từ dữ liệu đơn vị</small>
           </span>
           <ChevronDown className="section-chevron" size={20} aria-hidden="true" />
         </summary>
@@ -109,7 +101,7 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
           <span className="section-icon"><PhoneForwarded size={20} aria-hidden="true" /></span>
           <span className="section-copy">
             <strong>Hotline công khai</strong>
-            <small>{hotlines.length ? `${hotlines.length} đầu mối theo nhóm nghiệp vụ` : 'Đang tải dữ liệu hotline'}</small>
+            {!hotlines.length && <small>Đang tải dữ liệu hotline</small>}
           </span>
           <ChevronDown className="section-chevron" size={20} aria-hidden="true" />
         </summary>

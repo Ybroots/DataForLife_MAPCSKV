@@ -34,6 +34,9 @@ import type {
   SosResponse,
   WorkflowActorResponse,
   CitizenAccountRecord,
+  CitizenAccountEventType,
+  CitizenEmailCodePurpose,
+  CitizenEmailCodeRecord,
   OfficerAccountRecord,
 } from './types.js';
 import { loadPilotAreaSources, PilotArea } from './fixture-pilot-areas.js';
@@ -128,6 +131,11 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   private readonly patrols = new Map<string, PatrolSessionResponse>();
   private readonly mapPoints = new Map<string, OperationalMapPointResponse>();
   private readonly citizenAccounts = new Map<string, CitizenAccountRecord>();
+  private readonly citizenRecoveryHashes = new Map<string, string>();
+  private readonly citizenAssistedResets = new Map<string, { codeHash: string; expiresAt: string; issuedBy: string }>();
+  private readonly citizenEmails = new Map<string, { email: string; verified: boolean }>();
+  private readonly citizenEmailCodes = new Map<string, CitizenEmailCodeRecord>();
+  readonly citizenAccountEvents: Array<{ citizenId: string; eventType: CitizenAccountEventType; actorId: string | null; at: string }> = [];
   private readonly officerAccounts = new Map<string, OfficerAccountRecord>();
 
   private readonly actors: WorkflowActorResponse[] = [
@@ -156,6 +164,85 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
 
   async findOfficerAccountById(actorId: string): Promise<OfficerAccountRecord | null> {
     return [...this.officerAccounts.values()].find((account) => account.actorId === actorId) ?? null;
+  }
+
+  async getCitizenRecoveryCodeHash(id: string): Promise<string | null> {
+    return this.citizenAccounts.has(id) ? this.citizenRecoveryHashes.get(id) ?? null : null;
+  }
+
+  async setCitizenRecoveryCodeHash(id: string, recoveryCodeHash: string): Promise<boolean> {
+    if (!this.citizenAccounts.has(id)) return false;
+    this.citizenRecoveryHashes.set(id, recoveryCodeHash);
+    return true;
+  }
+
+  async resetCitizenPasswordWithRecovery(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedRecoveryCodeHash: string): Promise<boolean> {
+    const account = this.citizenAccounts.get(id);
+    if (!account || this.citizenRecoveryHashes.get(id) !== expectedRecoveryCodeHash) return false;
+    this.citizenAccounts.set(id, { ...account, passwordHash });
+    this.citizenRecoveryHashes.set(id, newRecoveryCodeHash);
+    return true;
+  }
+
+  async issueCitizenAssistedResetCode(username: string, officerId: string, codeHash: string, expiresAt: string): Promise<{ id: string; displayName: string } | null> {
+    const account = await this.findCitizenAccountByUsername(username);
+    if (!account) return null;
+    this.citizenAssistedResets.set(account.id, { codeHash, expiresAt, issuedBy: officerId });
+    return { id: account.id, displayName: account.displayName };
+  }
+
+  async getCitizenAssistedResetCode(id: string): Promise<{ codeHash: string; expiresAt: string } | null> {
+    const entry = this.citizenAssistedResets.get(id);
+    return entry ? { codeHash: entry.codeHash, expiresAt: entry.expiresAt } : null;
+  }
+
+  async resetCitizenPasswordWithAssistedCode(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedAssistedCodeHash: string): Promise<boolean> {
+    const account = this.citizenAccounts.get(id);
+    const entry = this.citizenAssistedResets.get(id);
+    if (!account || !entry || entry.codeHash !== expectedAssistedCodeHash || Date.parse(entry.expiresAt) <= Date.now()) return false;
+    this.citizenAccounts.set(id, { ...account, passwordHash });
+    this.citizenRecoveryHashes.set(id, newRecoveryCodeHash);
+    this.citizenAssistedResets.delete(id);
+    return true;
+  }
+
+  async recordCitizenAccountEvent(citizenId: string, eventType: CitizenAccountEventType, actorId: string | null): Promise<void> {
+    this.citizenAccountEvents.push({ citizenId, eventType, actorId, at: new Date().toISOString() });
+  }
+
+  async putCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, email: string, codeHash: string, expiresAt: string): Promise<void> {
+    this.citizenEmailCodes.set(`${citizenId}|${purpose}`, { email, codeHash, expiresAt, attempts: 0 });
+  }
+
+  async getCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<CitizenEmailCodeRecord | null> {
+    const entry = this.citizenEmailCodes.get(`${citizenId}|${purpose}`);
+    return entry ? { ...entry } : null;
+  }
+
+  async bumpCitizenEmailCodeAttempts(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<number> {
+    const entry = this.citizenEmailCodes.get(`${citizenId}|${purpose}`);
+    if (!entry) return 0;
+    entry.attempts += 1;
+    return entry.attempts;
+  }
+
+  async consumeCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, expectedCodeHash: string, maxAttempts: number): Promise<boolean> {
+    const key = `${citizenId}|${purpose}`;
+    const entry = this.citizenEmailCodes.get(key);
+    if (!entry || entry.codeHash !== expectedCodeHash || Date.parse(entry.expiresAt) <= Date.now() || entry.attempts >= maxAttempts) return false;
+    this.citizenEmailCodes.delete(key);
+    return true;
+  }
+
+  async setCitizenVerifiedEmail(citizenId: string, email: string): Promise<boolean> {
+    if (!this.citizenAccounts.has(citizenId)) return false;
+    this.citizenEmails.set(citizenId, { email, verified: true });
+    return true;
+  }
+
+  async getCitizenEmail(citizenId: string): Promise<{ email: string; verified: boolean } | null> {
+    const entry = this.citizenEmails.get(citizenId);
+    return entry ? { ...entry } : null;
   }
 
   async updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean> {

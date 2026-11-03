@@ -16,6 +16,8 @@ import {
   X,
 } from 'lucide-react';
 import { FEATURE_LABELS, type FeatureId } from '../features';
+import { setLang, useLang } from '../i18n';
+import { showToast } from '../toast';
 
 interface FeatureDrawerProps {
   open: boolean;
@@ -53,14 +55,14 @@ const featureItems: Array<{
     icon: FileWarning,
   },
   {
-    id: 'feedback',
-    description: 'Đánh giá sau khi vụ việc được xác nhận hoàn thành.',
-    icon: Star,
-  },
-  {
     id: 'assistant',
     description: 'Tìm địa bàn, danh bạ và cảnh báo công khai trên bản đồ.',
     icon: Bot,
+  },
+  {
+    id: 'feedback',
+    description: 'Đánh giá sau khi vụ việc được xác nhận hoàn thành.',
+    icon: Star,
   },
 ];
 
@@ -70,6 +72,7 @@ export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartT
   const panelRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const [present, setPresent] = useState(open);
+  const lang = useLang();
 
   useEffect(() => {
     if (open) {
@@ -142,6 +145,14 @@ export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartT
           </button>
         </div>
 
+        <div className="language-switch" role="group" aria-label="Ngôn ngữ">
+          <span aria-hidden="true">Ngôn ngữ</span>
+          <div data-no-translate>
+            <button type="button" lang="vi" aria-pressed={lang === 'vi'} onClick={() => { if (lang !== 'vi') { setLang('vi'); showToast({ kind: 'info', topic: 'language', title: 'Đã chuyển sang Tiếng Việt' }); } }}>Tiếng Việt</button>
+            <button type="button" lang="en" aria-pressed={lang === 'en'} onClick={() => { if (lang !== 'en') { setLang('en'); showToast({ kind: 'info', topic: 'language', title: 'Language changed to English' }); } }}>English</button>
+          </div>
+        </div>
+
         <div className="feature-list">
           {featureItems.map((item) => {
             const Icon = item.icon;
@@ -188,7 +199,7 @@ export function FeatureDrawer({ open, activeFeature, onClose, onSelect, onStartT
         <details className="legal-responsibility-note">
           <summary>
             <Scale size={20} aria-hidden="true" />
-            <span><strong>Trách nhiệm khi gửi tin</strong><small>Chỉ gửi phản ánh và SOS đúng sự thật</small></span>
+            <span><strong>Trách nhiệm khi gửi tin</strong></span>
             <ChevronDown size={18} aria-hidden="true" />
           </summary>
           <div className="legal-responsibility-body">

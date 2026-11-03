@@ -338,6 +338,13 @@ export interface CitizenSession {
   displayName: string;
 }
 
+/** Kết quả đăng ký: mã khôi phục chỉ có khi máy chủ đã hỗ trợ và chỉ hiện đúng một lần. */
+export interface CitizenRegistration extends CitizenSession {
+  recoveryCode?: string;
+  /** 'sent': đã gửi mã xác minh tới email vừa nhập; 'unavailable': chưa gửi được (chưa kết nối email hoặc quá hạn mức). */
+  emailVerification?: 'sent' | 'unavailable';
+}
+
 export interface CitizenNotification {
   id: string;
   kind: 'incident' | 'sos';

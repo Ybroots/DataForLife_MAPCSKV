@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BellRing, Hammer, MapPin, Plus, X } from 'lucide-react';
+import { showToast } from '../toast';
 import { getPushStatus } from '../api';
 import { IN_DEVELOPMENT_MESSAGE } from './FeatureNotice';
 import {
@@ -20,7 +21,7 @@ interface Props {
 type ServerState = 'checking' | 'ready' | 'off' | 'unknown';
 type Permission = 'granted' | 'denied' | 'prompt' | 'unknown';
 
-const DENIED_HELP = 'Thông báo đang bị tắt trong điện thoại. Vào Cài đặt › Ứng dụng › Bản đồ CSKV › Thông báo để bật, rồi quay lại đây.';
+const DENIED_HELP = 'Thông báo đang bị tắt trong điện thoại. Vào Cài đặt › Ứng dụng › Bản đồ số Cảnh sát khu vực › Thông báo để bật, rồi quay lại đây.';
 
 /** Hộp thoại dạng tờ trượt: bật/tắt thông báo ngoài màn hình và chọn khu vực nhận cảnh báo. */
 export function NotificationSettings({ open, intro, currentArea, prefs, onPrefsChange, onClose }: Props) {
@@ -63,6 +64,7 @@ export function NotificationSettings({ open, intro, currentArea, prefs, onPrefsC
       let next: PushPrefs = { ...prefs, enabled: true, asked: true };
       if (next.areas.length === 0 && currentArea) next = followArea(next, currentArea);
       apply(next);
+      showToast({ kind: 'success', topic: 'notify', title: 'Đã bật thông báo' });
     } else if (result === 'denied') {
       setPermission('denied'); setMessage(DENIED_HELP);
     } else {
@@ -75,10 +77,11 @@ export function NotificationSettings({ open, intro, currentArea, prefs, onPrefsC
     setBusy(true); setMessage('');
     await disablePush();
     onPrefsChange({ ...prefs, enabled: false });
+    showToast({ kind: 'info', topic: 'notify', title: 'Đã tắt thông báo' });
     setBusy(false);
   };
 
-  const follow = () => { if (currentArea) apply(followArea(prefs, currentArea)); };
+  const follow = () => { if (currentArea) { apply(followArea(prefs, currentArea)); showToast({ kind: 'success', topic: 'alert', title: 'Đang theo dõi cảnh báo', message: currentArea.name }); } };
   const unfollow = (code: string) => apply(unfollowArea(prefs, code));
   const canFollow = active && currentArea !== null && !prefs.areas.some((area) => area.code === currentArea.code);
   const atLimit = prefs.areas.length >= MAX_FOLLOWED_AREAS;
@@ -103,11 +106,9 @@ export function NotificationSettings({ open, intro, currentArea, prefs, onPrefsC
           </div>
           {message && <p className="notify-message" role="alert">{message}</p>}
           {!message && permission === 'denied' && <p className="notify-message">{DENIED_HELP}</p>}
-          {server === 'unknown' && <p className="notify-hint">Chưa kiểm tra được kết nối tới máy chủ. Thông báo sẽ hoạt động khi có mạng.</p>}
 
           {active && <div className="notify-areas">
             <h3>Khu vực nhận cảnh báo</h3>
-            {prefs.areas.length === 0 && <p className="notify-hint">Bạn chưa theo dõi khu vực nào nên chỉ nhận cập nhật hồ sơ khi đã đăng nhập.</p>}
             <ul>{prefs.areas.map((area) => <li key={area.code}>
               <MapPin size={16} aria-hidden="true" /><span>{area.name}</span>
               <button type="button" aria-label={`Bỏ theo dõi ${area.name}`} onClick={() => unfollow(area.code)}><X size={16} aria-hidden="true" /></button>
@@ -116,7 +117,6 @@ export function NotificationSettings({ open, intro, currentArea, prefs, onPrefsC
             {canFollow && atLimit && <p className="notify-hint">Tối đa {MAX_FOLLOWED_AREAS} khu vực. Bỏ bớt một khu vực để thêm khu vực mới.</p>}
           </div>}
 
-          <p className="notify-hint">Màn hình khóa chỉ hiện tiêu đề và mã hồ sơ, không hiện nội dung vụ việc. Ứng dụng không gửi vị trí của bạn để nhận thông báo.</p>
         </>}
 
         <button ref={closeRef} className="feature-notice-ok" type="button" onClick={onClose}>{intro && !active ? 'Để sau' : 'Xong'}</button>

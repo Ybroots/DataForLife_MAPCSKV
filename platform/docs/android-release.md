@@ -83,3 +83,48 @@ Dùng bản `ban-do-cskv-preview.apk` (API production, **chỉ đọc**) hoặc 
 - Offline đầy đủ, định vị nền: hạng mục riêng, chưa có.
 - Truyền tệp native thay cho base64 trong JSON: chỉ cần nếu bước 3 cho thấy hết bộ nhớ; cần thiết kế endpoint upload mới.
 - App Expo ở thư mục gốc (nhánh phụ, không phải đường phát hành chính): lớp dữ liệu đã được viết lại cho khớp API thật (ngày 31/10/2026). Trước đó `ApiTypes.ts`/adapter dùng trường không tồn tại (`unitType`, `chiefLabel`, `locality`...) nên danh bạ sẽ văng lỗi và màn Bản đồ luôn trống. Hiện: cấp tỉnh = hotline, cấp phòng/đồn = `/v1/directory/units`, cấp xã = 124 địa bàn (đầu mối tải khi mở rộng qua `/v1/lookup/by-code`); số liệu chưa có hiển thị "Đang cập nhật" (không dùng 0). `tsc --noEmit` sạch, 6 test adapter đạt (`npm test`, mẫu dữ liệu lấy từ API thật). Đã chạy `npm run test:integration` (đăng nhập/đăng ký/đăng xuất công dân, đăng nhập cán bộ, phiên, mã lỗi 401/409/400/404, danh bạ qua adapter) bằng chính mã của app với API cục bộ chế độ fixture — **không** dùng production vì đăng ký tạo tài khoản; script từ chối chạy với địa chỉ không phải localhost. Dữ liệu fixture rất nhỏ (1 địa bàn), nên hình dạng dữ liệu production được đối chiếu riêng bằng GET chỉ đọc. Script giữ cookie bằng lớp bọc fetch, nên kho cookie của React Native vẫn **chưa chạy trên thiết bị/emulator**; `ContactsScreen` vẫn `@ts-nocheck` (phần mới đã được kiểm kiểu riêng, còn 3 lỗi kiểu có sẵn từ trước).
+
+## Nhập giọng nói (micro)
+
+- Đã gỡ khỏi ứng dụng (plugin, quyền RECORD_AUDIO và nút micro) theo yêu cầu: chưa ổn định trên máy thật.
+
+## Danh sách thử trên máy thật (theo từng module người dân)
+
+1. **Mở app**: màn chờ, chỉ có thẻ "Người dân", không có lối vào cán bộ.
+2. **Bản đồ**: nền bản đồ hiện, "Vị trí của tôi" bay tới đúng chỗ và không tự thu nhỏ về toàn xã sau khi đóng bảng danh bạ; chạm bản đồ lúc bảng danh bạ đang mở chỉ đóng bảng.
+3. **Danh bạ**: tìm xã, gọi hotline, bảng thông tin địa bàn, mục "Đã xem gần đây".
+4. **Phản ánh**: bật bàn phím ở từng ô (không trượt khung, không mất thanh tiêu đề); chụp ảnh và chọn ảnh/video rồi quay lại (không bể khung); tích ô cam đoan; gửi và theo dõi.
+   **Báo lỗi từng ô:** bấm "Gửi phản ánh" khi còn thiếu: nút không bị khóa, các ô thiếu (tiêu đề, mô tả, vị trí, ô cam đoan) hiện chữ đỏ ngay bên dưới và app cuộn tới ô đầu tiên cần sửa; rời khỏi ô tiêu đề/mô tả khi còn ngắn cũng báo ngay. Giao diện không còn dòng "Còn thiếu: …" thừa.
+   **Bản nháp:** gõ dở rồi vuốt tắt hẳn app, mở lại, vào Phản ánh: nội dung được khôi phục kèm dòng "Đã khôi phục nội dung bạn đang soạn" và nút "Xóa bản nháp"; gửi xong hoặc đăng xuất thì nháp bị xóa.
+5. **SOS**: nút gọi 112/113, giữ 3 giây để gửi, từ chối quyền vị trí vẫn hiện hướng dẫn gọi trực tiếp.
+6. **Cảnh báo khu vực**, **Trợ lý AI** (hoặc thông báo "đang phát triển"), **Đánh giá hài lòng**.
+7. **Tài khoản**: đăng ký (có ô email không bắt buộc: nhập email thì sau bước lưu mã khôi phục có bước nhập mã 6 số gửi về email), đăng nhập, đổi mật khẩu, đăng xuất, tắt/mở app giữ đăng nhập.
+   **Quên mật khẩu?** (cần máy chủ đã chạy migration 015-017): thử cách "Qua email" (cần SMTP) và "Mã khôi phục"; chi tiết ở `password-recovery.md`.
+8. **Thông báo đẩy** (chỉ khi có `google-services.json`).
+9. **Cỡ máy**: máy nhỏ (320-360 dp), máy lớn, "Cỡ chữ" và "Cỡ hiển thị" lớn, xoay ngang, nút Back ở mọi màn.
+
+## Vị trí Demo cố định (bản preview)
+
+- `npm run android:apk` (không `-Release`) đặt `VITE_DEMO_LOCATION=true`: "Vị trí của tôi", nút lấy vị trí ở Phản ánh và SOS luôn trả về trụ sở Công an phường Xuân Hương, không xin quyền vị trí; nút hiện nhãn **Demo**.
+- Muốn thử GPS thật trên bản preview: `powershell -File web\scripts\build-android.ps1 -RealLocation`.
+- Bản `-Release` và web chính thức không bao giờ bật chế độ này. Web dev: đặt `VITE_DEMO_LOCATION=true` trong `web\.env.local` nếu cần.
+- Tên cán bộ CSKV trên bản đồ là tên minh họa (`DEMO_OFFICER_NAMES` trong `citizen-map-points.ts`), mỗi khu vực một tên, không phải người thật.
+
+## Tiếng Việt / English
+
+- Đổi ở menu **Tính năng** → ô **Ngôn ngữ** (Tiếng Việt | English). Lựa chọn được nhớ trên máy (localStorage `cskv.lang`).
+- Cách làm: `web/src/i18n.ts` dịch chữ đang hiện trên màn hình theo bảng `web/src/i18n-en.ts` (khóa là câu tiếng Việt). Thêm câu mới thì thêm một dòng vào bảng; câu có số/tên thay đổi dùng `EN_PATTERNS` với `{0}` (`{0#}` = chỉ số).
+- Giữ nguyên tiếng Việt: tên địa danh và tên người, nội dung cảnh báo/tin nhắn do cán bộ viết, câu trả lời của trợ lý và thông báo lỗi do máy chủ trả về, cổng cán bộ.
+- Kiểm thử trên máy: đổi sang English ở từng màn (Bản đồ, Danh bạ, Phản ánh, SOS, Tài khoản, Thông báo, Trợ lý), mở/đóng bảng, gửi thử; đổi lại Tiếng Việt phải về đúng chữ cũ.
+
+## Popup phản hồi theo chức năng
+
+- `web/src/toast.ts` (`showToast`) + `components/AppToasts.tsx`: popup ngắn đầu màn hình, tối đa 3 cái, tự tắt sau 4–6,5 giây, mỗi chức năng một biểu tượng (phản ánh, SOS, tài khoản, vị trí, cảnh báo, đánh giá, thông báo, ngôn ngữ).
+- Đã gắn ở: gửi/rút/bổ sung tệp/sao chép mã phản ánh; gửi/hủy/báo an toàn SOS; đổi mật khẩu, mã khôi phục, xác minh email, đăng xuất; đánh giá; bật/tắt thông báo và theo dõi khu vực; lấy vị trí; xem cảnh báo trên bản đồ; đổi ngôn ngữ.
+- Muốn thêm: gọi `showToast({ kind, topic, title, message? })` và thêm câu tiếng Anh vào `i18n-en.ts`.
+
+## App "sống" (cập nhật trực tiếp và chuyển động)
+
+- Theo dõi phản ánh: đang mở tab Theo dõi thì cứ 30 giây tự tải lại; trạng thái đổi thì hiện popup "Hồ sơ … vừa được cập nhật". Trang Cảnh báo tự tải lại mỗi phút, có cảnh báo mới thì hiện popup.
+- Dân số/diện tích ở Danh bạ chạy số lên; cảnh báo và vị trí trên bản đồ có vòng sóng; chuông rung nhẹ khi có thông báo chưa đọc; nút SOS trên bản đồ "thở" chậm; popup thành công/lỗi có rung nhẹ (quyền VIBRATE).
+- Tất cả tắt khi điện thoại bật "Giảm chuyển động".

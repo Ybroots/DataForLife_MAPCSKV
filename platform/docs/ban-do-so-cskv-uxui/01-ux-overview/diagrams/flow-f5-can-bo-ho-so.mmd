@@ -1,0 +1,14 @@
+flowchart TD
+  A([Đăng nhập O01]) --> B[O02 Hàng đợi]
+  B --> C[Chọn hồ sơ]
+  C --> D{Trạng thái}
+  D -->|Chờ tiếp nhận| E["Nhận hồ sơ (1 chạm)"]
+  D -->|Đã phân công| F[Bắt đầu xử lý / Cần xác minh]
+  D -->|Đang xử lý| G[Đã xử lý xong]
+  D -->|Đã có kết quả| H[Đóng hồ sơ]
+  G --> I["Ghi kết quả ≥20 ký tự + tick 'Cho người dân đọc'"]
+  H --> J["Bấm 2 lần để xác nhận (không hoàn tác)"]
+  E --> K[Người dân nhận thông báo]
+  I --> K
+  J --> L([Hồ sơ vào Lưu trữ O06])
+  C -.->|Ngoài thẩm quyền| M[Không thuộc phạm vi + ghi nơi liên hệ] --> K

@@ -42,6 +42,9 @@ import type {
   StationResponse,
   WorkflowActorResponse,
   CitizenAccountRecord,
+  CitizenAccountEventType,
+  CitizenEmailCodePurpose,
+  CitizenEmailCodeRecord,
   OfficerAccountRecord,
 } from './types.js';
 import { WorkflowError, type IncidentStatus, type SosStatus } from './workflow.js';
@@ -138,6 +141,108 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
       `SELECT actor_id, username, password_hash FROM officer_accounts WHERE actor_id = $1 AND status = 'active'`, [actorId]);
     const row = result.rows[0];
     return row ? { actorId: row.actor_id, username: row.username, passwordHash: row.password_hash } : null;
+  }
+
+  async getCitizenRecoveryCodeHash(id: string): Promise<string | null> {
+    const result = await this.pool.query<{ recovery_code_hash: string | null }>(
+      `SELECT recovery_code_hash FROM citizen_accounts WHERE id = $1 AND status = 'active'`, [id]);
+    return result.rows[0]?.recovery_code_hash ?? null;
+  }
+
+  async setCitizenRecoveryCodeHash(id: string, recoveryCodeHash: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE citizen_accounts SET recovery_code_hash = $2, recovery_code_created_at = now() WHERE id = $1 AND status = 'active'`,
+      [id, recoveryCodeHash]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async resetCitizenPasswordWithRecovery(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedRecoveryCodeHash: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE citizen_accounts
+       SET password_hash = $2, recovery_code_hash = $3, recovery_code_created_at = now(), password_changed_at = now()
+       WHERE id = $1 AND status = 'active' AND recovery_code_hash = $4`,
+      [id, passwordHash, newRecoveryCodeHash, expectedRecoveryCodeHash]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async issueCitizenAssistedResetCode(username: string, officerId: string, codeHash: string, expiresAt: string): Promise<{ id: string; displayName: string } | null> {
+    const result = await this.pool.query<{ id: string; display_name: string }>(
+      `UPDATE citizen_accounts
+       SET assisted_reset_hash = $2, assisted_reset_expires_at = $3, assisted_reset_issued_by = $4
+       WHERE username_normalized = $1 AND status = 'active'
+       RETURNING id, display_name`,
+      [username.toLocaleLowerCase('vi-VN'), codeHash, expiresAt, officerId]);
+    const row = result.rows[0];
+    return row ? { id: row.id, displayName: row.display_name } : null;
+  }
+
+  async getCitizenAssistedResetCode(id: string): Promise<{ codeHash: string; expiresAt: string } | null> {
+    const result = await this.pool.query<{ assisted_reset_hash: string | null; assisted_reset_expires_at: Date | null }>(
+      `SELECT assisted_reset_hash, assisted_reset_expires_at FROM citizen_accounts WHERE id = $1 AND status = 'active'`, [id]);
+    const row = result.rows[0];
+    return row?.assisted_reset_hash && row.assisted_reset_expires_at
+      ? { codeHash: row.assisted_reset_hash, expiresAt: row.assisted_reset_expires_at.toISOString() }
+      : null;
+  }
+
+  async resetCitizenPasswordWithAssistedCode(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedAssistedCodeHash: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE citizen_accounts
+       SET password_hash = $2, recovery_code_hash = $3, recovery_code_created_at = now(), password_changed_at = now(),
+           assisted_reset_hash = NULL, assisted_reset_expires_at = NULL, assisted_reset_issued_by = NULL
+       WHERE id = $1 AND status = 'active' AND assisted_reset_hash = $4 AND assisted_reset_expires_at > now()`,
+      [id, passwordHash, newRecoveryCodeHash, expectedAssistedCodeHash]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async recordCitizenAccountEvent(citizenId: string, eventType: CitizenAccountEventType, actorId: string | null): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO citizen_account_events (citizen_id, event_type, actor_id) VALUES ($1, $2, $3)`,
+      [citizenId, eventType, actorId]);
+  }
+
+  async putCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, email: string, codeHash: string, expiresAt: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO citizen_email_codes (citizen_id, purpose, email, code_hash, expires_at, attempts, created_at)
+       VALUES ($1, $2, $3, $4, $5, 0, now())
+       ON CONFLICT (citizen_id, purpose)
+       DO UPDATE SET email = EXCLUDED.email, code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, attempts = 0, created_at = now()`,
+      [citizenId, purpose, email, codeHash, expiresAt]);
+  }
+
+  async getCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<CitizenEmailCodeRecord | null> {
+    const result = await this.pool.query<{ email: string; code_hash: string; expires_at: Date; attempts: number }>(
+      `SELECT email, code_hash, expires_at, attempts FROM citizen_email_codes WHERE citizen_id = $1 AND purpose = $2`, [citizenId, purpose]);
+    const row = result.rows[0];
+    return row ? { email: row.email, codeHash: row.code_hash, expiresAt: row.expires_at.toISOString(), attempts: row.attempts } : null;
+  }
+
+  async bumpCitizenEmailCodeAttempts(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<number> {
+    const result = await this.pool.query<{ attempts: number }>(
+      `UPDATE citizen_email_codes SET attempts = attempts + 1 WHERE citizen_id = $1 AND purpose = $2 RETURNING attempts`, [citizenId, purpose]);
+    return result.rows[0]?.attempts ?? 0;
+  }
+
+  async consumeCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, expectedCodeHash: string, maxAttempts: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `DELETE FROM citizen_email_codes
+       WHERE citizen_id = $1 AND purpose = $2 AND code_hash = $3 AND expires_at > now() AND attempts < $4`,
+      [citizenId, purpose, expectedCodeHash, maxAttempts]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async setCitizenVerifiedEmail(citizenId: string, email: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE citizen_accounts SET email = $2, email_normalized = lower($2), email_verified_at = now() WHERE id = $1 AND status = 'active'`,
+      [citizenId, email]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getCitizenEmail(citizenId: string): Promise<{ email: string; verified: boolean } | null> {
+    const result = await this.pool.query<{ email: string | null; email_verified_at: Date | null }>(
+      `SELECT email, email_verified_at FROM citizen_accounts WHERE id = $1 AND status = 'active'`, [citizenId]);
+    const row = result.rows[0];
+    return row?.email ? { email: row.email, verified: row.email_verified_at !== null } : null;
   }
 
   async updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean> {

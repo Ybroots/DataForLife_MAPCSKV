@@ -16,7 +16,12 @@
     </style>
 
 
+    <!-- Màn chờ: nền navy + huy hiệu + dòng "Bản đồ số Cảnh sát khu vực tỉnh Lâm Đồng".
+         Android < 12 dùng ảnh drawable/splash (đã có chữ); Android 12+ dùng biểu tượng + ảnh chữ (xem values-v31). -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/cskv_splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:background">@drawable/splash</item>
     </style>
 </resources>

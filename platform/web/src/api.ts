@@ -2,6 +2,7 @@ import type {
   AreaSummary,
   AreaOverview,
   CitizenSession,
+  CitizenRegistration,
   CitizenNotificationPage,
   Incident,
   IncidentAttachment,
@@ -133,9 +134,77 @@ export async function signInCitizen(username: string, password: string): Promise
   return payload.data;
 }
 
-export async function registerCitizen(username: string, displayName: string, password: string): Promise<CitizenSession> {
-  const payload = await request<{ data: CitizenSession }>('/v1/auth/citizen/register', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, displayName, password }),
+export async function registerCitizen(username: string, displayName: string, password: string, email?: string): Promise<CitizenRegistration> {
+  const payload = await request<{ data: CitizenRegistration }>('/v1/auth/citizen/register', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, displayName, password, ...(email ? { email } : {}) }),
+  });
+  return payload.data;
+}
+
+/** Quên mật khẩu: số điện thoại + mã khôi phục + mật khẩu mới. Trả về mã khôi phục mới (mã cũ đã dùng, không dùng lại được). */
+export async function resetCitizenPassword(username: string, recoveryCode: string, newPassword: string): Promise<{ recoveryCode: string }> {
+  const payload = await request<{ data: { recoveryCode: string } }>('/v1/auth/citizen/forgot-password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, recoveryCode, newPassword }),
+  });
+  return payload.data;
+}
+
+/** Người dân đã đăng nhập tạo lại mã khôi phục (mã cũ hết hiệu lực). */
+export async function createCitizenRecoveryCode(currentPassword: string): Promise<{ recoveryCode: string }> {
+  const payload = await request<{ data: { recoveryCode: string } }>('/v1/auth/citizen/recovery-code', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword }),
+  });
+  return payload.data;
+}
+
+export interface CitizenEmailStatus { available: boolean; email: string | null; verified: boolean }
+
+/** Cách tự lấy lại mật khẩu nào đang dùng được trên máy chủ này. */
+export async function getCitizenRecoveryOptions(): Promise<{ email: boolean }> {
+  const payload = await request<{ data: { email: boolean } }>('/v1/auth/citizen/recovery-options');
+  return payload.data;
+}
+
+export async function getCitizenEmailStatus(): Promise<CitizenEmailStatus> {
+  const payload = await request<{ data: CitizenEmailStatus }>('/v1/auth/citizen/email');
+  return payload.data;
+}
+
+/** Thêm email khôi phục: máy chủ gửi mã 6 số tới email đó để xác minh. */
+export async function requestCitizenEmailVerification(email: string, currentPassword: string): Promise<{ email: string }> {
+  const payload = await request<{ data: { sent: boolean; email: string } }>('/v1/auth/citizen/email', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, currentPassword }),
+  });
+  return { email: payload.data.email };
+}
+
+export async function verifyCitizenEmail(code: string): Promise<{ email: string; verified: boolean }> {
+  const payload = await request<{ data: { email: string; verified: boolean } }>('/v1/auth/citizen/email/verify', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+  });
+  return payload.data;
+}
+
+/** Quên mật khẩu bước 1: gửi mã 6 số tới email đã xác minh (luôn báo đã gửi, không lộ số nào có tài khoản). */
+export async function requestPasswordResetEmail(username: string): Promise<void> {
+  await request<unknown>('/v1/auth/citizen/forgot-password/email', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }),
+  });
+}
+
+/** Quên mật khẩu bước 2: số điện thoại + mã từ email + mật khẩu mới. */
+export async function confirmPasswordResetEmail(username: string, code: string, newPassword: string): Promise<void> {
+  await request<unknown>('/v1/auth/citizen/forgot-password/email-confirm', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, code, newPassword }),
+  });
+}
+
+export interface CitizenResetCode { recoveryCode: string; expiresAt: string; displayName: string; phone: string }
+
+/** Cán bộ cấp mã đặt lại mật khẩu cho người dân (sau khi đã xác minh danh tính). Mã hiện một lần, hiệu lực 24 giờ. */
+export async function issueCitizenResetCode(phone: string): Promise<CitizenResetCode> {
+  const payload = await request<{ data: CitizenResetCode }>('/v1/officer/citizen-accounts/reset-code', {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ phone, verified: true }),
   });
   return payload.data;
 }

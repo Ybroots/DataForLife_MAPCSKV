@@ -361,6 +361,23 @@ export interface CitizenAccountRecord {
   passwordHash: string;
 }
 
+export type CitizenAccountEventType =
+  | 'recovery_code_created'
+  | 'password_reset_recovery'
+  | 'assisted_reset_issued'
+  | 'password_reset_assisted'
+  | 'email_verified'
+  | 'password_reset_email';
+
+export type CitizenEmailCodePurpose = 'verify_email' | 'reset_password';
+
+export interface CitizenEmailCodeRecord {
+  email: string;
+  codeHash: string;
+  expiresAt: string;
+  attempts: number;
+}
+
 export interface OfficerAccountRecord {
   actorId: string;
   username: string;
@@ -484,6 +501,26 @@ export interface DirectoryRepository {
   findOfficerAccountByUsername(username: string): Promise<OfficerAccountRecord | null>;
   findOfficerAccountById(actorId: string): Promise<OfficerAccountRecord | null>;
   updateCitizenPasswordHash(id: string, passwordHash: string): Promise<boolean>;
+  /** Mã khôi phục mật khẩu: chỉ lưu bản băm. Cần migration 015. */
+  getCitizenRecoveryCodeHash(id: string): Promise<string | null>;
+  setCitizenRecoveryCodeHash(id: string, recoveryCodeHash: string): Promise<boolean>;
+  /** Đặt lại mật khẩu và đổi mã khôi phục trong một lệnh; chỉ thành công nếu mã cũ vẫn là `expectedRecoveryCodeHash` (mã dùng một lần). */
+  resetCitizenPasswordWithRecovery(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedRecoveryCodeHash: string): Promise<boolean>;
+  /** Cán bộ cấp mã đặt lại cho người dân theo số điện thoại. Trả null nếu không có tài khoản. Cần migration 016. */
+  issueCitizenAssistedResetCode(username: string, officerId: string, codeHash: string, expiresAt: string): Promise<{ id: string; displayName: string } | null>;
+  getCitizenAssistedResetCode(id: string): Promise<{ codeHash: string; expiresAt: string } | null>;
+  /** Đặt lại mật khẩu bằng mã do cán bộ cấp: chỉ thành công khi mã còn hạn và chưa bị đổi (dùng một lần). */
+  resetCitizenPasswordWithAssistedCode(id: string, passwordHash: string, newRecoveryCodeHash: string, expectedAssistedCodeHash: string): Promise<boolean>;
+  recordCitizenAccountEvent(citizenId: string, eventType: CitizenAccountEventType, actorId: string | null): Promise<void>;
+  /** Email khôi phục mật khẩu (migration 017): mã 6 số gửi qua email, chỉ lưu bản băm, mỗi mục đích một mã còn hiệu lực. */
+  putCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, email: string, codeHash: string, expiresAt: string): Promise<void>;
+  getCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<CitizenEmailCodeRecord | null>;
+  /** Tăng số lần nhập sai và trả về số lần hiện tại. */
+  bumpCitizenEmailCodeAttempts(citizenId: string, purpose: CitizenEmailCodePurpose): Promise<number>;
+  /** Dùng mã: xóa nếu còn đúng mã, còn hạn và chưa quá số lần thử. Trả true khi dùng được (mã dùng một lần). */
+  consumeCitizenEmailCode(citizenId: string, purpose: CitizenEmailCodePurpose, expectedCodeHash: string, maxAttempts: number): Promise<boolean>;
+  setCitizenVerifiedEmail(citizenId: string, email: string): Promise<boolean>;
+  getCitizenEmail(citizenId: string): Promise<{ email: string; verified: boolean } | null>;
   updateOfficerPasswordHash(actorId: string, passwordHash: string): Promise<boolean>;
   listPublicAlerts(areaCode?: string): Promise<PublicAlertResponse[]>;
   createIncident(citizenId: string, input: CreateIncidentInput): Promise<IncidentResponse>;

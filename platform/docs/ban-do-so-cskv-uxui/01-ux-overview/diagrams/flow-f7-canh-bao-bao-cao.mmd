@@ -1,0 +1,9 @@
+flowchart TD
+  A[O05 Nghiệp vụ] --> B[Chọn loại + tiêu đề + nội dung]
+  B --> C[Chạm bản đồ chọn vị trí / phạm vi]
+  C --> D[Phát cảnh báo]
+  D --> E([Người dân toàn tỉnh thấy ở C05 + thông báo đẩy])
+  F[O06 Lưu trữ & báo cáo] --> G[Chọn khoảng ngày]
+  G --> H{Xuất}
+  H -->|CSV| I([Tệp mở bằng Excel])
+  H -->|PDF| J([Báo cáo A4 in được])

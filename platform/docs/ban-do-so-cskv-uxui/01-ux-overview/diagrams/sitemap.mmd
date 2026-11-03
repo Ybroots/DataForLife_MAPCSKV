@@ -1,0 +1,29 @@
+flowchart LR
+  subgraph ND["Ứng dụng người dân (điện thoại)"]
+    direction TB
+    C01["C01 Chào mừng"] --> TAB{{"Tab bar"}}
+    TAB --> C03["C03 Bản đồ"]
+    TAB --> C04["C04 Danh bạ địa bàn"]
+    TAB --> C06["C06 Gửi phản ánh"]
+    TAB --> C10["C10 Tài khoản"]
+    C03 --> C08["C08 SOS"]
+    C03 --> C05["C05 Cảnh báo"]
+    C03 --> HDR{{"Header"}}
+    HDR --> C11["C11 Trợ lý AI"]
+    HDR --> C09["C09 Thông báo"]
+    HDR --> C12["C12 Menu Tính năng"]
+    C06 --> C07["C07 Theo dõi phản ánh"]
+    C07 --> C14["C14 Đánh giá"]
+    C10 --> C13["C13 Hướng dẫn"]
+    C02["C02 Đăng nhập / Đăng ký (tờ trượt)"] -.-> C06
+    C02 -.-> C09
+  end
+  subgraph CB["Cổng cán bộ (máy tính ≥1024px)"]
+    direction TB
+    O01["O01 Đăng nhập cán bộ"] --> NAV{{"Thanh điều hướng"}}
+    NAV --> O02["O02 Hàng đợi + chi tiết hồ sơ"]
+    NAV --> O04["O04 Bản đồ trực ban"]
+    NAV --> O05["O05 Nghiệp vụ: phát cảnh báo"]
+    O05 --> O06["O06 Lưu trữ & báo cáo"]
+    O03["O03 Báo động SOS (phủ toàn màn hình)"] -.-> O02
+  end

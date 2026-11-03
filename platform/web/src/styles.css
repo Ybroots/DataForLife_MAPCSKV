@@ -132,7 +132,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .skip-link:focus { top: 12px; }
 
 .app-shell {
-  min-height: 100vh; min-height: 100dvh; overflow: hidden;
+  min-height: 100vh; min-height: 100dvh; overflow: hidden; overflow: clip;
   background: var(--color-canvas);
 }
 
@@ -1472,7 +1472,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   .feature-section { padding-right: 14px; padding-left: 14px; }
 }
 
-@media (max-width: 1023px) and (orientation: landscape) and (max-height: 520px) {
+@media (max-width: 1023px) and (min-aspect-ratio: 3/2) and (max-height: 520px) {
   .map-zone-panel { left: 12px; bottom: 10px; width: min(360px,calc(100% - 260px)); max-height: calc(100% - 84px); }
   .map-zone-metrics, .map-zone-demo-note { display: none; }
   .citizen-point-popup { left: 12px !important; right: auto !important; bottom: 10px !important; width: min(380px,calc(100% - 260px)) !important; }

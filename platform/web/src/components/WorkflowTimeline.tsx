@@ -14,6 +14,13 @@ const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
   minute: '2-digit',
 });
 
+const actorLabels: Record<string, string> = {
+  citizen: 'Người dân',
+  officer: 'Cán bộ phụ trách',
+  supervisor: 'Chỉ huy / giám sát',
+  system: 'Hệ thống',
+};
+
 export function WorkflowTimeline({ history, statusLabels, compact = false }: WorkflowTimelineProps) {
   return (
     <ol className={compact ? 'workflow-timeline compact' : 'workflow-timeline'} aria-label="Lịch sử xử lý">
@@ -27,6 +34,7 @@ export function WorkflowTimeline({ history, statusLabels, compact = false }: Wor
               <strong>{entry.actorRole === 'citizen' && entry.fromStatus === entry.toStatus ? 'Người gửi báo đã an toàn' : (statusLabels[entry.toStatus] ?? entry.toStatus)}{!entry.publicMessage && <small className="internal-note-badge">Nội bộ</small>}</strong>
               <time dateTime={entry.createdAt}>{dateFormatter.format(new Date(entry.createdAt))}</time>
             </div>
+            {actorLabels[entry.actorRole] && <small className="timeline-actor">{actorLabels[entry.actorRole]}</small>}
             {entry.note && <p>{entry.note}</p>}
           </div>
         </li>

@@ -1,4 +1,4 @@
-param([switch]$Qa, [switch]$Release, [int]$VersionCode = 1, [string]$VersionName = '1.0.0-preview')
+param([switch]$Qa, [switch]$Release, [switch]$RealLocation, [int]$VersionCode = 1, [string]$VersionName = '1.0.0-preview')
 $ErrorActionPreference = 'Stop'
 $webRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $platformRoot = [IO.Path]::GetFullPath((Join-Path $webRoot '..'))
@@ -7,6 +7,7 @@ $previousJava = $env:JAVA_HOME
 $previousSdk = $env:ANDROID_HOME
 $previousApi = $env:VITE_API_BASE_URL
 $previousPush = $env:VITE_PUSH_ENABLED
+$previousDemoLocation = $env:VITE_DEMO_LOCATION
 $previousLocation = Get-Location
 try {
     if ($Qa -and $Release) { throw 'The emulator QA build (cleartext fixture API) must never be a release build.' }
@@ -23,6 +24,9 @@ try {
     $hasFirebase = Test-Path -LiteralPath (Join-Path $nativeRoot 'app\google-services.json')
     $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa) { 'true' } else { 'false' }
     Write-Host ("Thong bao day (FCM): " + $(if ($env:VITE_PUSH_ENABLED -eq 'true') { 'BAT' } else { 'TAT - thieu android-native\app\google-services.json' }))
+    # Bản preview/QA: vị trí cố định tại phường demo (nút vị trí hiện "Demo"). Bản -Release hoặc -RealLocation dùng GPS thật.
+    $env:VITE_DEMO_LOCATION = if ($Release -or $RealLocation) { 'false' } else { 'true' }
+    Write-Host ("Vi tri demo co dinh: " + $(if ($env:VITE_DEMO_LOCATION -eq 'true') { 'BAT (dung -RealLocation de dung GPS that)' } else { 'TAT - dung GPS that' }))
     Set-Location $webRoot
     $buildTask = if ($Qa) { 'build:android:qa' } else { 'build:android' }
     & npm.cmd run $buildTask
@@ -57,4 +61,5 @@ try {
     $env:ANDROID_HOME = $previousSdk
     $env:VITE_API_BASE_URL = $previousApi
     $env:VITE_PUSH_ENABLED = $previousPush
+    $env:VITE_DEMO_LOCATION = $previousDemoLocation
 }

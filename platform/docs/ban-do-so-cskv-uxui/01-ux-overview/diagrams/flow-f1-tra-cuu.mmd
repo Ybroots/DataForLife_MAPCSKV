@@ -1,0 +1,14 @@
+flowchart TD
+  A([Mở app]) --> B[C01 Chào mừng]
+  B -->|Người dân| C[C03 Bản đồ toàn tỉnh]
+  C --> D{Tìm thế nào?}
+  D -->|Gõ tên xã/phường| E[Ô tìm kiếm → gợi ý]
+  D -->|Bấm biểu tượng danh bạ| F[C04 Danh sách địa bàn]
+  D -->|Chạm bản đồ| G[Chọn địa bàn]
+  E --> G
+  F --> G
+  G --> H[Thẻ tóm tắt: CSKV + trạng thái trực]
+  H -->|Gọi CSKV| I([Cuộc gọi điện thoại])
+  H -->|Xem chi tiết| J[C04 Chi tiết địa bàn]
+  J -->|Chỉ đường| K([Google Maps])
+  J -->|Gửi phản ánh| L[C06 Gửi phản ánh]

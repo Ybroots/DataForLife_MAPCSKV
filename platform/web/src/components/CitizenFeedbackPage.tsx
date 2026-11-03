@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Smartphone, Star } from 'lucide-react';
+import { showToast } from '../toast';
 import { ApiError, createSatisfactionRating, createSosRating, getAppRating, listCitizenIncidents, listCitizenSos, saveAppRating } from '../api';
 import type { AppRating } from '../types';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
@@ -88,6 +89,7 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
       if (selected.kind === 'sos') await createSosRating(selected.receiptCode, score, comment);
       else await createSatisfactionRating(selected.receiptCode, score, comment);
       setCaseNotice('Đánh giá đã được ghi nhận. Cảm ơn bạn đã góp ý.');
+      showToast({ kind: 'success', topic: 'rating', title: 'Cảm ơn bạn đã đánh giá' });
       setCases((current) => current.map((item) => (item.key === selected.key ? { ...item, rated: true } : item)));
       form.reset();
     } catch (error) {
@@ -102,6 +104,7 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
     try {
       setAppRating(await saveAppRating(Number(data.get('app-rating')), String(data.get('app-comment') ?? '')));
       setAppNotice('Cảm ơn bạn. Đánh giá giúp đội phát triển cải thiện ứng dụng.');
+      showToast({ kind: 'success', topic: 'rating', title: 'Đã lưu đánh giá ứng dụng' });
     } catch (error) {
       setAppNotice(errorText(error));
     }
@@ -120,7 +123,6 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
     <>
       <section className="feature-section form-section" aria-labelledby="feedback-title">
         <h2 id="feedback-title">Đánh giá kết quả xử lý</h2>
-        <p className="section-lead">Phản ánh và yêu cầu SOS đã được cán bộ xử lý xong mới đủ điều kiện đánh giá. Gửi lại sẽ cập nhật điểm cũ.</p>
         {loading && <p className="workflow-empty">Đang kiểm tra hồ sơ đã hoàn tất…</p>}
         {!loading && cases.length === 0 && <p className="workflow-empty">Chưa có phản ánh hay SOS đã xử lý xong để đánh giá.</p>}
         {cases.length > 0 && (
@@ -142,9 +144,7 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
 
       <section className="feature-section form-section" aria-labelledby="app-rating-title">
         <h2 id="app-rating-title"><Smartphone size={20} aria-hidden="true" /> Đánh giá ứng dụng</h2>
-        <p className="section-lead">
-          {appRating ? `Bạn đã chấm ${appRating.score}/5. Có thể chấm lại bất cứ lúc nào.` : 'Ứng dụng có dễ dùng và hữu ích với bạn không?'}
-        </p>
+        {appRating && <p className="section-lead">{`Bạn đã chấm ${appRating.score}/5. Có thể chấm lại bất cứ lúc nào.`}</p>}
         <form key={appFormKey} onSubmit={submitApp}>
           <RatingOptions name="app-rating" legend="Điểm cho ứng dụng" defaultScore={appRating?.score} />
           <label>Điều cần cải thiện

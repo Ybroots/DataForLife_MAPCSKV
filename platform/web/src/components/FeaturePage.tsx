@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
+import { showToast } from '../toast';
 import {
   ArrowLeft,
   ExternalLink,
@@ -60,8 +61,21 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
     listPublicAlerts(areaCode).then(value => { if (!cancelled) setAlerts(value); })
       .catch(() => { if (!cancelled) setAlertsFailed(true); })
       .finally(() => { if (!cancelled) setAlertsLoading(false); });
-    return () => { cancelled = true; };
-  }, [areaCode, feature]);
+    // Cảnh báo luôn mới: tự tải lại mỗi phút khi đang mở trang, có cảnh báo mới thì báo bằng popup.
+    let known: Set<string> | null = null;
+    const refresh = () => {
+      if (document.hidden) return;
+      listPublicAlerts(areaCode).then(value => {
+        if (cancelled) return;
+        if (known && value.some(alert => !known!.has(alert.id))) showToast({ kind: 'warning', topic: 'alert', title: 'Có cảnh báo mới tại khu vực', message: areaName ?? undefined });
+        known = new Set(value.map(alert => alert.id));
+        setAlerts(previous => JSON.stringify(previous) === JSON.stringify(value) ? previous : value);
+      }).catch(() => undefined);
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    listPublicAlerts(areaCode).then(value => { known = new Set(value.map(alert => alert.id)); }).catch(() => undefined);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [areaCode, areaName, feature]);
 
 
   const featureNeedsCitizenLogin = !isAuthenticated && (feature === 'reports' || feature === 'sos');
@@ -88,7 +102,7 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
           <section className="feature-section" aria-labelledby="alerts-title">
             <div className="section-title-row">
               <div>
-                <h2 id="alerts-title">Cảnh báo {areaName ? `tại ${areaName}` : 'theo địa bàn'}</h2>
+                <h2 id="alerts-title">{areaName ?? 'Chưa chọn địa bàn'}</h2>
               </div>
               <button className="secondary-action" type="button" onClick={onShowAlertsOnMap}>
                 <MapPinned size={18} aria-hidden="true" /> Xem trên bản đồ
