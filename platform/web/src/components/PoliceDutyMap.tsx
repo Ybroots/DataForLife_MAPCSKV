@@ -3,7 +3,7 @@ import { ArrowLeft, BellRing, FileWarning, LocateFixed, MapPinned, Siren } from 
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { getOfficerIncident, getOfficerSos, listOperationalMapPoints, listPublicAlerts, lookupByCode } from '../api';
+import { cancelPublicAlert, getOfficerIncident, getOfficerSos, listOperationalMapPoints, listPublicAlerts, lookupByCode } from '../api';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
 import type { AreaLookup, Incident, OfficerQueueItem, OperationalMapPoint, PublicAlert, SosEvent } from '../types';
 
@@ -13,6 +13,8 @@ interface PoliceDutyMapProps {
   queue: OfficerQueueItem[];
   onBackToQueue: () => void;
   onOpenCase: (item: OfficerQueueItem) => void;
+  /** Có mặt khi cán bộ được sửa/gỡ cảnh báo; chỉ huy không truyền nên chỉ xem. */
+  onEditAlert?: (alert: PublicAlert) => void;
 }
 
 type WorkDetail = Incident | SosEvent;
@@ -129,7 +131,7 @@ function popupContent(point: DutyPoint, onOpenCase: (item: OfficerQueueItem) => 
   return content;
 }
 
-export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOpenCase }: PoliceDutyMapProps) {
+export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOpenCase, onEditAlert }: PoliceDutyMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -137,6 +139,8 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
   const operationalMarkersRef = useRef<maplibregl.Marker[]>([]);
   const alertMarkersRef = useRef<maplibregl.Marker[]>([]);
   const onOpenCaseRef = useRef(onOpenCase);
+  const onEditAlertRef = useRef(onEditAlert);
+  onEditAlertRef.current = onEditAlert;
   const [mapReady, setMapReady] = useState(false);
   const [area, setArea] = useState<AreaLookup | null>(null);
   const [points, setPoints] = useState<DutyPoint[]>([]);
@@ -470,6 +474,25 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
       meta.textContent = `Cảnh báo công khai · hiệu lực đến ${new Date(alert.endsAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`;
       const summary = document.createElement('p'); summary.textContent = alert.summary;
       content.append(title, meta, summary);
+      if (onEditAlertRef.current) {
+        const actions = document.createElement('div');
+        actions.className = 'duty-alert-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button'; edit.textContent = 'Sửa cảnh báo';
+        edit.addEventListener('click', () => onEditAlertRef.current?.(alert));
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'danger'; remove.textContent = 'Gỡ cảnh báo';
+        let armed = false;
+        remove.addEventListener('click', () => {
+          if (!armed) { armed = true; remove.textContent = 'Bấm lần nữa để gỡ'; return; }
+          remove.disabled = true; remove.textContent = 'Đang gỡ…';
+          void cancelPublicAlert(alert.id)
+            .then(() => setPublicAlerts((previous) => previous.filter((item) => item.id !== alert.id)))
+            .catch(() => { armed = false; remove.disabled = false; remove.textContent = 'Không gỡ được, thử lại'; });
+        });
+        actions.append(edit, remove);
+        content.append(actions);
+      }
       return new maplibregl.Marker({ element }).setLngLat([alert.longitude as number, alert.latitude as number])
         .setPopup(new maplibregl.Popup({ offset: 24, maxWidth: '280px' }).setDOMContent(content)).addTo(map);
     });

@@ -6,6 +6,7 @@ import type {
   IncidentMessageResponse,
   PatrolSessionResponse,
   PublicAlertResponse,
+  UpdatePublicAlertInput,
   SatisfactionRatingResponse,
   ShiftSummaryResponse,
   OfficerReportCaseResponse,
@@ -76,6 +77,53 @@ export class OperationalExtensionsStore {
         input.latitude, input.longitude, input.startsAt, input.endsAt, actor.locality_code],
     );
     return this.mapAlert(result.rows[0]);
+  }
+
+  async updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse> {
+    const actor = await this.requireActor(actorId);
+    const current = await this.pool.query(
+      `SELECT starts_at, ends_at FROM public_alerts WHERE id = $1 AND locality_id = $2 AND status = 'published'`,
+      [id, actor.locality_id],
+    );
+    const row = current.rows[0];
+    if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
+    const startsAt = input.startsAt ?? iso(row.starts_at);
+    const endsAt = input.endsAt ?? iso(row.ends_at);
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) throw new WorkflowError('INVALID_INPUT', 'Thời gian kết thúc phải sau thời gian bắt đầu.');
+    if (input.latitude !== undefined && input.longitude !== undefined) {
+      const inside = await this.pool.query(
+        `SELECT 1 FROM boundaries b WHERE b.locality_id=$1 AND ST_Covers(b.geom,ST_SetSRID(ST_Point($3,$2),4326)) LIMIT 1`,
+        [actor.locality_id, input.latitude, input.longitude],
+      );
+      if (!inside.rows[0]) throw new WorkflowError('INVALID_INPUT', 'Vị trí cảnh báo phải nằm trong ranh địa bàn được phân quyền.');
+    }
+    const result = await this.pool.query(
+      `UPDATE public_alerts SET
+         title = COALESCE($3, title), summary = COALESCE($4, summary),
+         category = COALESCE($5, category), risk_level = COALESCE($6, risk_level),
+         geom = CASE WHEN $7::double precision IS NULL OR $8::double precision IS NULL THEN geom
+                     ELSE ST_SetSRID(ST_Point($8, $7), 4326) END,
+         starts_at = $9, ends_at = $10, updated_at = now(), updated_by = $11
+       WHERE id = $1 AND locality_id = $2 AND status = 'published'
+       RETURNING id::text, $12::text AS area_code, title, category, risk_level, summary,
+          CASE WHEN geom IS NULL THEN NULL ELSE ST_Y(geom) END AS latitude,
+          CASE WHEN geom IS NULL THEN NULL ELSE ST_X(geom) END AS longitude,
+          starts_at, ends_at, status, created_at`,
+      [id, actor.locality_id, input.title ?? null, input.summary ?? null, input.category ?? null, input.riskLevel ?? null,
+        input.latitude ?? null, input.longitude ?? null, startsAt, endsAt, actor.id, actor.locality_code],
+    );
+    if (!result.rows[0]) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
+    return this.mapAlert(result.rows[0]);
+  }
+
+  async cancelPublicAlert(actorId: string, id: string): Promise<void> {
+    const actor = await this.requireActor(actorId);
+    const result = await this.pool.query(
+      `UPDATE public_alerts SET status = 'cancelled', updated_at = now(), updated_by = $3
+       WHERE id = $1 AND locality_id = $2 AND status = 'published'`,
+      [id, actor.locality_id, actor.id],
+    );
+    if (!result.rowCount) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
   }
 
   async listCitizenMessages(citizenId: string, receiptCode: string): Promise<IncidentMessageResponse[]> {

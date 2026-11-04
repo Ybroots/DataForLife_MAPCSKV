@@ -39,6 +39,7 @@ import type {
   Incident,
   IncidentStatus,
   OfficerQueueItem,
+  PublicAlert,
   SosEvent,
   SosStatus,
   WorkflowActor,
@@ -186,6 +187,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const selectedItem = useMemo(() => queue.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? archive.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? null, [archive, queue, selectedKey]);
   const currentActor = actors.find((actor) => actor.id === currentActorId) ?? sessionActor;
   const alerts = useSosAlerts(queue, lastUpdated !== null);
+  const [alertEdit, setAlertEdit] = useState<{ alert: PublicAlert; nonce: number } | null>(null);
   const [pushDenied, setPushDenied] = useState(false);
   const [pushOpen, setPushOpen] = useState<Extract<PushTarget, { type: 'officer' }> | null>(null);
   const pushRetry = useRef(0);
@@ -570,11 +572,12 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                 queue={queue}
                 onBackToQueue={() => setMobilePane('queue')}
                 onOpenCase={selectItem}
+                onEditAlert={commander ? undefined : (alert) => { setAlertEdit((previous) => ({ alert, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); }}
               />
             </Suspense>
           </section>
 
-          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} commander={commander} />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} commander={commander} editRequest={alertEdit} />
         </div>
       </main>
 

@@ -10,6 +10,7 @@ import {
   text,
 } from './request-parsing.js';
 import type { RouteContext } from './route-context.js';
+import type { UpdatePublicAlertInput } from './types.js';
 
 /** Việc vận hành của cán bộ: thông báo, cảnh báo công khai, tuần tra, báo cáo ca, thống kê, điểm bản đồ. */
 export function registerOfficerOperationsRoutes({ app, repository, localWorkflowMeta, officerIdentity, workflowDisabled }: RouteContext): void {
@@ -38,6 +39,36 @@ export function registerOfficerOperationsRoutes({ app, repository, localWorkflow
       riskLevel: riskLevel as 'info' | 'medium' | 'high', latitude, longitude, startsAt, endsAt,
     });
     return reply.code(201).send({ data, meta: localWorkflowMeta });
+  });
+
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>('/v1/officer/alerts/:id', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const body = request.body ?? {};
+    const input: UpdatePublicAlertInput = {};
+    let valid = true;
+    if (body.title !== undefined) { const title = text(body.title, 5, 160); if (title) input.title = title; else valid = false; }
+    if (body.summary !== undefined) { const summary = text(body.summary, 10, 1200); if (summary) input.summary = summary; else valid = false; }
+    if (body.category !== undefined) { if (typeof body.category === 'string' && alertCategories.has(body.category)) input.category = body.category as UpdatePublicAlertInput['category']; else valid = false; }
+    if (body.riskLevel !== undefined) { if (typeof body.riskLevel === 'string' && alertRiskLevels.has(body.riskLevel)) input.riskLevel = body.riskLevel as UpdatePublicAlertInput['riskLevel']; else valid = false; }
+    if (body.startsAt !== undefined) { const startsAt = parseIsoTimestamp(body.startsAt); if (startsAt) input.startsAt = startsAt; else valid = false; }
+    if (body.endsAt !== undefined) { const endsAt = parseIsoTimestamp(body.endsAt); if (endsAt) input.endsAt = endsAt; else valid = false; }
+    if (body.latitude !== undefined || body.longitude !== undefined) {
+      const latitude = parseCoordinate(body.latitude, -90, 90);
+      const longitude = parseCoordinate(body.longitude, -180, 180);
+      if (latitude === null || longitude === null) valid = false; else { input.latitude = latitude; input.longitude = longitude; }
+    }
+    if (!valid || Object.keys(input).length === 0) {
+      return reply.code(400).send({ error: 'INVALID_ALERT', message: 'Thông tin chỉnh sửa cảnh báo không hợp lệ.' });
+    }
+    return { data: await repository.updatePublicAlert(officerId, request.params.id, input), meta: localWorkflowMeta };
+  });
+
+  app.post<{ Params: { id: string } }>('/v1/officer/alerts/:id/cancel', { preHandler: workflowDisabled }, async (request, reply) => {
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    await repository.cancelPublicAlert(officerId, request.params.id);
+    return reply.code(204).send();
   });
 
   app.get('/v1/officer/patrols', { preHandler: workflowDisabled }, async (request, reply) => {

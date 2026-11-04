@@ -30,6 +30,7 @@ import type {
   OfficerQueueItemResponse,
   PatrolSessionResponse,
   PublicAlertResponse,
+  UpdatePublicAlertInput,
   SatisfactionRatingResponse,
   ServiceAreaResponse,
   ShiftSummaryResponse,
@@ -504,6 +505,14 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
 
   createPublicAlert(actorId: string, input: Omit<PublicAlertResponse, 'id' | 'areaCode' | 'status' | 'createdAt'>): Promise<PublicAlertResponse> {
     return this.operations.createPublicAlert(actorId, input);
+  }
+
+  updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse> {
+    return this.operations.updatePublicAlert(actorId, id, input);
+  }
+
+  cancelPublicAlert(actorId: string, id: string): Promise<void> {
+    return this.operations.cancelPublicAlert(actorId, id);
   }
 
   listPatrolSessions(actorId: string): Promise<PatrolSessionResponse[]> {

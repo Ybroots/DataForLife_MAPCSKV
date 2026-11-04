@@ -421,6 +421,12 @@ export interface PublicAlertResponse {
   createdAt: string;
 }
 
+/** Các trường cảnh báo được sửa; trường nào không gửi thì giữ nguyên. Toạ độ phải đi cùng nhau. */
+export type UpdatePublicAlertInput = Partial<Pick<PublicAlertResponse, 'title' | 'summary' | 'category' | 'riskLevel' | 'startsAt' | 'endsAt'>> & {
+  latitude?: number;
+  longitude?: number;
+};
+
 export interface IncidentMessageResponse {
   id: string;
   authorRole: 'citizen' | 'officer' | 'supervisor';
@@ -586,6 +592,9 @@ export interface DirectoryRepository {
   addOfficerIncidentAttachment(actorId: string, id: string, input: IncidentAttachmentInput): Promise<IncidentAttachmentResponse>;
   getOfficerIncidentAttachment(actorId: string, id: string, attachmentId: string): Promise<{ mimeType: string; content: Buffer } | null>;
   createPublicAlert(actorId: string, input: Omit<PublicAlertResponse, 'id' | 'areaCode' | 'status' | 'createdAt'>): Promise<PublicAlertResponse>;
+  updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse>;
+  /** Gỡ cảnh báo đang hiển thị (đặt trạng thái đã huỷ, không xoá dữ liệu). */
+  cancelPublicAlert(actorId: string, id: string): Promise<void>;
   listPatrolSessions(actorId: string): Promise<PatrolSessionResponse[]>;
   createPatrolSession(actorId: string, title: string, routeNote: string | null, scheduledAt: string): Promise<PatrolSessionResponse>;
   updatePatrolSession(actorId: string, id: string, action: 'start' | 'pause' | 'resume' | 'checkin' | 'complete', latitude?: number | null, longitude?: number | null): Promise<PatrolSessionResponse>;

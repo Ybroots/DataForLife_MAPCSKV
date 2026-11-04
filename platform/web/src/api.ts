@@ -467,6 +467,20 @@ export async function createPublicAlert(input: Omit<PublicAlert, 'id' | 'areaCod
   return payload.data;
 }
 
+export type PublicAlertChanges = Partial<Pick<PublicAlert, 'title' | 'summary' | 'category' | 'riskLevel' | 'startsAt' | 'endsAt'>> & { latitude?: number; longitude?: number };
+
+export async function updatePublicAlert(id: string, changes: PublicAlertChanges): Promise<PublicAlert> {
+  const payload = await request<{ data: PublicAlert }>(`/v1/officer/alerts/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: officerHeaders(), body: JSON.stringify(changes),
+  });
+  return payload.data;
+}
+
+/** Gỡ cảnh báo đang hiển thị: người dân không còn thấy trên bản đồ. */
+export async function cancelPublicAlert(id: string): Promise<void> {
+  await request<void>(`/v1/officer/alerts/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: officerHeaders() });
+}
+
 export async function listPatrolSessions(): Promise<PatrolSession[]> {
   const payload = await request<{ data: PatrolSession[] }>('/v1/officer/patrols', { headers: officerHeaders() });
   return payload.data;

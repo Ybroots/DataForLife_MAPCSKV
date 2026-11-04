@@ -28,6 +28,7 @@ import type {
   OperationalMapPointResponse,
   PatrolSessionResponse,
   PublicAlertResponse,
+  UpdatePublicAlertInput,
   PublicStatsResponse,
   SatisfactionRatingResponse,
   ShiftSummaryResponse,
@@ -597,6 +598,28 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const alert: PublicAlertResponse = { ...input, id: randomUUID(), areaCode: actor.localityCode ?? demoArea.code, status: 'published', createdAt: new Date().toISOString() };
     this.alerts.unshift(alert);
     return structuredClone(alert);
+  }
+
+  async updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse> {
+    const actor = this.requireActor(actorId);
+    const alert = this.alerts.find((item) => item.id === id && item.status === 'published' && item.areaCode === (actor.localityCode ?? demoArea.code));
+    if (!alert) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
+    const startsAt = input.startsAt ?? alert.startsAt;
+    const endsAt = input.endsAt ?? alert.endsAt;
+    if (Date.parse(endsAt) <= Date.parse(startsAt)) throw new WorkflowError('INVALID_INPUT', 'Thời gian kết thúc phải sau thời gian bắt đầu.');
+    Object.assign(alert, {
+      title: input.title ?? alert.title, summary: input.summary ?? alert.summary, category: input.category ?? alert.category,
+      riskLevel: input.riskLevel ?? alert.riskLevel, startsAt, endsAt,
+      latitude: input.latitude ?? alert.latitude, longitude: input.longitude ?? alert.longitude,
+    });
+    return structuredClone(alert);
+  }
+
+  async cancelPublicAlert(actorId: string, id: string): Promise<void> {
+    const actor = this.requireActor(actorId);
+    const alert = this.alerts.find((item) => item.id === id && item.status === 'published' && item.areaCode === (actor.localityCode ?? demoArea.code));
+    if (!alert) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
+    alert.status = 'cancelled';
   }
 
   async listPatrolSessions(actorId: string): Promise<PatrolSessionResponse[]> {

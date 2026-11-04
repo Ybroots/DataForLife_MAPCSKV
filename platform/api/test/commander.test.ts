@@ -147,3 +147,41 @@ describe('SOS alarm data', () => {
     }
   });
 });
+
+describe('officer edits and removes a public alert', () => {
+  const now = Date.now();
+  const alertBody = {
+    title: 'Mật độ giao thông tăng', summary: 'Khu vực chợ đông phương tiện, hạn chế đi qua.', category: 'traffic', riskLevel: 'medium',
+    latitude: 11.944, longitude: 108.441, startsAt: new Date(now).toISOString(), endsAt: new Date(now + 4 * 3_600_000).toISOString(),
+  };
+
+  it('updates fields and position, then the cancelled alert leaves the public list', async () => {
+    const a = await newApp();
+    const created = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: alertBody });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().data.id as string;
+
+    const edited = await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { title: 'Kẹt xe khu vực chợ', riskLevel: 'high', latitude: 11.9455, longitude: 108.4425 } });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().data).toMatchObject({ id, title: 'Kẹt xe khu vực chợ', riskLevel: 'high', latitude: 11.9455, longitude: 108.4425, summary: alertBody.summary });
+    const listed = await a.inject({ method: 'GET', url: '/v1/public/alerts' });
+    expect(listed.json().data.find((item: { id: string }) => item.id === id)?.title).toBe('Kẹt xe khu vực chợ');
+
+    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: officer })).statusCode).toBe(204);
+    expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === id)).toBe(false);
+    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: officer })).statusCode).toBe(404);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { title: 'Sửa sau khi gỡ' } })).statusCode).toBe(404);
+  });
+
+  it('rejects an empty or invalid edit, and the commander cannot edit or remove', async () => {
+    const a = await newApp();
+    const id = (await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: alertBody })).json().data.id as string;
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: {} })).statusCode).toBe(400);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { title: 'ngắn' } })).statusCode).toBe(400);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { latitude: 11.9 } })).statusCode).toBe(400);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { endsAt: new Date(now - 3_600_000).toISOString() } })).statusCode).toBe(400);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: commander, payload: { title: 'Chỉ huy sửa cảnh báo' } })).statusCode).toBe(403);
+    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: commander })).statusCode).toBe(403);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, payload: { title: 'Không đăng nhập' } })).statusCode).toBe(401);
+  });
+});

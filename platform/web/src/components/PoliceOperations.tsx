@@ -1,7 +1,7 @@
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
-import { BarChart3, BellRing, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck, UserRoundCheck } from 'lucide-react';
-import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
+import { BarChart3, BellRing, Pencil, Trash2, X, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck, UserRoundCheck } from 'lucide-react';
+import { ApiError, cancelPublicAlert, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, listPublicAlerts, updatePatrolSession, updatePublicAlert } from '../api';
 import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
 
 import { OfficerStatisticsPanel } from './OfficerStatisticsPanel';
@@ -18,14 +18,19 @@ const AlertLocationPicker = lazy(async () => {
 
 type Tab = 'areas' | 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'accounts' | 'roadmap';
 
+const alertRiskLabels: Record<PublicAlert['riskLevel'], string> = { info: 'Thông tin', medium: 'Mức vừa', high: 'Mức cao' };
+
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
 }
 
 /** commander: chỉ huy xem khu vực và báo cáo, không có nghiệp vụ ghi (cảnh báo, tuần tra, cuối ca, bản đồ, tài khoản dân). */
-export function PoliceOperations({ localityCode, unitName, commander = false }: { localityCode: string | null; unitName?: string; commander?: boolean }) {
+export function PoliceOperations({ localityCode, unitName, commander = false, editRequest = null }: { localityCode: string | null; unitName?: string; commander?: boolean; editRequest?: { alert: PublicAlert; nonce: number } | null }) {
   const [tab, setTab] = useState<Tab>(commander ? 'areas' : 'reports');
   const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
+  const [activeAlerts, setActiveAlerts] = useState<PublicAlert[]>([]);
+  const [editingAlert, setEditingAlert] = useState<PublicAlert | null>(null);
+  const [removeArmedId, setRemoveArmedId] = useState<string | null>(null);
   const [pickerKey, setPickerKey] = useState(0);
   const [patrols, setPatrols] = useState<PatrolSession[]>([]);
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
@@ -41,6 +46,51 @@ export function PoliceOperations({ localityCode, unitName, commander = false }: 
   }, [commander]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const loadAlerts = useCallback(async () => {
+    if (commander || !localityCode) return;
+    try { setActiveAlerts(await listPublicAlerts(localityCode)); } catch (error) { setNotice(errorText(error)); }
+  }, [commander, localityCode]);
+
+  useEffect(() => { if (tab === 'alerts') void loadAlerts(); }, [tab, loadAlerts]);
+
+  // Bấm "Sửa cảnh báo" trên bản đồ: mở tab Cảnh báo ở chế độ sửa.
+  useEffect(() => {
+    if (!editRequest || commander) return;
+    setTab('alerts'); setEditingAlert(editRequest.alert); setPickerKey((key) => key + 1); setNotice('');
+  }, [editRequest, commander]);
+
+  const startEdit = (alert: PublicAlert) => { setEditingAlert(alert); setAlertPoint(null); setPickerKey((key) => key + 1); setNotice(''); };
+  const stopEdit = () => { setEditingAlert(null); setAlertPoint(null); setPickerKey((key) => key + 1); };
+
+  const removeAlert = async (alert: PublicAlert) => {
+    if (removeArmedId !== alert.id) { setRemoveArmedId(alert.id); return; }
+    setBusy(true); setNotice(''); setRemoveArmedId(null);
+    try {
+      await cancelPublicAlert(alert.id);
+      if (editingAlert?.id === alert.id) stopEdit();
+      setNotice(`Đã gỡ cảnh báo “${alert.title}”. Người dân không còn thấy cảnh báo này trên bản đồ.`);
+      await loadAlerts();
+    } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); }
+  };
+
+  const submitAlertEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setNotice('');
+    if (!editingAlert) return;
+    setBusy(true);
+    const data = new FormData(event.currentTarget);
+    const hours = Number(data.get('duration'));
+    try {
+      const updated = await updatePublicAlert(editingAlert.id, {
+        title: String(data.get('title')), summary: String(data.get('summary')),
+        category: String(data.get('category')) as PublicAlert['category'], riskLevel: String(data.get('risk')) as PublicAlert['riskLevel'],
+        ...(alertPoint ? { latitude: alertPoint.latitude, longitude: alertPoint.longitude } : {}),
+        ...(hours > 0 ? { endsAt: new Date(Date.now() + hours * 3_600_000).toISOString() } : {}),
+      });
+      setNotice(`Đã cập nhật cảnh báo “${updated.title}”.`);
+      stopEdit(); await loadAlerts();
+    } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); }
+  };
 
   const submitAlert = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setNotice('');
@@ -113,18 +163,43 @@ export function PoliceOperations({ localityCode, unitName, commander = false }: 
       {tab === 'mapdata' && <OfficerMapDataManager />}
       {tab === 'accounts' && PASSWORD_RECOVERY_ENABLED && <OfficerCitizenReset />}
 
-      {tab === 'alerts' && <form className="operations-form" onSubmit={submitAlert}>
-        <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3></div></div>
-        <label>Tiêu đề<input name="title" minLength={5} maxLength={160} required placeholder="Ví dụ: Mật độ giao thông tăng" /></label>
-        <div className="form-grid"><label>Nhóm<select name="category" defaultValue="security"><option value="security">An ninh</option><option value="traffic">Giao thông</option><option value="fire_rescue">PCCC/CNCH</option><option value="weather">Thời tiết</option><option value="other">Khác</option></select></label><label>Mức độ<select name="risk" defaultValue="info"><option value="info">Thông tin</option><option value="medium">Mức vừa</option><option value="high">Mức cao</option></select></label></div>
-        <label>Nội dung<textarea name="summary" minLength={10} maxLength={1200} rows={5} required placeholder="Thông tin ngắn gọn, có hướng dẫn hành động cụ thể…" /></label>
-        <Suspense fallback={<p className="workflow-empty">Đang mở bản đồ chọn vị trí…</p>}>
-          <AlertLocationPicker key={pickerKey} localityCode={localityCode} onChange={setAlertPoint} />
-        </Suspense>
-        <label>Thời gian hiệu lực<select name="duration" defaultValue="4"><option value="2">2 giờ</option><option value="4">4 giờ</option><option value="8">8 giờ</option><option value="24">24 giờ</option></select></label>
-        <button className="ops-submit" disabled={busy}><BellRing size={17} /> Phát hành cảnh báo</button>
-      </form>}
-
+      {tab === 'alerts' && <div className="operations-stack">
+        <section className="alert-manage-list" aria-label="Cảnh báo đang hiển thị">
+          <h3>Cảnh báo đang hiển thị ({activeAlerts.length})</h3>
+          {activeAlerts.length === 0 && <p className="workflow-empty">Chưa có cảnh báo nào đang hiển thị.</p>}
+          {activeAlerts.map((alert) => (
+            <article key={alert.id} className={`alert-manage-item ${alert.riskLevel}${editingAlert?.id === alert.id ? ' editing' : ''}`}>
+              <div>
+                <strong>{alert.title}</strong>
+                <small>{alertRiskLabels[alert.riskLevel]} · đến {new Date(alert.endsAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}{alert.latitude === null ? ' · chưa có vị trí' : ''}</small>
+              </div>
+              <div className="alert-manage-actions">
+                <button type="button" disabled={busy} onClick={() => startEdit(alert)}><Pencil size={15} aria-hidden="true" /> Sửa</button>
+                <button type="button" className="danger" disabled={busy} onClick={() => void removeAlert(alert)}><Trash2 size={15} aria-hidden="true" /> {removeArmedId === alert.id ? 'Bấm lần nữa để gỡ' : 'Gỡ'}</button>
+              </div>
+            </article>
+          ))}
+        </section>
+        <form className="operations-form" key={editingAlert?.id ?? 'new'} onSubmit={editingAlert ? submitAlertEdit : submitAlert}>
+          <div className="operations-intro"><BellRing size={24} /><div><h3>{editingAlert ? 'Sửa cảnh báo khu vực' : 'Phát hành cảnh báo khu vực'}</h3></div></div>
+          <label>Tiêu đề<input name="title" minLength={5} maxLength={160} required defaultValue={editingAlert?.title} placeholder="Ví dụ: Mật độ giao thông tăng" /></label>
+          <div className="form-grid"><label>Nhóm<select name="category" defaultValue={editingAlert?.category ?? 'security'}><option value="security">An ninh</option><option value="traffic">Giao thông</option><option value="fire_rescue">PCCC/CNCH</option><option value="weather">Thời tiết</option><option value="other">Khác</option></select></label><label>Mức độ<select name="risk" defaultValue={editingAlert?.riskLevel ?? 'info'}><option value="info">Thông tin</option><option value="medium">Mức vừa</option><option value="high">Mức cao</option></select></label></div>
+          <label>Nội dung<textarea name="summary" minLength={10} maxLength={1200} rows={5} required defaultValue={editingAlert?.summary} placeholder="Thông tin ngắn gọn, có hướng dẫn hành động cụ thể…" /></label>
+          <Suspense fallback={<p className="workflow-empty">Đang mở bản đồ chọn vị trí…</p>}>
+            <AlertLocationPicker
+              key={`${pickerKey}-${editingAlert?.id ?? 'new'}`}
+              localityCode={localityCode}
+              initialPoint={editingAlert && editingAlert.latitude !== null && editingAlert.longitude !== null ? { latitude: editingAlert.latitude, longitude: editingAlert.longitude } : null}
+              onChange={setAlertPoint}
+            />
+          </Suspense>
+          <label>{editingAlert ? 'Thời hạn hiệu lực' : 'Thời gian hiệu lực'}<select name="duration" defaultValue={editingAlert ? '0' : '4'}>{editingAlert && <option value="0">Giữ nguyên thời hạn hiện tại</option>}<option value="2">{editingAlert ? 'Còn 2 giờ kể từ bây giờ' : '2 giờ'}</option><option value="4">{editingAlert ? 'Còn 4 giờ kể từ bây giờ' : '4 giờ'}</option><option value="8">{editingAlert ? 'Còn 8 giờ kể từ bây giờ' : '8 giờ'}</option><option value="24">{editingAlert ? 'Còn 24 giờ kể từ bây giờ' : '24 giờ'}</option></select></label>
+          <div className="ops-submit-row">
+            <button className="ops-submit" disabled={busy}><BellRing size={17} /> {editingAlert ? 'Lưu thay đổi' : 'Phát hành cảnh báo'}</button>
+            {editingAlert && <button type="button" className="ops-cancel" disabled={busy} onClick={stopEdit}><X size={16} aria-hidden="true" /> Huỷ sửa</button>}
+          </div>
+        </form>
+      </div>}
       {tab === 'patrol' && <div className="operations-stack">
         <form className="operations-form" onSubmit={submitPatrol}>
           <div className="operations-intro"><MapPinned size={24} /><div><h3>Lập lịch tuần tra</h3></div></div>

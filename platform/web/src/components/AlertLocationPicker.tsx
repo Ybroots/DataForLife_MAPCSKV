@@ -13,6 +13,8 @@ export interface AlertPoint { latitude: number; longitude: number }
 
 interface AlertLocationPickerProps {
   localityCode: string | null;
+  /** Vị trí có sẵn khi sửa cảnh báo; ghim hiện ngay tại đó và có thể kéo đi chỗ khác. */
+  initialPoint?: AlertPoint | null;
   /** Called with a point that lies inside the officer's locality, or null while there is none. */
   onChange: (point: AlertPoint | null) => void;
 }
@@ -40,7 +42,7 @@ function collectBounds(input: unknown, bounds: maplibregl.LngLatBounds): void {
  * The two inputs and the map always show the same point; the parent only ever receives a valid point
  * inside the officer's own locality (the API enforces the same rule).
  */
-export function AlertLocationPicker({ localityCode, onChange }: AlertLocationPickerProps) {
+export function AlertLocationPicker({ localityCode, initialPoint = null, onChange }: AlertLocationPickerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
@@ -48,8 +50,8 @@ export function AlertLocationPicker({ localityCode, onChange }: AlertLocationPic
   const [mapReady, setMapReady] = useState(false);
   const [area, setArea] = useState<AreaLookup | null>(null);
   const [areaFailed, setAreaFailed] = useState(false);
-  const [latText, setLatText] = useState('');
-  const [lngText, setLngText] = useState('');
+  const [latText, setLatText] = useState(() => initialPoint ? initialPoint.latitude.toFixed(6) : '');
+  const [lngText, setLngText] = useState(() => initialPoint ? initialPoint.longitude.toFixed(6) : '');
   const [gpsMessage, setGpsMessage] = useState('');
   const [gpsBusy, setGpsBusy] = useState(false);
 

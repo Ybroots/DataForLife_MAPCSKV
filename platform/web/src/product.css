@@ -1087,3 +1087,17 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 .police-profile-card a { color: inherit; font-weight: 600; }
 .readonly-note { margin: 0; padding: 10px 12px; border: 1px dashed var(--color-line); border-radius: 8px; color: var(--color-muted); font-size: .88rem; }
 .contact-copy .contact-area { margin: 2px 0 0; color: var(--color-muted); font-size: .8rem; font-weight: 600; }
+
+.alert-manage-list { display: grid; gap: 8px; }
+.alert-manage-list h3 { margin: 0 0 2px; font-size: 1rem; }
+.alert-manage-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid #d9dee8; border-left: 4px solid #2f6fdb; border-radius: 10px; background: #fff; }
+.alert-manage-item.medium { border-left-color: #e8a317; }
+.alert-manage-item.high { border-left-color: #d71935; }
+.alert-manage-item.editing { background: #f1f6ff; box-shadow: 0 0 0 2px #2f6fdb55; }
+.alert-manage-item strong { display: block; overflow-wrap: anywhere; }
+.alert-manage-item small { color: #5b6577; }
+.alert-manage-actions, .duty-alert-actions, .ops-submit-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.alert-manage-actions button, .duty-alert-actions button, .ops-cancel { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 6px 12px; border: 1px solid #c3cad8; border-radius: 8px; background: #fff; color: #1c2740; font: inherit; font-weight: 700; cursor: pointer; }
+.alert-manage-actions button.danger, .duty-alert-actions button.danger { border-color: #d71935; color: #d71935; }
+.alert-manage-actions button:disabled, .duty-alert-actions button:disabled { opacity: .6; cursor: progress; }
+.duty-alert-actions { margin-top: 8px; }
