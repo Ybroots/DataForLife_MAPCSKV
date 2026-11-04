@@ -233,6 +233,8 @@ export interface SosResponse {
   category: 'security' | 'traffic_accident' | 'fire_rescue' | 'medical' | 'other_emergency';
   note: string | null;
   contactPhone: string | null;
+  /** Tên tài khoản người bấm SOS, để cán bộ biết gọi cho ai. */
+  reporterName?: string | null;
   status: import('./workflow.js').SosStatus;
   location: WorkflowLocationResponse;
   assignedOfficer: AssignedOfficerResponse | null;

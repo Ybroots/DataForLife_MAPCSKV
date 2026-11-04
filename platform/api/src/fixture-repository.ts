@@ -44,6 +44,7 @@ import type {
 } from './types.js';
 import { loadPilotAreaSources, PilotArea } from './fixture-pilot-areas.js';
 import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, COMMANDER_READ_ONLY_MESSAGE, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
+import { sosTitle } from './sos-title.js';
 
 const demoArea: AreaLookupResponse = {
   code: 'DEMO-DA-LAT',
@@ -523,7 +524,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
       .filter((item) => !['closed', 'cancelled_by_citizen'].includes(item.status))
       .map((item) => ({
         kind: 'sos', id: item.id, receiptCode: item.receiptCode, category: item.category,
-        title: item.note || 'Yêu cầu hỗ trợ khẩn cấp', status: item.status, priority: 'critical',
+        title: sosTitle(null, item.contactPhone), status: item.status, priority: 'critical',
         localityCode: item.location.localityCode, localityName: item.location.localityName,
         serviceAreaName: item.location.serviceAreaName, reporterName: null, reporterPhone: item.contactPhone,
         assignedOfficer: item.assignedOfficer, createdAt: item.createdAt, updatedAt: item.updatedAt,
@@ -666,7 +667,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const dateOf = (value: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value));
     const rows: OfficerQueueItemResponse[] = [
       ...[...this.sosEvents.values()].filter((item) => ['closed', 'cancelled_by_citizen'].includes(item.status)).map((item): OfficerQueueItemResponse => ({
-        kind: 'sos', id: item.id, receiptCode: item.receiptCode, category: item.category, title: item.note || 'Yêu cầu hỗ trợ khẩn cấp',
+        kind: 'sos', id: item.id, receiptCode: item.receiptCode, category: item.category, title: sosTitle(null, item.contactPhone),
         status: item.status, priority: 'critical', localityCode: item.location.localityCode, localityName: item.location.localityName,
         serviceAreaName: item.location.serviceAreaName, assignedOfficer: item.assignedOfficer, createdAt: item.createdAt, updatedAt: item.updatedAt,
       })),
@@ -697,7 +698,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         resolutionMinutes: minutes(item.createdAt, finished(item.status, item.updatedAt)), ratingScore: item.satisfactionRating?.score ?? null,
       })),
       ...[...this.sosEvents.values()].map((item): OfficerReportCaseResponse => ({
-        kind: 'sos', receiptCode: item.receiptCode, category: item.category, title: item.note || 'Yêu cầu hỗ trợ khẩn cấp', status: item.status, priority: 'critical',
+        kind: 'sos', receiptCode: item.receiptCode, category: item.category, title: sosTitle(null, item.contactPhone), status: item.status, priority: 'critical',
         serviceAreaName: item.location.serviceAreaName, assignedOfficerName: item.assignedOfficer?.displayName ?? null,
         createdAt: item.createdAt, resolvedAt: finished(item.status, item.updatedAt), closedAt: item.status === 'closed' ? item.updatedAt : null,
         resolutionMinutes: minutes(item.createdAt, finished(item.status, item.updatedAt)), ratingScore: null,

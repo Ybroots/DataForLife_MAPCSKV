@@ -131,6 +131,32 @@ describe('logout revokes the session cookie', () => {
   });
 });
 
+describe('SOS uses the phone of the citizen account', () => {
+  it('takes the phone from a phone-number username and titles the request "SOS - tên - SĐT"', async () => {
+    app = await buildApp(new FixtureDirectoryRepository(), {
+      corsOrigin: 'http://localhost:5173',
+      allowTestAuthHeaders: true,
+      officerSessionSecret: 'test-session-secret-with-more-than-32-characters',
+      citizenSessionSecret: 'test-citizen-secret-with-more-than-32-characters',
+      citizenCredentials: [{ username: '0912345678', password: 'Citizen@Test2026', citizenId: 'citizen-phone-001', displayName: 'Nguyễn Văn An' }],
+    });
+    const login = await app.inject({ method: 'POST', url: '/v1/auth/citizen/login', payload: { username: '0912345678', password: 'Citizen@Test2026' } });
+    expect(login.statusCode).toBe(200);
+    const cookie = String(login.headers['set-cookie']);
+    const session = await app.inject({ method: 'GET', url: '/v1/auth/citizen/session', headers: { cookie } });
+    expect(session.json().data).toMatchObject({ id: 'citizen-phone-001', phone: '0912345678' });
+    const created = await app.inject({
+      method: 'POST', url: '/v1/citizen/sos', headers: { cookie },
+      payload: { idempotencyKey: 'account-phone-sos-1', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
+    });
+    expect(created.statusCode).toBe(201);
+    const queue = await app.inject({ method: 'GET', url: '/v1/officer/queue?kind=sos', headers: officer });
+    const item = queue.json().data.find((row: { id: string }) => row.id === created.json().data.id);
+    expect(item).toMatchObject({ reporterPhone: '0912345678' });
+    expect(item.title).toBe('SOS - Người dân - 0912345678');
+  });
+});
+
 describe('SOS alarm data', () => {
   it('refuses an SOS without a call-back phone number', async () => {
     const a = await newApp();
@@ -181,6 +207,19 @@ describe('officer edits and removes a public alert', () => {
     expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === id)).toBe(false);
     expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: officer })).statusCode).toBe(404);
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { title: 'Sửa sau khi gỡ' } })).statusCode).toBe(404);
+  });
+
+  it('creates an alert without any time and keeps it until it is removed by hand', async () => {
+    const a = await newApp();
+    const { startsAt: _s, endsAt: _e, ...noTimes } = alertBody;
+    const created = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: noTimes });
+    expect(created.statusCode).toBe(201);
+    const alert = created.json().data;
+    expect(Date.parse(alert.endsAt)).toBeGreaterThan(Date.now() + 5 * 365 * 86_400_000);
+    expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === alert.id)).toBe(true);
+    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${alert.id}`, headers: officer, payload: { title: 'Cảnh báo vẫn còn hiệu lực' } })).statusCode).toBe(200);
+    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${alert.id}/cancel`, headers: officer })).statusCode).toBe(204);
+    expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === alert.id)).toBe(false);
   });
 
   it('rejects an empty or invalid edit, and the commander cannot edit or remove', async () => {

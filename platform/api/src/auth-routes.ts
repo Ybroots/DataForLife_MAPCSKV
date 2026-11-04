@@ -24,6 +24,7 @@ import { AttemptWindow, LoginGuard } from './rate-limit.js';
 import type { CitizenAccountEventType } from './types.js';
 import { passwordText, text } from './request-parsing.js';
 import type { RouteContext } from './route-context.js';
+import { phoneFromUsername } from './account-phone.js';
 
 /** Đăng nhập, đăng ký, phiên và đăng xuất của cán bộ và người dân, kèm giới hạn thử sai. */
 export function registerAuthRoutes({ app, repository, options, localWorkflowMeta, officerIdentity, citizenIdentity, workflowDisabled }: RouteContext): void {
@@ -240,7 +241,7 @@ export function registerAuthRoutes({ app, repository, options, localWorkflowMeta
     const storedCredential = configuredCredential ? null : await repository.findCitizenAccountById(citizenId);
     if (!configuredCredential && !storedCredential && !options.allowTestAuthHeaders) return reply.code(403).send({ error: 'CITIZEN_ACCOUNT_DISABLED', message: 'Tài khoản người dân không còn hiệu lực.' });
     reply.header('Cache-Control', 'no-store');
-    return { data: { id: citizenId, displayName: configuredCredential?.displayName ?? storedCredential?.displayName ?? 'Người dân kiểm thử' } };
+    return { data: { id: citizenId, displayName: configuredCredential?.displayName ?? storedCredential?.displayName ?? 'Người dân kiểm thử', phone: phoneFromUsername(configuredCredential?.username ?? storedCredential?.username) } };
   });
 
   /** Đổi mật khẩu cho tài khoản lưu trong CSDL; tài khoản cấu hình bằng biến môi trường phải đổi ở máy chủ. */

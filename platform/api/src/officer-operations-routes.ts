@@ -13,6 +13,11 @@ import type { RouteContext } from './route-context.js';
 import type { UpdatePublicAlertInput } from './types.js';
 
 /** Việc vận hành của cán bộ: thông báo, cảnh báo công khai, tuần tra, báo cáo ca, thống kê, điểm bản đồ. */
+/** Mốc "không thời hạn": cảnh báo chỉ mất khi cán bộ gỡ (cột ends_at bắt buộc có giá trị). */
+export function manualAlertEnd(startsAt: string): string {
+  return new Date(Date.parse(startsAt) + 3650 * 86_400_000).toISOString();
+}
+
 export function registerOfficerOperationsRoutes({ app, repository, localWorkflowMeta, officerIdentity, workflowDisabled }: RouteContext): void {
   app.get('/v1/officer/notifications', { preHandler: workflowDisabled }, async (request, reply) => {
     const officerId = officerIdentity(request);
@@ -29,8 +34,9 @@ export function registerOfficerOperationsRoutes({ app, repository, localWorkflow
     const riskLevel = typeof request.body?.riskLevel === 'string' && alertRiskLevels.has(request.body.riskLevel) ? request.body.riskLevel : null;
     const latitude = request.body?.latitude == null ? null : parseCoordinate(request.body.latitude, -90, 90);
     const longitude = request.body?.longitude == null ? null : parseCoordinate(request.body.longitude, -180, 180);
-    const startsAt = parseIsoTimestamp(request.body?.startsAt);
-    const endsAt = parseIsoTimestamp(request.body?.endsAt);
+    // Cảnh báo không đặt thời hạn: hiển thị đến khi cán bộ gỡ thủ công.
+    const startsAt = request.body?.startsAt == null ? new Date().toISOString() : parseIsoTimestamp(request.body.startsAt);
+    const endsAt = request.body?.endsAt == null ? (startsAt ? manualAlertEnd(startsAt) : null) : parseIsoTimestamp(request.body.endsAt);
     if (!title || !summary || !category || !riskLevel || !startsAt || !endsAt || Date.parse(endsAt) <= Date.parse(startsAt) || (latitude === null) !== (longitude === null)) {
       return reply.code(400).send({ error: 'INVALID_ALERT', message: 'Thông tin cảnh báo chưa đầy đủ hoặc thời gian không hợp lệ.' });
     }

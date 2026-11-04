@@ -99,7 +99,9 @@ function errorMessage(error: unknown): string {
 }
 
 function workTitle(detail: WorkDetail): string {
-  return detail.kind === 'incident' ? detail.summary : detail.note || 'Yêu cầu hỗ trợ khẩn cấp';
+  if (detail.kind === 'incident') return detail.summary;
+  const who = detail.reporterName?.trim() || 'Người dân';
+  return detail.contactPhone ? `SOS - ${who} - ${detail.contactPhone}` : `SOS - ${who}`;
 }
 
 function ageInMinutes(value: string): number {
@@ -507,7 +509,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                 </div>
 
                 <div className={detail.contactPhone ? 'case-quick-actions' : 'case-quick-actions single'} aria-label="Liên hệ và vị trí">
-                  {detail.contactPhone && <a href={`tel:${detail.contactPhone}`}><PhoneCall size={20} aria-hidden="true" /><span>Gọi người dân</span></a>}
+                  {detail.contactPhone && <a href={`tel:${detail.contactPhone}`}><PhoneCall size={20} aria-hidden="true" /><span>Gọi lại · {detail.contactPhone}</span></a>}
                   <a href={`https://www.google.com/maps/search/?api=1&query=${detail.location.latitude},${detail.location.longitude}`} target="_blank" rel="noreferrer"><Navigation size={20} aria-hidden="true" /><span>Mở vị trí</span></a>
                 </div>
 

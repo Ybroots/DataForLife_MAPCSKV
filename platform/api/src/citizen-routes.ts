@@ -1,5 +1,6 @@
 import type { CreateIncidentInput, CreateSosInput } from './types.js';
 import { AttemptWindow } from './rate-limit.js';
+import { phoneFromUsername } from './account-phone.js';
 import {
   incidentCategories,
   optionalText,
@@ -142,14 +143,20 @@ export function registerCitizenRoutes({ app, repository, options, localWorkflowM
     if (latitude === null || longitude === null || !idempotencyKey || !category || note === undefined || contactPhone === undefined || accuracyM === undefined || !deviceTimestamp) {
       return reply.code(400).send({ error: 'INVALID_SOS', message: 'Thông tin SOS chưa đầy đủ hoặc không hợp lệ.' });
     }
-    if (contactPhone === null) {
+    // Không nhập riêng thì lấy số điện thoại của tài khoản (tên đăng nhập là số điện thoại).
+    const accountPhone = contactPhone === null ? phoneFromUsername(
+      options.citizenCredentials?.find((candidate) => candidate.citizenId === citizenId)?.username
+        ?? (await repository.findCitizenAccountById(citizenId))?.username,
+    ) : null;
+    const resolvedPhone = contactPhone ?? accountPhone;
+    if (resolvedPhone === null) {
       return reply.code(400).send({ error: 'SOS_PHONE_REQUIRED', message: 'Cần có số điện thoại liên hệ để cán bộ gọi lại cho bạn.' });
     }
     const input: CreateSosInput = {
       idempotencyKey,
       category: category as CreateSosInput['category'],
       note,
-      contactPhone,
+      contactPhone: resolvedPhone,
       latitude,
       longitude,
       accuracyM,

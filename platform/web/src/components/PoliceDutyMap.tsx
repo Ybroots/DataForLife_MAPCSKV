@@ -471,7 +471,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
       content.className = 'operational-point-popup';
       const title = document.createElement('strong'); title.textContent = alert.title;
       const meta = document.createElement('span');
-      meta.textContent = `Cảnh báo công khai · hiệu lực đến ${new Date(alert.endsAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`;
+      meta.textContent = 'Cảnh báo công khai · hiển thị đến khi cán bộ gỡ';
       const summary = document.createElement('p'); summary.textContent = alert.summary;
       content.append(title, meta, summary);
       if (onEditAlertRef.current) {

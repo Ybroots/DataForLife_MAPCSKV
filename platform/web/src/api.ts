@@ -460,7 +460,7 @@ export async function addOfficerIncidentAttachment(id: string, attachment: {
   return payload.data;
 }
 
-export async function createPublicAlert(input: Omit<PublicAlert, 'id' | 'areaCode' | 'status' | 'createdAt'>): Promise<PublicAlert> {
+export async function createPublicAlert(input: Omit<PublicAlert, 'id' | 'areaCode' | 'status' | 'createdAt' | 'startsAt' | 'endsAt'> & { startsAt?: string; endsAt?: string }): Promise<PublicAlert> {
   const payload = await request<{ data: PublicAlert }>('/v1/officer/alerts', {
     method: 'POST', headers: officerHeaders(), body: JSON.stringify(input),
   });

@@ -64,13 +64,11 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
     if (!editingAlert) return;
     setBusy(true);
     const data = new FormData(event.currentTarget);
-    const hours = Number(data.get('duration'));
     try {
       const updated = await updatePublicAlert(editingAlert.id, {
         title: String(data.get('title')), summary: String(data.get('summary')),
         category: String(data.get('category')) as PublicAlert['category'], riskLevel: String(data.get('risk')) as PublicAlert['riskLevel'],
         ...(alertPoint ? { latitude: alertPoint.latitude, longitude: alertPoint.longitude } : {}),
-        ...(hours > 0 ? { endsAt: new Date(Date.now() + hours * 3_600_000).toISOString() } : {}),
       });
       setNotice(`Đã cập nhật cảnh báo “${updated.title}”.`);
       stopEdit(); await loadAlerts();
@@ -83,15 +81,13 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
     setBusy(true);
     const form = event.currentTarget;
     const data = new FormData(event.currentTarget);
-    const now = new Date();
-    const hours = Number(data.get('duration')) || 4;
     try {
       const alert = await createPublicAlert({
         title: String(data.get('title')), summary: String(data.get('summary')),
         category: String(data.get('category')) as PublicAlert['category'], riskLevel: String(data.get('risk')) as PublicAlert['riskLevel'],
-        latitude: alertPoint.latitude, longitude: alertPoint.longitude, startsAt: now.toISOString(), endsAt: new Date(now.getTime() + hours * 3_600_000).toISOString(),
+        latitude: alertPoint.latitude, longitude: alertPoint.longitude, 
       });
-      setNotice(`Đã phát hành cảnh báo “${alert.title}” trong ${hours} giờ. Cảnh báo hiện trên bản đồ người dân; thiết bị đã bật thông báo của địa bàn sẽ nhận trong ít phút.`);
+      setNotice(`Đã phát hành cảnh báo “${alert.title}”. Cảnh báo giữ nguyên cho đến khi cán bộ gỡ; hiện trên bản đồ người dân; thiết bị đã bật thông báo của địa bàn sẽ nhận trong ít phút.`);
       form.reset(); setAlertPoint(null); setPickerKey((key) => key + 1);
     } catch (error) { setNotice(errorText(error)); } finally { setBusy(false); }
   };
@@ -121,7 +117,7 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
             <article key={alert.id} className={`alert-manage-item ${alert.riskLevel}${editingAlert?.id === alert.id ? ' editing' : ''}`}>
               <div>
                 <strong>{alert.title}</strong>
-                <small>{alertRiskLabels[alert.riskLevel]} · đến {new Date(alert.endsAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}{alert.latitude === null ? ' · chưa có vị trí' : ''}</small>
+                <small>{alertRiskLabels[alert.riskLevel]} · đến khi gỡ{alert.latitude === null ? ' · chưa có vị trí' : ''}</small>
               </div>
               <div className="alert-manage-actions">
                 <button type="button" disabled={busy} onClick={() => startEdit(alert)}><Pencil size={15} aria-hidden="true" /> Sửa</button>
@@ -143,7 +139,6 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
               onChange={setAlertPoint}
             />
           </Suspense>
-          <label>{editingAlert ? 'Thời hạn hiệu lực' : 'Thời gian hiệu lực'}<select name="duration" defaultValue={editingAlert ? '0' : '4'}>{editingAlert && <option value="0">Giữ nguyên thời hạn hiện tại</option>}<option value="2">{editingAlert ? 'Còn 2 giờ kể từ bây giờ' : '2 giờ'}</option><option value="4">{editingAlert ? 'Còn 4 giờ kể từ bây giờ' : '4 giờ'}</option><option value="8">{editingAlert ? 'Còn 8 giờ kể từ bây giờ' : '8 giờ'}</option><option value="24">{editingAlert ? 'Còn 24 giờ kể từ bây giờ' : '24 giờ'}</option></select></label>
           <div className="ops-submit-row">
             <button className="ops-submit" disabled={busy}><BellRing size={17} /> {editingAlert ? 'Lưu thay đổi' : 'Phát hành cảnh báo'}</button>
             {editingAlert && <button type="button" className="ops-cancel" disabled={busy} onClick={stopEdit}><X size={16} aria-hidden="true" /> Huỷ sửa</button>}

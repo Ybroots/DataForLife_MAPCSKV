@@ -28,7 +28,7 @@ function placeLabel(item: OfficerQueueItem): string {
 
 /** Full-screen red alarm shown to the duty officer while an SOS waits for acknowledgement. */
 export function SosEmergencyOverlay({
-  items, sirenOn, soundBlocked, soundEnabled, acceptingId, error, readOnly = false, onAccept, onView, onMute, onUnlockSound,
+  items, sirenOn, soundBlocked, acceptingId, error, readOnly = false, onAccept, onView, onMute, onUnlockSound,
 }: SosEmergencyOverlayProps) {
   const [now, setNow] = useState(() => Date.now());
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,10 +91,12 @@ export function SosEmergencyOverlay({
         <h2 id="sos-emergency-title">SOS KHẨN CẤP</h2>
         <div id="sos-emergency-detail" className="sos-emergency-detail">
           <strong><UserRound size={22} aria-hidden="true" /> {first.reporterName ?? 'Người dân'}</strong>
-          {first.reporterPhone && <span><Phone size={18} aria-hidden="true" /> <a href={`tel:${first.reporterPhone}`}>{first.reporterPhone}</a></span>}
           <span><MapPin size={18} aria-hidden="true" /> {place}</span>
           <span>Gửi {elapsedLabel(first.createdAt, now)} · Chưa cán bộ nào nhận</span>
         </div>
+        {first.reporterPhone && (
+          <a className="sos-emergency-call" href={`tel:${first.reporterPhone}`}><Phone size={22} aria-hidden="true" /> Gọi lại · {first.reporterPhone}</a>
+        )}
         {others.length > 0 && (
           <p className="sos-emergency-others">
             Còn {others.length} yêu cầu khẩn cấp khác đang chờ
@@ -119,7 +121,6 @@ export function SosEmergencyOverlay({
           {soundBlocked && (
             <button type="button" onClick={onUnlockSound}><Volume2 size={18} aria-hidden="true" /> Bấm để bật còi báo động</button>
           )}
-          {!soundEnabled && <span>Còi đang tắt trên máy này (nút “Còi tắt” ở đầu trang).</span>}
         </div>
       </div>
     </div>

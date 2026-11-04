@@ -77,6 +77,7 @@ interface SosRow extends QueryResultRow {
   category: SosResponse['category'];
   note: string | null;
   contact_phone: string | null;
+  reporter_name: string | null;
   status: SosStatus;
   latitude: number;
   longitude: number;
@@ -502,7 +503,7 @@ export class PostgresWorkflowStore {
     const result = await this.pool.query(
       `SELECT * FROM (
          SELECT 'sos'::text AS kind, s.id::text, s.receipt_code, s.category,
-                COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp') AS title,
+                'SOS - ' || COALESCE(c.display_name, 'Người dân') || COALESCE(' - ' || COALESCE(s.contact_phone, CASE WHEN c.username ~ '^0[0-9]{9,10}$' THEN c.username END), '') AS title,
                 s.status, 'critical'::text AS priority, l.code AS locality_code,
                 l.name AS locality_name, sa.name AS service_area_name,
                 a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
@@ -511,6 +512,7 @@ export class PostgresWorkflowStore {
          JOIN localities l ON l.id = s.locality_id
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
+         LEFT JOIN citizen_accounts c ON c.id = s.citizen_external_id
          WHERE s.locality_id = $1 AND s.status IN ('closed', 'cancelled_by_citizen')
            AND ($6::uuid IS NULL OR s.service_area_id = $6::uuid)
          UNION ALL
@@ -567,7 +569,7 @@ export class PostgresWorkflowStore {
     }>(
       `SELECT * FROM (
          SELECT 'sos'::text AS kind, s.id::text, s.receipt_code, s.category,
-                COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp') AS title,
+                'SOS - ' || COALESCE(c.display_name, 'Người dân') || COALESCE(' - ' || COALESCE(s.contact_phone, CASE WHEN c.username ~ '^0[0-9]{9,10}$' THEN c.username END), '') AS title,
                 s.status, 'critical'::text AS priority, l.code AS locality_code,
                 l.name AS locality_name, sa.name AS service_area_name,
                 a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
@@ -1044,7 +1046,7 @@ export class PostgresWorkflowStore {
 
   private async hydrateSos(client: Pool | PoolClient, id: string, includeInternal = true): Promise<SosResponse> {
     const result = await client.query<SosRow>(
-        `SELECT s.id::text, s.receipt_code, s.category, s.note, s.contact_phone, s.status,
+        `SELECT s.id::text, s.receipt_code, s.category, s.note, s.contact_phone, c.display_name AS reporter_name, s.status,
                 ST_Y(s.geom) AS latitude, ST_X(s.geom) AS longitude, s.accuracy_m,
                 l.code AS locality_code, l.name AS locality_name,
                 sa.code AS service_area_code, sa.name AS service_area_name,
@@ -1054,6 +1056,7 @@ export class PostgresWorkflowStore {
          JOIN localities l ON l.id = s.locality_id
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
+         LEFT JOIN citizen_accounts c ON c.id = s.citizen_external_id
          WHERE s.id = $1`,
         [id],
       );
@@ -1073,6 +1076,7 @@ export class PostgresWorkflowStore {
       category: row.category,
       note: row.note,
       contactPhone: row.contact_phone,
+      reporterName: row.reporter_name ?? null,
       status: row.status,
       location: mapLocation(row),
       assignedOfficer: row.assigned_officer_id && row.assigned_officer_name

@@ -10,7 +10,7 @@ import {
   Siren,
   XCircle,
 } from 'lucide-react';
-import { ApiError, cancelCitizenSos, createSos, getCitizenSos, getDutyCoverage, listCitizenSos, lookupByLocation, reportCitizenSosSafe } from '../api';
+import { ApiError, cancelCitizenSos, createSos, getCitizenSession, getCitizenSos, getDutyCoverage, listCitizenSos, lookupByLocation, reportCitizenSosSafe } from '../api';
 import type { SosEvent, SosStatus } from '../types';
 import { WorkflowTimeline } from './WorkflowTimeline';
 import { SosRatingInline } from './SosRatingInline';
@@ -102,6 +102,15 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
   const [category, setCategory] = useState<SosEvent['category']>(initialDraft?.category ?? 'security');
   const [note, setNote] = useState(initialDraft?.note ?? '');
   const [contactPhone, setContactPhone] = useState(initialDraft?.contactPhone ?? '');
+  useEffect(() => {
+    if (!isAuthenticated || contactPhone.trim()) return;
+    let cancelled = false;
+    void getCitizenSession()
+      .then((session) => { if (!cancelled && session?.phone) setContactPhone((current) => current.trim() ? current : session.phone ?? ''); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
   const [position, setPosition] = useState(initialDraft?.position ?? null);
   const [accuracyM, setAccuracyM] = useState<number | null>(initialDraft?.accuracyM ?? null);
   const [locating, setLocating] = useState(false);

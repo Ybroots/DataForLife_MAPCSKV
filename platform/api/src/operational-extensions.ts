@@ -384,9 +384,12 @@ export class OperationalExtensionsStore {
          LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id, bounds
          WHERE i.locality_id = $1 AND ($3::uuid IS NULL OR i.service_area_id = $3::uuid) AND i.created_at >= from_at AND i.created_at < to_at
          UNION ALL
-         SELECT 'sos'::text, s.receipt_code, s.category, COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp'), s.status, 'critical'::text,
+         SELECT 'sos'::text, s.receipt_code, s.category,
+                'SOS - ' || COALESCE(c.display_name, 'Người dân') || COALESCE(' - ' || COALESCE(s.contact_phone, CASE WHEN c.username ~ '^0[0-9]{9,10}$' THEN c.username END), ''),
+                s.status, 'critical'::text,
                 sa.name, a.display_name, s.created_at, s.resolved_at, s.closed_at, NULL::int
          FROM sos_events s
+         LEFT JOIN citizen_accounts c ON c.id = s.citizen_external_id
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id, bounds
          WHERE s.locality_id = $1 AND ($3::uuid IS NULL OR s.service_area_id = $3::uuid) AND s.created_at >= from_at AND s.created_at < to_at

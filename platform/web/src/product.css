@@ -376,6 +376,8 @@ input, textarea, select { accent-color: var(--color-primary); }
 .sos-emergency-detail { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; padding: 14px 16px; border-radius: 12px; background: rgba(0,0,0,.22); font-size: 1.05rem; }
 .sos-emergency-detail strong { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 1.5rem; overflow-wrap: anywhere; }
 .sos-emergency-detail a { color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sos-emergency-call { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 12px 28px; border-radius: 999px; background: #fff; color: #b3141f; font-size: 1.25rem; font-weight: 800; text-decoration: none; font-variant-numeric: tabular-nums; box-shadow: 0 4px 14px rgba(0,0,0,.28); }
+.sos-emergency-call:focus-visible { outline: 4px solid #ffd54a; outline-offset: 3px; }
 .sos-emergency-detail span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .sos-emergency-others { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .sos-emergency-error { margin: 0; width: 100%; padding: 10px 12px; border-radius: 8px; background: #fff; color: var(--sos-red); font-weight: 600; }

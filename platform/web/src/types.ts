@@ -297,6 +297,7 @@ export interface SosEvent {
   category: 'security' | 'traffic_accident' | 'fire_rescue' | 'medical' | 'other_emergency';
   note: string | null;
   contactPhone: string | null;
+  reporterName?: string | null;
   status: SosStatus;
   location: WorkflowLocation;
   assignedOfficer: AssignedOfficer | null;
@@ -392,6 +393,8 @@ export interface WorkflowMeta {
 export interface CitizenSession {
   id: string;
   displayName: string;
+  /** Số điện thoại gắn với tài khoản (tên đăng nhập là số điện thoại), nếu có. */
+  phone?: string | null;
 }
 
 /** Kết quả đăng ký: mã khôi phục chỉ có khi máy chủ đã hỗ trợ và chỉ hiện đúng một lần. */
