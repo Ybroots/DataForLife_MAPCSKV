@@ -50,7 +50,9 @@ echo "   Dang chay commit: $OLD"
 
 echo "== 1/8 Lay ma moi tu GitHub (nhanh $BRANCH)"
 as_app git -C "$REPO" fetch origin "$BRANCH"
-[[ "$(as_app git -C "$REPO" rev-parse "origin/$BRANCH")" == "$COMMIT" ]] || { echo "origin/$BRANCH khong phai commit $COMMIT. Da push chua? Hoac sai ma commit."; exit 1; }
+# Kho tren VPS la single-branch nen khong co origin/<nhanh>; dung FETCH_HEAD (dau nhanh vua lay ve).
+[[ "$(as_app git -C "$REPO" rev-parse FETCH_HEAD)" == "$COMMIT" ]] || { echo "Dau nhanh $BRANCH tren GitHub khong phai commit $COMMIT. Da push chua? Hoac sai ma commit."; exit 1; }
+as_app git -C "$REPO" cat-file -e "$COMMIT^{commit}"
 as_app git -C "$REPO" merge-base --is-ancestor "$OLD" "$COMMIT" || { echo "Ban dang chay ($OLD) khong nam trong lich su cua $COMMIT nen khong the fast-forward. Dung lai, khong doi gi."; exit 1; }
 CHANGED="$(as_app git -C "$REPO" diff --name-only "$OLD" "$COMMIT" || true)"
 echo "   So file doi: $(echo "$CHANGED" | grep -c . || true)"
