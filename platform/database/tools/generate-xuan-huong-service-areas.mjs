@@ -155,11 +155,11 @@ WITH source_document AS (
   LEFT JOIN assigned_gaps a USING (legacy_ward_code)
 ), labels(legacy_ward_code, group_name, description, display_color, display_order) AS (
   VALUES
-    ('1', 'Trung tâm lõi', 'Khu vực thuộc địa giới Phường 1 cũ.', '#1D6F8A', 1),
-    ('2', 'Trung tâm lõi', 'Khu vực thuộc địa giới Phường 2 cũ.', '#3A7D44', 2),
-    ('3', 'Phía Nam và nghỉ dưỡng', 'Khu vực thuộc địa giới Phường 3 cũ.', '#7A5AA6', 3),
-    ('4', 'Phía Nam và nghỉ dưỡng', 'Khu vực thuộc địa giới Phường 4 cũ.', '#B36A2E', 4),
-    ('10', 'Phía Đông và Trại Hầm', 'Khu vực thuộc địa giới Phường 10 cũ.', '#5C6F91', 5)
+    ('1', 'Trung tâm lõi', 'Khu vực thuộc địa giới Phường 1.', '#1D6F8A', 1),
+    ('2', 'Trung tâm lõi', 'Khu vực thuộc địa giới Phường 2.', '#3A7D44', 2),
+    ('3', 'Phía Nam và nghỉ dưỡng', 'Khu vực thuộc địa giới Phường 3.', '#7A5AA6', 3),
+    ('4', 'Phía Nam và nghỉ dưỡng', 'Khu vực thuộc địa giới Phường 4.', '#B36A2E', 4),
+    ('10', 'Phía Đông và Trại Hầm', 'Khu vực thuộc địa giới Phường 10.', '#5C6F91', 5)
 )
 INSERT INTO service_areas (
   locality_id,
@@ -185,7 +185,7 @@ INSERT INTO service_areas (
 SELECT
   p.locality_id,
   'XH-P' || r.legacy_ward_code,
-  'Khu vực Phường ' || r.legacy_ward_code || ' cũ',
+  'Khu vực Phường ' || r.legacy_ward_code,
   r.legacy_ward_code,
   d.group_name,
   d.description,

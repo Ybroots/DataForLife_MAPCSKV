@@ -1,7 +1,8 @@
-import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BellRing, Pencil, Trash2, X, Camera, Database, RadioTower, ShieldCheck, UserRoundCheck } from 'lucide-react';
-import { ApiError, cancelPublicAlert, createPublicAlert, listPublicAlerts, updatePublicAlert } from '../api';
-import type { PublicAlert } from '../types';
+import { ApiError, cancelPublicAlert, createPublicAlert, listPublicAlerts, lookupByCode, updatePublicAlert } from '../api';
+import { filterPointsInZone, zoneBoundaryOf } from '../area-scope';
+import type { PublicAlert, ServiceArea } from '../types';
 
 import { OfficerStatisticsPanel } from './OfficerStatisticsPanel';
 import { CommanderAreaPanel } from './CommanderAreaPanel';
@@ -22,15 +23,26 @@ function errorText(error: unknown): string {
 }
 
 /** commander: chỉ huy xem khu vực và báo cáo, không có nghiệp vụ ghi (cảnh báo, tuần tra, cuối ca, bản đồ, tài khoản dân). */
-export function PoliceOperations({ localityCode, unitName, commander = false, editRequest = null }: { localityCode: string | null; unitName?: string; commander?: boolean; editRequest?: { alert: PublicAlert; nonce: number } | null }) {
+export function PoliceOperations({ localityCode, serviceAreaCode = null, unitName, commander = false, editRequest = null }: { localityCode: string | null; serviceAreaCode?: string | null; unitName?: string; commander?: boolean; editRequest?: { alert: PublicAlert; nonce: number } | null }) {
   const [tab, setTab] = useState<Tab>(commander ? 'areas' : 'reports');
   const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
-  const [activeAlerts, setActiveAlerts] = useState<PublicAlert[]>([]);
+  const [allAlerts, setActiveAlerts] = useState<PublicAlert[]>([]);
+  const [zoneBoundary, setZoneBoundary] = useState<ServiceArea['boundary'] | null>(null);
   const [editingAlert, setEditingAlert] = useState<PublicAlert | null>(null);
   const [removeArmedId, setRemoveArmedId] = useState<string | null>(null);
   const [pickerKey, setPickerKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    setZoneBoundary(null);
+    if (commander || !localityCode || !serviceAreaCode) return undefined;
+    let cancelled = false;
+    void lookupByCode(localityCode).then((payload) => { if (!cancelled) setZoneBoundary(zoneBoundaryOf(payload.data, serviceAreaCode)); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [commander, localityCode, serviceAreaCode]);
+  // Cán bộ khu vực chỉ thấy cảnh báo nằm trong khu vực của mình (chờ có ranh khu vực rồi mới hiện).
+  const activeAlerts = useMemo(() => (serviceAreaCode ? (zoneBoundary ? filterPointsInZone(allAlerts, zoneBoundary) : []) : allAlerts), [allAlerts, serviceAreaCode, zoneBoundary]);
 
   const loadAlerts = useCallback(async () => {
     if (commander || !localityCode) return;
@@ -107,7 +119,7 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
 
       {tab === 'areas' && commander && <CommanderAreaPanel />}
       {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} />}
-      {tab === 'mapdata' && <OfficerMapDataManager />}
+      {tab === 'mapdata' && <OfficerMapDataManager zoneBoundary={serviceAreaCode ? zoneBoundary : null} />}
 
       {tab === 'alerts' && <div className="operations-stack">
         <section className="alert-manage-list" aria-label="Cảnh báo đang hiển thị">
@@ -135,6 +147,7 @@ export function PoliceOperations({ localityCode, unitName, commander = false, ed
             <AlertLocationPicker
               key={`${pickerKey}-${editingAlert?.id ?? 'new'}`}
               localityCode={localityCode}
+              serviceAreaCode={serviceAreaCode}
               initialPoint={editingAlert && editingAlert.latitude !== null && editingAlert.longitude !== null ? { latitude: editingAlert.latitude, longitude: editingAlert.longitude } : null}
               onChange={setAlertPoint}
             />

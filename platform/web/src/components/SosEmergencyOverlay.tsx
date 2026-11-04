@@ -20,7 +20,7 @@ interface SosEmergencyOverlayProps {
 
 const UNIT_PREFIX = /^(phường|xã|thị trấn|đặc khu)\s/iu;
 
-/** Đơn vị hành chính kèm khu vực phụ trách, ví dụ “Phường Xuân Hương - Đà Lạt · Khu vực Phường 1 cũ”. */
+/** Đơn vị hành chính kèm khu vực phụ trách, ví dụ “Phường Xuân Hương - Đà Lạt · Khu vực Phường 1”. */
 function placeLabel(item: OfficerQueueItem): string {
   const locality = UNIT_PREFIX.test(item.localityName) ? item.localityName : `Phường ${item.localityName}`;
   return item.serviceAreaName ? `${locality} · ${item.serviceAreaName}` : locality;

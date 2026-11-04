@@ -1,18 +1,23 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Camera, CircleParking, MapPin, Pencil, Plus, Save, Shield, Trash2, TriangleAlert, X } from 'lucide-react';
 import { ApiError, createOperationalMapPoint, deleteOperationalMapPoint, listOperationalMapPoints, updateOperationalMapPoint } from '../api';
-import type { OperationalMapPoint, OperationalMapPointInput } from '../types';
+import { filterPointsInZone } from '../area-scope';
+import { pointInBoundary } from '../citizen-map-points';
+import type { OperationalMapPoint, OperationalMapPointInput, ServiceArea } from '../types';
 
 const labels: Record<OperationalMapPoint['pointType'], string> = { police_post: 'Điểm CSKV', camera: 'Camera', risk_point: 'Điểm nguy cơ', patrol_checkpoint: 'Điểm tuần tra', public_facility: 'Tiện ích công cộng' };
 const icons = { police_post: Shield, camera: Camera, risk_point: TriangleAlert, patrol_checkpoint: CircleParking, public_facility: MapPin };
 
 const emptyInput: OperationalMapPointInput = { name: '', pointType: 'patrol_checkpoint', description: null, contactPhone: null, status: 'active', visibility: 'officer', latitude: 11.944, longitude: 108.441 };
 
-export function OfficerMapDataManager({ onChanged }: { onChanged?: () => void }) {
-  const [items, setItems] = useState<OperationalMapPoint[]>([]);
+export function OfficerMapDataManager({ onChanged, zoneBoundary = null }: { onChanged?: () => void; zoneBoundary?: ServiceArea['boundary'] | null }) {
+  const [allItems, setItems] = useState<OperationalMapPoint[]>([]);
   const [editing, setEditing] = useState<OperationalMapPoint | 'new' | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+
+  // Cán bộ khu vực chỉ thấy và chỉ thêm điểm nằm trong khu vực của mình.
+  const items = useMemo(() => filterPointsInZone(allItems, zoneBoundary), [allItems, zoneBoundary]);
 
   const refresh = useCallback(async () => {
     try { setItems(await listOperationalMapPoints()); } catch (caught) { setNotice(caught instanceof ApiError ? caught.message : 'Không tải được dữ liệu bản đồ.'); }
@@ -28,6 +33,9 @@ export function OfficerMapDataManager({ onChanged }: { onChanged?: () => void })
       status: String(form.get('status')) as OperationalMapPoint['status'], visibility: String(form.get('visibility')) as OperationalMapPoint['visibility'],
       latitude: Number(form.get('latitude')), longitude: Number(form.get('longitude')),
     };
+    if (zoneBoundary && !pointInBoundary(input.longitude, input.latitude, zoneBoundary)) {
+      setNotice('Vị trí nằm ngoài khu vực bạn phụ trách. Hãy nhập tọa độ trong khu vực của mình.'); setBusy(false); return;
+    }
     try {
       if (editing === 'new') await createOperationalMapPoint(input); else if (editing) await updateOperationalMapPoint(editing.id, input);
       setNotice(editing === 'new' ? 'Đã thêm điểm lên bản đồ nghiệp vụ.' : 'Đã lưu thay đổi điểm bản đồ.'); setEditing(null); await refresh(); onChanged?.();

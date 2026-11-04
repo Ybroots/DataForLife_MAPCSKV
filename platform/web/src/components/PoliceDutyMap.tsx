@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BellRing, FileWarning, LocateFixed, MapPinned, Siren } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { cancelPublicAlert, getOfficerIncident, getOfficerSos, listOperationalMapPoints, listPublicAlerts, lookupByCode } from '../api';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
+import { filterPointsInZone, scopeAreaToZone, zoneBoundaryOf } from '../area-scope';
 import type { AreaLookup, Incident, OfficerQueueItem, OperationalMapPoint, PublicAlert, SosEvent } from '../types';
 
 interface PoliceDutyMapProps {
   active: boolean;
   localityCode: string | null;
+  /** Cán bộ phụ trách một khu vực chỉ thấy ranh và các điểm của khu vực đó; chỉ huy để trống để xem toàn địa bàn. */
+  serviceAreaCode?: string | null;
   queue: OfficerQueueItem[];
   onBackToQueue: () => void;
   onOpenCase: (item: OfficerQueueItem) => void;
@@ -131,7 +134,7 @@ function popupContent(point: DutyPoint, onOpenCase: (item: OfficerQueueItem) => 
   return content;
 }
 
-export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOpenCase, onEditAlert }: PoliceDutyMapProps) {
+export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, queue, onBackToQueue, onOpenCase, onEditAlert }: PoliceDutyMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -147,8 +150,8 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
   const [areaLoading, setAreaLoading] = useState(false);
   const [pointsLoading, setPointsLoading] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [operationalPoints, setOperationalPoints] = useState<OperationalMapPoint[]>([]);
-  const [publicAlerts, setPublicAlerts] = useState<PublicAlert[]>([]);
+  const [allOperationalPoints, setOperationalPoints] = useState<OperationalMapPoint[]>([]);
+  const [allPublicAlerts, setPublicAlerts] = useState<PublicAlert[]>([]);
   const [error, setError] = useState('');
   const [viewRevision, setViewRevision] = useState(0);
   const queueVersion = queue
@@ -240,7 +243,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
     void lookupByCode(localityCode)
       .then((payload) => {
         if (!cancelled) {
-          setArea(payload.data);
+          setArea(scopeAreaToZone(payload.data, serviceAreaCode));
           setError('');
         }
       })
@@ -251,7 +254,11 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
         if (!cancelled) setAreaLoading(false);
       });
     return () => { cancelled = true; };
-  }, [active, localityCode]);
+  }, [active, localityCode, serviceAreaCode]);
+
+  const zoneBoundary = useMemo(() => (area && serviceAreaCode ? zoneBoundaryOf(area, serviceAreaCode) : null), [area, serviceAreaCode]);
+  const operationalPoints = useMemo(() => filterPointsInZone(allOperationalPoints, zoneBoundary), [allOperationalPoints, zoneBoundary]);
+  const publicAlerts = useMemo(() => filterPointsInZone(allPublicAlerts, zoneBoundary), [allPublicAlerts, zoneBoundary]);
 
   useEffect(() => {
     if (!active || !localityCode) {

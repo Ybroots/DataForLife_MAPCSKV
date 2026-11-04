@@ -4,6 +4,7 @@ import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { lookupByCode } from '../api';
+import { scopeAreaToZone } from '../area-scope';
 import { pointInBoundary } from '../citizen-map-points';
 import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import { addOffshorePlaceLabels, createPublicMapStyle } from '../map-style';
@@ -13,6 +14,8 @@ export interface AlertPoint { latitude: number; longitude: number }
 
 interface AlertLocationPickerProps {
   localityCode: string | null;
+  /** Cán bộ khu vực chỉ chọn vị trí trong khu vực của mình. */
+  serviceAreaCode?: string | null;
   /** Vị trí có sẵn khi sửa cảnh báo; ghim hiện ngay tại đó và có thể kéo đi chỗ khác. */
   initialPoint?: AlertPoint | null;
   /** Called with a point that lies inside the officer's locality, or null while there is none. */
@@ -42,7 +45,7 @@ function collectBounds(input: unknown, bounds: maplibregl.LngLatBounds): void {
  * The two inputs and the map always show the same point; the parent only ever receives a valid point
  * inside the officer's own locality (the API enforces the same rule).
  */
-export function AlertLocationPicker({ localityCode, initialPoint = null, onChange }: AlertLocationPickerProps) {
+export function AlertLocationPicker({ localityCode, serviceAreaCode = null, initialPoint = null, onChange }: AlertLocationPickerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
@@ -112,10 +115,10 @@ export function AlertLocationPicker({ localityCode, initialPoint = null, onChang
     if (!localityCode) return undefined;
     let cancelled = false;
     void lookupByCode(localityCode)
-      .then((payload) => { if (!cancelled) setArea(payload.data); })
+      .then((payload) => { if (!cancelled) setArea(scopeAreaToZone(payload.data, serviceAreaCode)); })
       .catch(() => { if (!cancelled) setAreaFailed(true); });
     return () => { cancelled = true; };
-  }, [localityCode]);
+  }, [localityCode, serviceAreaCode]);
 
   useEffect(() => {
     const map = mapRef.current;

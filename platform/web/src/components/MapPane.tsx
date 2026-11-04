@@ -753,7 +753,7 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           <label><input name="boundaryVisible" type="checkbox" checked={boundaryVisible} onChange={(event) => setBoundaryVisible(event.target.checked)} /> <span>Ranh giới hành chính</span></label>
           {(area?.serviceAreas?.length ?? 0) > 0 && (
             <>
-              <label><input name="serviceAreasVisible" type="checkbox" checked={serviceAreasVisible} onChange={(event) => { setServiceAreasVisible(event.target.checked); if (!event.target.checked) { closePointPopup(); setSelectedServiceAreaCode(null); } }} /> <span>{zoneReferenceKind(area) === 'former_wards' ? `${area!.serviceAreas.length} khu vực phường cũ` : `${area!.serviceAreas.length} khu vực chia minh họa`}</span></label>
+              <label><input name="serviceAreasVisible" type="checkbox" checked={serviceAreasVisible} onChange={(event) => { setServiceAreasVisible(event.target.checked); if (!event.target.checked) { closePointPopup(); setSelectedServiceAreaCode(null); } }} /> <span>{zoneReferenceKind(area) === 'former_wards' ? `${area!.serviceAreas.length} khu vực phường` : `${area!.serviceAreas.length} khu vực chia minh họa`}</span></label>
               {serviceAreasVisible && (
                 <div className="service-area-key" aria-label="Chọn một khu vực để xem các điểm bên trong">
                   {area!.serviceAreas.map((serviceArea) => (

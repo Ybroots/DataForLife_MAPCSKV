@@ -77,7 +77,7 @@ export function zoneBadgeLabel(zone: Pick<ServiceArea, 'code' | 'legacyWardCode'
 }
 
 function zoneLongLabel(zone: ServiceArea): string {
-  return zone.legacyWardCode ? `P.${zone.legacyWardCode} cũ` : zone.name;
+  return zone.legacyWardCode ? `P.${zone.legacyWardCode}` : zone.name;
 }
 
 function demoOfficerName(areaCode: string, zoneIndex: number): string {
@@ -102,7 +102,7 @@ export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[
       detail: 'Số điện thoại đầu mối công khai của phường.',
       phone: contact?.phone ?? null, ...zone.center, demo: true,
     });
-    // Xuân Hương giữ trụ sở chính ở Phường 3 cũ; địa bàn khác dùng khu đầu tiên.
+    // Xuân Hương giữ trụ sở chính ở Phường 3; địa bàn khác dùng khu đầu tiên.
     const isMain = area.code === '24781' ? zone.legacyWardCode === '3' && Boolean(area.station) : index === 0 && Boolean(area.station);
     const mainPosition = { latitude: 11.9327, longitude: 108.4426 };
     const position = isMain && area.code === '24781' && pointInBoundary(mainPosition.longitude, mainPosition.latitude, zone.boundary)
@@ -111,7 +111,7 @@ export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[
       ? `Điểm tiếp dân Công an ${wardLabel} · Khu P.${zone.legacyWardCode}`
       : `Điểm tiếp dân Công an ${wardLabel} · ${zone.name}`;
     const receptionDetail = zone.legacyWardCode
-      ? `Điểm tiếp dân giả định trong khu Phường ${zone.legacyWardCode} cũ, chưa có địa chỉ chính thức.`
+      ? `Điểm tiếp dân giả định trong khu Phường ${zone.legacyWardCode}, chưa có địa chỉ chính thức.`
       : `Điểm tiếp dân giả định trong ${zone.name}, chưa có địa chỉ chính thức.`;
     points.push({
       id: `station:${zone.code}`, kind: 'station', serviceAreaCode: zone.code,

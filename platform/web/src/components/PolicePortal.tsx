@@ -571,6 +571,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
               <PoliceDutyMap
                 active={mobilePane === 'map'}
                 localityCode={currentActor?.localityCode ?? null}
+                serviceAreaCode={commander ? null : currentActor?.serviceArea?.code ?? null}
                 queue={queue}
                 onBackToQueue={() => setMobilePane('queue')}
                 onOpenCase={selectItem}
@@ -579,7 +580,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             </Suspense>
           </section>
 
-          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} commander={commander} editRequest={alertEdit} />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} serviceAreaCode={commander ? null : currentActor?.serviceArea?.code ?? null} unitName={currentActor?.displayName} commander={commander} editRequest={alertEdit} />
         </div>
       </main>
 

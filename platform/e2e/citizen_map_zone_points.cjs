@@ -85,7 +85,7 @@ async function tapPolygon(page,area) {
   assert(target,'A real canvas tap target inside P3 must be reachable');
   if(page.viewportSize().width<1024) await page.touchscreen.tap(target.x,target.y);
   else await page.mouse.click(target.x,target.y);
-  await page.locator('.map-zone-panel').getByText('Khu vực Phường 3 cũ',{exact:true}).waitFor();
+  await page.locator('.map-zone-panel').getByText('Khu vực Phường 3',{exact:true}).waitFor();
 }
 
 async function inspect(browser,viewport,area,points) {

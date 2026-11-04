@@ -21,6 +21,8 @@ Việc ghép tổ dân phố → khu vực là **dữ liệu minh hoạ**, chưa
 ## Màn hình và API
 - Chỉ huy: tab **Khu vực** (`GET /v1/commander/area-officers?period=day|month|year&date=YYYY-MM-DD`) hiển thị từng khu vực, cán bộ, số hồ sơ/SOS và điểm đánh giá của người dân (trung bình, số lượt, số lượt ≤ 2 sao) tính theo cán bộ phụ trách (`assigned_officer_id`) từ `satisfaction_ratings` và `sos_ratings`.
 - Mốc kỳ báo cáo theo giờ Việt Nam (UTC+7).
+- Cán bộ khu vực: hàng đợi, thông báo đẩy, danh sách đồng nghiệp và thống kê chỉ gồm khu vực của mình (lọc ở máy chủ). Bản đồ trực ban chỉ vẽ ranh khu vực đó và các điểm phản ánh, SOS, cảnh báo, điểm nghiệp vụ nằm trong ranh; ô chọn vị trí cảnh báo/điểm nghiệp vụ chỉ nhận vị trí trong khu vực (lọc ở giao diện, `web/src/area-scope.ts`). Chỉ huy xem toàn phường.
+- Migration 023 đổi tên "Khu vực Phường N cũ" thành "Khu vực Phường N".
 
 ## Cấp tài khoản chỉ huy
 Sau khi triển khai (migration 021 được `deploy-update.sh` áp dụng tự động):

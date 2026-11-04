@@ -31,7 +31,7 @@ async page => {
     screens.push({width,height,...state});
   }
   await page.getByRole('button',{name:'Mở tùy chọn hiển thị bản đồ',exact:true}).click();
-  const zone = page.getByRole('button',{name:'Phường 1 cũ',exact:true});
+  const zone = page.getByRole('button',{name:'Phường 1',exact:true});
   if(await zone.isVisible()) {
     await zone.click();
     await page.locator('.map-zone-panel').waitFor();
