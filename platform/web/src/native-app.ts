@@ -28,6 +28,10 @@ export function closeTopOverlay(root: Pick<ParentNode, 'querySelector' | 'queryS
     const button = root.querySelector<HTMLButtonElement>(selector);
     if (button) { button.click(); return true; }
   }
+  // App cán bộ: đang xem một hồ sơ trên điện thoại thì Back quay về hàng đợi. Chỉ khi nút đang hiện thật
+  // (nút nằm trong khung bị ẩn thì bỏ qua, nếu không Back sẽ không bao giờ thoát được app).
+  const backToQueue = root.querySelector<HTMLButtonElement>('.police-portal .mobile-back-queue');
+  if (backToQueue && backToQueue.offsetParent !== null) { backToQueue.click(); return true; }
   return false;
 }
 
@@ -49,7 +53,7 @@ const VIEWPORT = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, view
 const FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select';
 
 function shellTargets(): Array<Element | null> {
-  return [document.scrollingElement, document.documentElement, document.body, document.getElementById('root'), document.querySelector('.app-shell')];
+  return [document.scrollingElement, document.documentElement, document.body, document.getElementById('root'), document.querySelector('.app-shell'), document.querySelector('.police-portal')];
 }
 
 function stabilizeViewport(): void {

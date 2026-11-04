@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, Printer, RefreshCw, Siren, Star } from 'lucide-react';
 import { ApiError, getOfficerStatistics, listOfficerReportCases } from '../api';
 import type { OfficerReportCase, OfficerStatistics, StatisticsPeriod } from '../types';
@@ -71,10 +72,12 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
       </div>
       <label><span>Mốc thời gian</span><input type="date" value={date} max={todayVietnam()} onChange={(event) => setDate(event.target.value)} /></label>
       <button type="button" className="report-refresh" onClick={() => setReloadKey((value) => value + 1)} disabled={loading}><RefreshCw size={16} aria-hidden="true" /> Cập nhật</button>
-      <div className="report-export" role="group" aria-label="Xuất báo cáo">
+      {Capacitor.isNativePlatform()
+        ? <p className="workflow-empty">Chức năng xuất và in báo cáo đang trong quá trình phát triển và hoàn thiện trên ứng dụng. Hãy dùng bản web để xuất.</p>
+        : <div className="report-export" role="group" aria-label="Xuất báo cáo">
         <button type="button" onClick={() => void exportCsv()} disabled={!data || loading || exporting !== null}><Download size={16} aria-hidden="true" /> {exporting === 'csv' ? 'Đang xuất…' : 'Xuất Excel (CSV)'}</button>
         <button type="button" onClick={() => void printReport()} disabled={!data || loading || exporting !== null}><Printer size={16} aria-hidden="true" /> {exporting === 'print' ? 'Đang chuẩn bị…' : 'In / lưu PDF'}</button>
-      </div>
+      </div>}
     </div>
     {data && printCases && <PrintableReport stats={data} cases={printCases} unitName={unitName} />}
     {loading && <p className="workflow-empty"><RefreshCw className="spin" size={18} /> Đang tổng hợp số liệu…</p>}

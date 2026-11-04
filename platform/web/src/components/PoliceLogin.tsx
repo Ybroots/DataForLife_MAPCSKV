@@ -147,18 +147,19 @@ export function PoliceLoginDialog({ open, onSuccess, onClose }: PoliceLoginDialo
 
 interface PoliceLoginScreenProps {
   onSuccess: (actor: WorkflowActor) => void;
-  onBack: () => void;
+  /** Bỏ trống ở app dành cho cán bộ: không có màn hình người dân để quay lại. */
+  onBack?: () => void;
 }
 
 export function PoliceLoginScreen({ onSuccess, onBack }: PoliceLoginScreenProps) {
   return (
     <main className="police-login-screen">
-      <a className="police-login-brand" href="./" onClick={(event) => { event.preventDefault(); onBack(); }}>
+      <a className="police-login-brand" href="./" onClick={(event) => { event.preventDefault(); onBack?.(); }}>
         <img src={directoryLogoUrl} alt="" width="44" height="44" />
         <span><strong>Công an tỉnh Lâm Đồng</strong><small>Cổng CSKV</small></span>
       </a>
-      <PoliceLoginCard onSuccess={onSuccess} onCancel={onBack} showClose={false} />
-      <button className="police-login-back" type="button" onClick={onBack}>Quay lại bản đồ người dân</button>
+      <PoliceLoginCard onSuccess={onSuccess} onCancel={onBack ?? (() => undefined)} showClose={false} />
+      {onBack && <button className="police-login-back" type="button" onClick={onBack}>Quay lại bản đồ người dân</button>}
     </main>
   );
 }

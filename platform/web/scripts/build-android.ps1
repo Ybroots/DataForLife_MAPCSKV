@@ -1,4 +1,4 @@
-param([switch]$Qa, [switch]$Release, [switch]$RealLocation, [int]$VersionCode = 1, [string]$VersionName = '1.0.0-preview')
+param([switch]$Qa, [switch]$Release, [switch]$RealLocation, [switch]$Officer, [int]$VersionCode = 1, [string]$VersionName = '1.0.0-preview')
 $ErrorActionPreference = 'Stop'
 $webRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $platformRoot = [IO.Path]::GetFullPath((Join-Path $webRoot '..'))
@@ -10,6 +10,7 @@ $previousPush = $env:VITE_PUSH_ENABLED
 $previousDemoLocation = $env:VITE_DEMO_LOCATION
 $previousLocation = Get-Location
 try {
+    if ($Officer -and $Qa) { throw 'App can bo (-Officer) khong co ban emulator QA.' }
     if ($Qa -and $Release) { throw 'The emulator QA build (cleartext fixture API) must never be a release build.' }
     if ($Release -and -not (Test-Path -LiteralPath (Join-Path $nativeRoot 'keystore.properties'))) { throw 'Release needs android-native\keystore.properties (owner-managed signing key). See platform\docs\android-release.md.' }
     if (-not $env:JAVA_HOME) { $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr' }
@@ -22,13 +23,16 @@ try {
     # Push notifications are enabled only when the project has its Firebase config. Without the file the app still
     # works and the notification entry shows "in development" (the plugin is never called). See docs\push-notifications.md.
     $hasFirebase = Test-Path -LiteralPath (Join-Path $nativeRoot 'app\google-services.json')
-    $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa) { 'true' } else { 'false' }
+    # App can bo (-Officer) khong dung thong bao day cua app nguoi dan (khac ma ung dung, khac Firebase).
+    $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa -and -not $Officer) { 'true' } else { 'false' }
     Write-Host ("Thong bao day (FCM): " + $(if ($env:VITE_PUSH_ENABLED -eq 'true') { 'BAT' } else { 'TAT - thieu android-native\app\google-services.json' }))
     # Bản preview/QA: vị trí cố định tại phường demo (nút vị trí hiện "Demo"). Bản -Release hoặc -RealLocation dùng GPS thật.
-    $env:VITE_DEMO_LOCATION = if ($Release -or $RealLocation) { 'false' } else { 'true' }
+    $env:VITE_DEMO_LOCATION = if ($Release -or $RealLocation -or $Officer) { 'false' } else { 'true' }
     Write-Host ("Vi tri demo co dinh: " + $(if ($env:VITE_DEMO_LOCATION -eq 'true') { 'BAT (dung -RealLocation de dung GPS that)' } else { 'TAT - dung GPS that' }))
     Set-Location $webRoot
-    $buildTask = if ($Qa) { 'build:android:qa' } else { 'build:android' }
+    $buildTask = if ($Officer) { 'build:android:officer' } elseif ($Qa) { 'build:android:qa' } else { 'build:android' }
+    $officerArg = if ($Officer) { '-PcskvOfficer=true' } else { '-PcskvOfficer=false' }
+    $kind = if ($Officer) { 'canbo-' } else { '' }
     & npm.cmd run $buildTask
     if ($LASTEXITCODE -ne 0) { throw 'Android web build failed.' }
     & npm.cmd exec -- cap sync android
@@ -37,16 +41,16 @@ try {
     $output = Join-Path $platformRoot 'android-artifacts'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     if ($Release) {
-        & .\gradlew.bat assembleRelease bundleRelease "-PcskvVersionCode=$VersionCode" "-PcskvVersionName=$VersionName" --no-daemon --console=plain
+        & .\gradlew.bat assembleRelease bundleRelease "-PcskvVersionCode=$VersionCode" "-PcskvVersionName=$VersionName" $officerArg --no-daemon --console=plain
         if ($LASTEXITCODE -ne 0) { throw 'Gradle release build failed.' }
         $artifacts = @(
-            @{ From = 'app\build\outputs\apk\release\app-release.apk'; To = "ban-do-cskv-$VersionName-$VersionCode.apk" },
-            @{ From = 'app\build\outputs\bundle\release\app-release.aab'; To = "ban-do-cskv-$VersionName-$VersionCode.aab" }
+            @{ From = 'app\build\outputs\apk\release\app-release.apk'; To = "ban-do-cskv-$kind$VersionName-$VersionCode.apk" },
+            @{ From = 'app\build\outputs\bundle\release\app-release.aab'; To = "ban-do-cskv-$kind$VersionName-$VersionCode.aab" }
         )
     } else {
-        & .\gradlew.bat assembleDebug --no-daemon --console=plain
+        & .\gradlew.bat assembleDebug $officerArg --no-daemon --console=plain
         if ($LASTEXITCODE -ne 0) { throw 'Gradle build failed.' }
-        $name = if ($Qa) { 'ban-do-cskv-emulator-qa.apk' } else { 'ban-do-cskv-preview.apk' }
+        $name = if ($Qa) { 'ban-do-cskv-emulator-qa.apk' } elseif ($Officer) { 'ban-do-cskv-canbo-preview.apk' } else { 'ban-do-cskv-preview.apk' }
         $artifacts = @( @{ From = 'app\build\outputs\apk\debug\app-debug.apk'; To = $name } )
     }
     foreach ($item in $artifacts) {

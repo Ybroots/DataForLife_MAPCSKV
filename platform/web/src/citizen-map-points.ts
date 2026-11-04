@@ -55,8 +55,8 @@ export const PILOT_AREA_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Tên cán bộ CSKV MINH HỌA (không phải người thật): mỗi khu vực một tên khác nhau để trình diễn.
- * Mỗi địa bàn bắt đầu ở một vị trí riêng trong danh sách nên ba phường không trùng tên nhau.
+ * Tên cán bộ CSKV MINH HỌA (không phải người thật), chỉ dùng khi địa bàn chưa có cán bộ nào trong danh bạ.
+ * Địa bàn đã có cán bộ thật (danh bạ công khai) thì pin hiện đúng tên cán bộ đó.
  */
 export const DEMO_OFFICER_NAMES: readonly string[] = [
   'Nguyễn Văn An', 'Trần Minh Khôi', 'Lê Hoàng Nam', 'Phạm Quốc Bảo', 'Hoàng Đức Thịnh', 'Vũ Thanh Tùng',
@@ -98,7 +98,7 @@ export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[
     const contact = contacts.length ? contacts[index % contacts.length] : null;
     points.push({
       id: `officer:${zone.code}`, kind: 'officer', serviceAreaCode: zone.code,
-      name: `CSKV ${demoOfficerName(area.code, index)} · ${zoneLongLabel(zone)}`,
+      name: `CSKV ${officers.length && contact ? contact.displayName : demoOfficerName(area.code, index)} · ${zoneLongLabel(zone)}`,
       detail: 'Số điện thoại đầu mối công khai của phường.',
       phone: contact?.phone ?? null, ...zone.center, demo: true,
     });

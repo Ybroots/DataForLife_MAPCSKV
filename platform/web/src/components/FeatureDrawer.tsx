@@ -13,6 +13,7 @@ import {
   Scale,
   ShieldAlert,
   Star,
+  BarChart3,
   X,
 } from 'lucide-react';
 import { FEATURE_LABELS, type FeatureId } from '../features';
@@ -48,6 +49,11 @@ const featureItems: Array<{
     id: 'alerts',
     description: 'Xem cảnh báo an ninh, trật tự và giao thông theo vị trí.',
     icon: ShieldAlert,
+  },
+  {
+    id: 'stats',
+    description: 'Số đếm hoạt động của ứng dụng.',
+    icon: BarChart3,
   },
   {
     id: 'reports',

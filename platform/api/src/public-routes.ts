@@ -43,6 +43,11 @@ export function registerPublicRoutes({ app, repository, options }: RouteContext)
     return { data: result, meta: { dataSource: repository.sourceName } };
   });
 
+  app.get('/v1/public/stats', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=30');
+    return { data: await repository.getPublicStats() };
+  });
+
   app.get('/v1/hotlines', async () => ({ data: await repository.listHotlines() }));
   app.get('/v1/directory/units', async () => ({ data: await repository.listUnitContacts() }));
 

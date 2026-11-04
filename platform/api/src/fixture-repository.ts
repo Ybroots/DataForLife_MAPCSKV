@@ -28,6 +28,7 @@ import type {
   OperationalMapPointResponse,
   PatrolSessionResponse,
   PublicAlertResponse,
+  PublicStatsResponse,
   SatisfactionRatingResponse,
   ShiftSummaryResponse,
   StatisticsPeriod,
@@ -279,6 +280,16 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     return latitude >= 11.924 && latitude <= 11.965 && longitude >= 108.414 && longitude <= 108.466
       ? cloneArea()
       : null;
+  }
+
+  async getPublicStats(): Promise<PublicStatsResponse> {
+    const all = [...this.incidents.values()];
+    return {
+      pilotAreas: 0, officers: 0, installs: 0, verifiedUsers: 0,
+      incidentsReceived: all.length,
+      incidentsProcessed: all.filter((item) => item.status === 'resolved' || item.status === 'closed').length,
+      avgResponseMinutes: null, opinions: [], demoData: false, updatedAt: new Date().toISOString(),
+    };
   }
 
   async listHotlines(): Promise<HotlineResponse[]> {

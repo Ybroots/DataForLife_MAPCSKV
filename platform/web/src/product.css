@@ -1006,3 +1006,36 @@ input, textarea, select { transition: border-color 160ms ease, box-shadow 160ms 
 @media (prefers-reduced-motion: reduce) {
   .alert-map-marker::after, .position-marker::after, .citizen-notification-bell:has(.citizen-notification-count) svg, .map-sos-button { animation: none !important; }
 }
+
+/* Trang Thống kê */
+.stats-page .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.stats-page h2 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.stats-demo-pill { padding: 4px 10px; color: #8a4b00; background: #fff0c1; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.stats-card { display: grid; gap: 4px; padding: 14px; background: #fff; border: 1px solid var(--color-line); border-radius: 14px; }
+.stats-card.wide { grid-column: 1 / -1; }
+.stats-card strong { font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; font-size: 28px; line-height: 1.1; color: var(--color-primary-deep, #8e1224); font-variant-numeric: tabular-nums; }
+.stats-card > span:last-child { font-size: 14px; color: var(--color-muted); }
+.stats-card-icon { width: 34px; height: 34px; display: grid; place-items: center; margin-bottom: 4px; color: var(--color-primary); background: var(--color-primary-soft, #fdecef); border-radius: 50%; }
+.stats-opinions { margin-top: 18px; display: grid; gap: 10px; }
+.stats-opinions h3 { margin: 0; font-size: 16px; }
+.stats-quote { margin: 0; padding: 14px; display: grid; gap: 8px; background: #fff; border: 1px solid var(--color-line); border-left: 4px solid var(--color-primary); border-radius: 12px; }
+.stats-quote > svg { color: var(--color-primary); }
+.stats-quote blockquote { margin: 0; font-size: 15px; line-height: 1.5; }
+.stats-quote figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--color-muted); }
+.stats-stars { display: inline-flex; gap: 2px; color: #e0a100; }
+.stats-stars svg { fill: currentColor; }
+@media (min-width: 720px) { .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .stats-card.wide { grid-column: span 3; } }
+
+/* App Android dành cho cán bộ: màn đăng nhập cuộn được khi bàn phím mở (cổng nghiệp vụ đã tự vừa khít bằng 100dvh nên không ghi đè chiều cao). */
+html[data-native="android"] .police-login-screen { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; place-content: safe center; }
+html[data-native="android"] .police-portal { max-width: 100%; }
+html[data-native="android"] .police-portal :is(button, a, select) { -webkit-tap-highlight-color: transparent; }
+html[data-native="android"] .police-portal :is(input, textarea, select) { max-width: 100%; box-sizing: border-box; }
+/* Màn rất hẹp (gập, cửa sổ chia đôi màn hình ≤ 340px): thanh dưới 4 mục và chữ không tràn. */
+@media (max-width: 340px) {
+  html[data-native="android"] .police-mobile-nav button { font-size: 11px; min-width: 0; padding-inline: 2px; }
+  html[data-native="android"] .police-mobile-nav button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html[data-native="android"] .command-metrics strong { font-size: 15px; }
+  html[data-native="android"] .queue-scopes button { min-width: 76px; }
+}

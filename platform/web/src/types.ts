@@ -171,6 +171,20 @@ export interface IncidentMessage {
   createdAt: string;
 }
 
+export interface PublicStats {
+  pilotAreas: number;
+  officers: number;
+  installs: number;
+  verifiedUsers: number;
+  incidentsReceived: number;
+  incidentsProcessed: number;
+  avgResponseMinutes: number | null;
+  opinions: Array<{ id: string; authorRole: 'citizen' | 'officer'; authorLabel: string; comment: string; score: number | null }>;
+  /** true khi đang có dữ liệu mẫu để trình diễn. */
+  demoData: boolean;
+  updatedAt: string;
+}
+
 export interface PublicAlert {
   id: string;
   areaCode: string;

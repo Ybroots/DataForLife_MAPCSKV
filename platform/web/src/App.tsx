@@ -50,7 +50,7 @@ const PolicePortal: ComponentType<ComponentProps<typeof PolicePortalComponent>> 
 
 type LookupState = 'idle' | 'loading' | 'success' | 'error';
 const COMPACT_LAYOUT_QUERY = '(max-width: 1023px)';
-const FEATURE_IDS: FeatureId[] = ['directory', 'alerts', 'reports', 'sos', 'feedback', 'assistant', 'account'];
+const FEATURE_IDS: FeatureId[] = ['directory', 'alerts', 'stats', 'reports', 'sos', 'feedback', 'assistant', 'account'];
 const CITIZEN_TOUR_KEY = 'cskv-citizen-tour-v1';
 
 function featureFromUrl(): FeatureId {
@@ -73,7 +73,7 @@ function useCompactLayout(): boolean {
 }
 
 export default function App() {
-  const policePortalRequested = !__CITIZEN_ONLY__ && new URL(window.location.href).searchParams.get('portal') === 'police';
+  const policePortalRequested = __OFFICER_APP__ || (!__CITIZEN_ONLY__ && new URL(window.location.href).searchParams.get('portal') === 'police');
   const isCompactLayout = useCompactLayout();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<AreaSummary[]>([]);
@@ -467,7 +467,7 @@ export default function App() {
     if (policeSessionChecking) return <main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang kiểm tra phiên đăng nhập…</div></main>;
     return policeSession
       ? <Suspense fallback={<main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang tải cổng nghiệp vụ…</div></main>}><PolicePortal sessionActor={policeSession} onSignOut={() => { void handlePoliceLogout(); setAppView('landing'); }} /></Suspense>
-      : <PoliceLoginScreen onSuccess={handlePoliceLoginSuccess} onBack={() => setAppView('landing')} />;
+      : <PoliceLoginScreen onSuccess={handlePoliceLoginSuccess} onBack={__OFFICER_APP__ ? undefined : () => setAppView('landing')} />;
   }
 
   return (

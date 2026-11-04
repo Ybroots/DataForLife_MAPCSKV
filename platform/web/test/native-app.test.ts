@@ -37,6 +37,14 @@ describe('Android Back button overlay handling', () => {
     expect(closeTopOverlay(root([], { '.map-assistant-header button': panel }))).toBe(true);
     expect(panel.clicks).toBe(1);
   });
+  it('officer app: Back from a case returns to the queue only when that button is visible', () => {
+    const visible = Object.assign(button(), { offsetParent: {} });
+    expect(closeTopOverlay(root([], { '.police-portal .mobile-back-queue': visible as never }))).toBe(true);
+    expect(visible.clicks).toBe(1);
+    const hidden = Object.assign(button(), { offsetParent: null });
+    expect(closeTopOverlay(root([], { '.police-portal .mobile-back-queue': hidden as never }))).toBe(false);
+    expect(hidden.clicks).toBe(0);
+  });
   it('reports nothing to close so the app can go back or minimise', () => {
     expect(closeTopOverlay(root([dialog(null, null)]))).toBe(false);
   });

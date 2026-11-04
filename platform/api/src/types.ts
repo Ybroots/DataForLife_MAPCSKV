@@ -487,6 +487,20 @@ export interface OperationalMapPointInput {
   longitude: number;
 }
 
+/** Số đếm công khai trên trang Thống kê. `demoData` = true khi đang có dữ liệu mẫu để trình diễn (hiện nhãn "Số liệu thử nghiệm"). */
+export interface PublicStatsResponse {
+  pilotAreas: number;
+  officers: number;
+  installs: number;
+  verifiedUsers: number;
+  incidentsReceived: number;
+  incidentsProcessed: number;
+  avgResponseMinutes: number | null;
+  opinions: Array<{ id: string; authorRole: 'citizen' | 'officer'; authorLabel: string; comment: string; score: number | null }>;
+  demoData: boolean;
+  updatedAt: string;
+}
+
 export interface DirectoryRepository {
   readonly sourceName: 'postgres' | 'fixture';
   getAreaOverview(): Promise<AreaOverview>;
@@ -495,6 +509,8 @@ export interface DirectoryRepository {
   lookupByLocation(latitude: number, longitude: number): Promise<AreaLookupResponse | null>;
   listHotlines(): Promise<HotlineResponse[]>;
   listUnitContacts(): Promise<PublicUnitContactResponse[]>;
+  /** Số đếm công khai (địa bàn thí điểm, cán bộ, cài đặt, người dùng, phản ánh, ý kiến đã được duyệt). */
+  getPublicStats(): Promise<PublicStatsResponse>;
   findCitizenAccountByUsername(username: string): Promise<CitizenAccountRecord | null>;
   findCitizenAccountById(id: string): Promise<CitizenAccountRecord | null>;
   createCitizenAccount(input: CitizenAccountRecord): Promise<CitizenAccountRecord | null>;

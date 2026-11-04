@@ -128,3 +128,28 @@ Dùng bản `ban-do-cskv-preview.apk` (API production, **chỉ đọc**) hoặc 
 - Theo dõi phản ánh: đang mở tab Theo dõi thì cứ 30 giây tự tải lại; trạng thái đổi thì hiện popup "Hồ sơ … vừa được cập nhật". Trang Cảnh báo tự tải lại mỗi phút, có cảnh báo mới thì hiện popup.
 - Dân số/diện tích ở Danh bạ chạy số lên; cảnh báo và vị trí trên bản đồ có vòng sóng; chuông rung nhẹ khi có thông báo chưa đọc; nút SOS trên bản đồ "thở" chậm; popup thành công/lỗi có rung nhẹ (quyền VIBRATE).
 - Tất cả tắt khi điện thoại bật "Giảm chuyển động".
+
+## Trang Thống kê và dữ liệu mẫu để trình diễn
+
+- Menu **Tính năng → Thống kê hoạt động** hiện các số đếm: địa bàn thí điểm, cán bộ CSKV, lượt cài đặt, người dùng đã xác thực, phản ánh tiếp nhận/đã xử lý, thời gian phản hồi trung bình và tối đa 3 ý kiến đã duyệt. API: `GET /v1/public/stats` (cần migration 019).
+- Số đếm lấy từ CSDL thật: địa bàn/cán bộ từ danh bạ `cskv_roster` (migration 018); cài đặt = thiết bị đã đăng ký thông báo; người dùng đã xác thực = tài khoản đã xác minh email; thời gian phản hồi = từ lúc gửi đến lúc cán bộ tiếp nhận.
+- Ý kiến chỉ hiện khi `approved = true` trong bảng `public_testimonials`. Ý kiến thật phải được người nói đồng ý trước khi duyệt.
+- **Dữ liệu mẫu (chỉ máy demo/cục bộ):** `powershell -ExecutionPolicy Bypass -File .\apply-demo-data.ps1` (có sao lưu trước) tạo 180 tài khoản (126 đã xác minh), 236 thiết bị, 96 phản ánh ở 3 phường kèm lịch sử xử lý, đánh giá và 3 ý kiến mẫu. Khi có dữ liệu mẫu, trang Thống kê hiện nhãn **Số liệu thử nghiệm**. Xóa bằng `.\apply-demo-data.ps1 -Remove`. Không nạp lên máy chủ chính thức (AGENTS.md).
+
+## App dành cho cán bộ CSKV (Android)
+
+- Cùng mã nguồn với bản web, mode `android-officer`: mở thẳng màn đăng nhập cổng nghiệp vụ, không có phần người dân. Đủ chức năng cổng cán bộ như bản web (hàng đợi phản ánh/SOS, xử lý hồ sơ, bản đồ trực, thống kê, quản lý dữ liệu bản đồ, tuần tra, cảnh báo công khai, cấp mã đặt lại mật khẩu cho người dân).
+- Mã ứng dụng riêng `com.bandosocskv.officer`, tên "CSKV Cán bộ", biểu tượng nền xanh đậm có huy hiệu "CB", cài song song với app người dân (tên "CSKV Người dân", biểu tượng nền trắng). Không dùng thông báo đẩy của app người dân (khác Firebase); chuông SOS trong app chạy khi đang mở.
+- Build: `npm run android:apk:officer` (trong `platform\web`) → `platform\android-artifacts\ban-do-cskv-canbo-preview.apk`. Bản phát hành: `-Officer -Release` (cần khóa ký).
+- Chưa có trên Android: xuất báo cáo CSV và in/lưu PDF (hiện dòng "đang phát triển"; dùng bản web).
+
+## Đưa bản mới lên VPS (cách đang dùng: VPS tự kéo mã từ GitHub và tự build bằng Node 22)
+
+1. Trên máy Windows: commit và `git push deploy dataforlife`, lấy mã commit bằng `git rev-parse HEAD`.
+2. Kéo thả `platform\ops\deploy-update.sh` vào `/root` trên VPS (MobaXterm).
+3. Trên VPS, bằng root: `bash /root/deploy-update.sh dataforlife <mã commit 40 ký tự>`.
+   Script kiểm tra, sao lưu (CSDL, web, API, .env, nginx), kéo mã (chỉ fast-forward), typecheck/test/build, áp dụng migration 015–019,
+   khởi động lại API, đăng web (index.html sau cùng), kiểm tra sức khỏe và so số đếm trước/sau. Lỗi trước bước đăng web thì site đang chạy không bị đổi.
+   Không nạp dữ liệu mẫu trình diễn.
+
+(Cách dự phòng dùng file zip: `build-release.ps1` + `ops/deploy-release.sh`; chỉ dùng khi VPS không kéo được mã từ GitHub.)

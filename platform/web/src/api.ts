@@ -19,6 +19,7 @@ import type {
   OfficerQueueItem,
   PatrolSession,
   PublicAlert,
+  PublicStats,
   SatisfactionRating,
   ShiftSummary,
   SosEvent,
@@ -267,6 +268,11 @@ export async function removePushDevice(token: string): Promise<void> {
 
 export async function listPublicAlerts(areaCode?: string): Promise<PublicAlert[]> {
   const payload = await request<{ data: PublicAlert[] }>(areaCode ? `/v1/public/alerts?areaCode=${encodeURIComponent(areaCode)}` : '/v1/public/alerts');
+  return payload.data;
+}
+
+export async function getPublicStats(): Promise<PublicStats> {
+  const payload = await request<{ data: PublicStats }>('/v1/public/stats');
   return payload.data;
 }
 

@@ -36,17 +36,25 @@ describe('điểm CSKV trình diễn trên bản đồ', () => {
     expect(points.every((p) => p.demo)).toBe(true);
   });
 
-  it('mỗi khu vực một tên CSKV minh họa riêng, không trùng nhau giữa các khu và giữa ba phường', () => {
+  it('chưa có cán bộ trong danh bạ: mỗi khu một tên minh họa riêng, không trùng nhau giữa các khu và giữa ba phường', () => {
     const nameOf = (p: { name: string }): string => p.name.split(' · ')[0] ?? '';
     const all: string[] = [];
     for (const [code, count] of [['24781', 5], ['24805', 4], ['24778', 3]] as const) {
       const list = Array.from({ length: count }, (_, i) => zone(`${code}-K${i + 1}`, 108.4 + i * 0.02, null));
-      const names = buildCitizenMapPoints(area(code, list, [lead, ...officers])).filter((p) => p.kind === 'officer').map(nameOf);
+      const names = buildCitizenMapPoints(area(code, list, [lead])).filter((p) => p.kind === 'officer').map(nameOf);
       expect(new Set(names).size).toBe(count);
       expect(names.every((n) => n.startsWith('CSKV ') && DEMO_OFFICER_NAMES.includes(n.slice(5)))).toBe(true);
       all.push(...names);
     }
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('có cán bộ trong danh bạ: pin hiện đúng tên và số của cán bộ thật, quay vòng khi ít cán bộ hơn số khu', () => {
+    const list = [0, 1, 2, 3].map((i) => zone(`XT-K${i + 1}`, 108.4 + i * 0.02, null));
+    const real = ['Nguyễn Văn A', 'Trần Văn B', 'Lê Văn C'].map((n, i) => ({ id: `r${i}`, displayName: n, rank: null, roleTitle: 'Cảnh sát khu vực', phone: `0900 000 10${i}`, entryType: 'officer' as const }));
+    const pins = buildCitizenMapPoints(area('24805', list, [lead, ...real])).filter((p) => p.kind === 'officer');
+    expect(pins.map((p) => p.name.split(' · ')[0])).toEqual(['CSKV Nguyễn Văn A', 'CSKV Trần Văn B', 'CSKV Lê Văn C', 'CSKV Nguyễn Văn A']);
+    expect(pins.map((p) => p.phone)).toEqual(['0900 000 100', '0900 000 101', '0900 000 102', '0900 000 100']);
   });
 
   it('số điện thoại pin CSKV vẫn là đầu mối công khai, ưu tiên cảnh sát khu vực', () => {

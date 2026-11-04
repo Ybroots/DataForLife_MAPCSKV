@@ -10,8 +10,10 @@
     "typecheck": "tsc -b --pretty false && tsc -p test/tsconfig.json --pretty false",
     "build:android": "tsc -b && vite build --mode android && node scripts/verify-map-worker.mjs dist-android && node scripts/verify-citizen-bundle.mjs",
     "build:android:qa": "tsc -b && vite build --mode android-qa && node scripts/verify-map-worker.mjs dist-android && node scripts/verify-citizen-bundle.mjs",
+    "build:android:officer": "tsc -b && vite build --mode android-officer && node scripts/verify-map-worker.mjs dist-android",
     "android:sync": "cap sync android",
-    "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1"
+    "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "android:apk:officer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Officer"
   },
   "dependencies": {
     "@capacitor/android": "8.6.0",

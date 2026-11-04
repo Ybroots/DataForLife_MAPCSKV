@@ -19,6 +19,7 @@ import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { CitizenAccountPage } from './CitizenAccountPage';
 import { CitizenFeatureAuthGate } from './CitizenFeatureAuthGate';
 import { CitizenFeedbackPage } from './CitizenFeedbackPage';
+import { StatsPage } from './StatsPage';
 
 interface FeaturePageProps {
   feature: Exclude<FeatureId, 'directory' | 'assistant'>;
@@ -130,6 +131,8 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
             </div>
           </section>
         )}
+
+        {feature === 'stats' && <StatsPage />}
 
         {feature === 'reports' && (
           isAuthenticated

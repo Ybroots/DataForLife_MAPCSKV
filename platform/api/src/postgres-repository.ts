@@ -20,6 +20,7 @@ import type {
   DirectoryEntryResponse,
   DirectoryRepository,
   HotlineResponse,
+  PublicStatsResponse,
   PublicUnitContactResponse,
   IncidentAttachmentInput,
   IncidentAttachmentResponse,
@@ -341,6 +342,53 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
       label: row.label,
       phone: row.phone,
     }));
+  }
+
+  /** Cột email_verified_at (migration 017) và bảng public_testimonials (migration 019) có thể chưa có trên máy chủ cũ: thiếu thì dùng giá trị dự phòng. */
+  private statsColumns: Promise<{ emailVerified: boolean; testimonials: boolean }> | null = null;
+
+  async getPublicStats(): Promise<PublicStatsResponse> {
+    this.statsColumns ??= this.pool.query<{ email_verified: boolean; testimonials: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'citizen_accounts' AND column_name = 'email_verified_at') AS email_verified,
+              to_regclass('public.public_testimonials') IS NOT NULL AS testimonials`,
+    ).then((result) => ({ emailVerified: Boolean(result.rows[0]?.email_verified), testimonials: Boolean(result.rows[0]?.testimonials) }));
+    const has = await this.statsColumns;
+    const counts = await this.pool.query<{
+      pilot_areas: number; officers: number; installs: number; verified_users: number;
+      received: number; processed: number; avg_response: number | null; demo_accounts: boolean;
+    }>(
+      `SELECT
+         (SELECT count(DISTINCT locality_id)::int FROM directory_entries
+           WHERE entry_type = 'officer' AND visibility = 'public' AND source_system = 'cskv_roster') AS pilot_areas,
+         (SELECT count(*)::int FROM directory_entries
+           WHERE entry_type = 'officer' AND visibility = 'public' AND source_system = 'cskv_roster') AS officers,
+         (SELECT count(*)::int FROM push_devices) AS installs,
+         (SELECT count(*)::int FROM citizen_accounts WHERE status = 'active'${has.emailVerified ? ' AND email_verified_at IS NOT NULL' : ''}) AS verified_users,
+         (SELECT count(*)::int FROM incident_reports) AS received,
+         (SELECT count(*)::int FROM incident_reports WHERE status IN ('resolved', 'closed')) AS processed,
+         (SELECT round(avg(extract(epoch FROM (received_at - created_at)) / 60))::int FROM incident_reports
+           WHERE received_at IS NOT NULL AND received_at >= created_at) AS avg_response,
+         EXISTS (SELECT 1 FROM citizen_accounts WHERE id LIKE 'demo-seed-%') AS demo_accounts`,
+    );
+    const row = counts.rows[0];
+    const opinions = has.testimonials ? await this.pool.query<{
+      id: string; author_role: 'citizen' | 'officer'; author_label: string; comment: string; score: number | null; is_demo: boolean;
+    }>(
+      `SELECT id::text, author_role, author_label, comment, score, is_demo
+       FROM public_testimonials WHERE approved ORDER BY sort_order, created_at DESC LIMIT 3`,
+    ) : { rows: [] as Array<{ id: string; author_role: 'citizen' | 'officer'; author_label: string; comment: string; score: number | null; is_demo: boolean }> };
+    return {
+      pilotAreas: row?.pilot_areas ?? 0,
+      officers: row?.officers ?? 0,
+      installs: row?.installs ?? 0,
+      verifiedUsers: row?.verified_users ?? 0,
+      incidentsReceived: row?.received ?? 0,
+      incidentsProcessed: row?.processed ?? 0,
+      avgResponseMinutes: row?.avg_response ?? null,
+      opinions: opinions.rows.map((item) => ({ id: item.id, authorRole: item.author_role, authorLabel: item.author_label, comment: item.comment, score: item.score })),
+      demoData: Boolean(row?.demo_accounts) || opinions.rows.some((item) => item.is_demo),
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   async listUnitContacts(): Promise<PublicUnitContactResponse[]> {

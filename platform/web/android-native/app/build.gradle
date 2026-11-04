@@ -10,12 +10,21 @@ if (keystoreFile.exists()) {
 // Override with -PcskvVersionCode=2 -PcskvVersionName=1.0.1 ; versionCode must increase for every shipped build.
 def cskvVersionCode = (project.findProperty('cskvVersionCode') ?: '1').toString().toInteger()
 def cskvVersionName = (project.findProperty('cskvVersionName') ?: '1.0.0-preview').toString()
+// -PcskvOfficer=true: app dành cho cán bộ CSKV (cài song song với app người dân, không dùng thông báo đẩy của app người dân).
+def cskvOfficer = (project.findProperty('cskvOfficer') ?: 'false').toString() == 'true'
 
 android {
     namespace = "com.bandosocskv.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.bandosocskv.mobile"
+        applicationId cskvOfficer ? "com.bandosocskv.officer" : "com.bandosocskv.mobile"
+        // Tên và biểu tượng riêng để hai app (người dân / cán bộ) không lẫn nhau trên màn hình điện thoại.
+        resValue "string", "app_name", cskvOfficer ? "CSKV Cán bộ" : "CSKV Người dân"
+        resValue "string", "title_activity_main", cskvOfficer ? "CSKV Cán bộ" : "CSKV Người dân"
+        manifestPlaceholders = [
+            appIcon     : cskvOfficer ? "@mipmap/ic_launcher_officer" : "@mipmap/ic_launcher",
+            appIconRound: cskvOfficer ? "@mipmap/ic_launcher_officer_round" : "@mipmap/ic_launcher_round"
+        ]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode cskvVersionCode
@@ -70,7 +79,7 @@ apply from: 'capacitor.build.gradle'
 
 try {
     def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
+    if (!cskvOfficer && servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
     }
 } catch(Exception e) {
