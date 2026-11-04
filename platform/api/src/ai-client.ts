@@ -76,7 +76,7 @@ export function createJsonModel(env: NodeJS.ProcessEnv, fetcher: typeof fetch = 
           headers: { 'Content-Type': 'application/json', ...(openai ? { Authorization: `Bearer ${apiKey}` } : { 'x-goog-api-key': apiKey }) },
           body: JSON.stringify(body),
         });
-        if (!response.ok) throw new Error('Provider unavailable');
+        if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
         const payload = await response.json() as Record<string, unknown>;
         let output: unknown;
         if (openai) {
@@ -87,14 +87,15 @@ export function createJsonModel(env: NodeJS.ProcessEnv, fetcher: typeof fetch = 
         } else {
           const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
           const candidate = record(candidates[0]);
-          if (candidate?.finishReason !== 'STOP') throw new Error('Incomplete result');
+          if (candidate?.finishReason !== 'STOP') throw new Error(`Incomplete result (${String(candidate?.finishReason)})`);
           const content = record(candidate.content);
           const parts = Array.isArray(content?.parts) ? content.parts.map(record) : [];
           output = parts.filter((part) => part?.thought !== true).map((part) => typeof part?.text === 'string' ? part.text : '').join('');
         }
         if (typeof output !== 'string' || output.length > 16_000) throw new Error('Invalid result');
         return JSON.parse(output) as unknown;
-      } catch {
+      } catch (error) {
+        console.error(`[ai] ${request.schemaName} failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw new AiUnavailableError();
       }
     },

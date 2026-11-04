@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { MessageSquareText, Paperclip, Send } from 'lucide-react';
-import { addOfficerIncidentAttachment, addOfficerIncidentMessage, ApiError, listOfficerIncidentMessages } from '../api';
+import { MessageSquareText, Paperclip, Send, Sparkles } from 'lucide-react';
+import { addOfficerIncidentAttachment, addOfficerIncidentMessage, ApiError, draftIncidentReply, getAiStatus, listOfficerIncidentMessages } from '../api';
 import type { Incident, IncidentAttachment, IncidentMessage } from '../types';
 import { IncidentMediaGallery } from './IncidentMediaGallery';
 
@@ -27,10 +27,29 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [aiReady, setAiReady] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     listOfficerIncidentMessages(incident.id).then(setMessages).catch(() => setMessages([]));
   }, [incident.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAiStatus(controller.signal).then((status) => setAiReady(status.configured && status.features.includes('reply_draft'))).catch(() => setAiReady(false));
+    return () => controller.abort();
+  }, []);
+
+  /** AI chỉ điền nháp vào ô soạn: cán bộ đọc, sửa rồi tự bấm gửi. */
+  const draftReply = async () => {
+    if (message.trim().length >= 2 && !window.confirm('Thay nội dung đang soạn bằng bản nháp của AI?')) return;
+    setDrafting(true); setNotice('');
+    try {
+      const draft = await draftIncidentReply(incident.id);
+      setMessage(draft.message); setRequestMedia(draft.requestMedia);
+      setNotice('AI đã soạn nháp. Hãy đọc và sửa trước khi gửi.');
+    } catch (error) { setNotice(error instanceof ApiError ? error.message : 'Chưa soạn được nháp. Bạn có thể tự viết.'); } finally { setDrafting(false); }
+  };
 
   const submitMessage = async (event: FormEvent) => {
     event.preventDefault();
@@ -71,7 +90,8 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
         <label className="sr-only" htmlFor="officer-message">Nội dung trao đổi</label>
         <textarea id="officer-message" value={message} onChange={(event) => setMessage(event.target.value)} rows={2} maxLength={2000} placeholder="Yêu cầu bổ sung hoặc thông báo tiến độ…" required />
         <label className="compact-check"><input type="checkbox" checked={requestMedia} onChange={(event) => setRequestMedia(event.target.checked)} /> Yêu cầu ảnh/video</label>
-        <button className="ops-submit" type="submit" disabled={busy || message.trim().length < 2}><Send size={17} /> Gửi người dân</button>
+        {aiReady && <button className="secondary-action" type="button" disabled={busy || drafting} onClick={() => void draftReply()}><Sparkles size={16} aria-hidden="true" /> {drafting ? 'AI đang soạn…' : 'AI soạn nháp'}</button>}
+        <button className="ops-submit" type="submit" disabled={busy || drafting || message.trim().length < 2}><Send size={17} /> Gửi người dân</button>
       </form>
       {notice && <p className="inline-notice" role="status">{notice}</p>}
       </details>

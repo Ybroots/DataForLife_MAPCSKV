@@ -5,10 +5,12 @@ import { AiUnavailableError, createJsonModel, type JsonModel, type JsonModelRequ
 import { FixtureDirectoryRepository } from '../src/fixture-repository.js';
 import {
   draftIncident,
+  draftReply,
   IntelligenceError,
   scoreDuplicate,
   textSimilarity,
   validateDraft,
+  validateReply,
   validateReview,
   type DuplicateCaseInput,
 } from '../src/incident-intelligence.js';
@@ -229,5 +231,36 @@ describe('intelligence API', () => {
     expect(mine.satisfactionRating).toMatchObject({ score: 5, comment: 'Cán bộ đến nhanh' });
     const statistics = (await app.inject({ method: 'GET', url: '/v1/officer/statistics?period=day&date=2026-11-01', headers: officer })).json().data;
     expect(statistics.kpis.satisfaction).toMatchObject({ sosAverage: 5, sosCount: 1, appAverage: 4, appCount: 1 });
+  });
+});
+
+describe('reply draft for officers', () => {
+  const incident = { category: 'public_order' as const, status: 'received' as const, summary: 'Gây ồn', description: 'Số căn cước 0123 4567 8901 gây ồn ở chợ đêm', locationNote: null, attachments: [] };
+
+  it('hides ID-like numbers from the model and returns only a validated draft', async () => {
+    const model = fakeModel({ message: 'Cảm ơn bạn đã phản ánh. Công an khu vực đang xem xét nội dung.', requestMedia: false });
+    const draft = await draftReply(model, incident, [{ authorRole: 'citizen', message: 'Nhờ xem giúp' }]);
+    expect(draft).toMatchObject({ requestMedia: false, provider: 'Gemini' });
+    expect(model.requests[0]!.text).not.toContain('0123');
+  });
+
+  it('rejects empty, malformed or ID-bearing drafts', () => {
+    for (const bad of [null, { message: 'ngắn', requestMedia: true }, { message: 'Số 012345678901 là của bạn nhé', requestMedia: true }, { message: 'Nội dung đủ dài nhưng thiếu cờ', requestMedia: 'x' }]) {
+      expect(() => validateReply(bad)).toThrow(IntelligenceError);
+    }
+  });
+
+  it('serves the draft only to a signed-in officer and only when AI is configured', async () => {
+    app = await testApp(fakeModel({ message: 'Cảm ơn bạn đã phản ánh. Công an khu vực đang xem xét nội dung.', requestMedia: true }));
+    const created = await app.inject({ method: 'POST', url: '/v1/citizen/incidents', headers: citizen, payload: { clientRequestId: 'req-reply-0001', category: 'public_order', summary: 'Gây ồn ở chợ đêm', description: 'Thanh niên tụ tập gây ồn ở cổng chợ đêm.', latitude: 11.944, longitude: 108.441, attachments: png } });
+    const id = created.json().data.id as string;
+    expect((await app.inject({ method: 'POST', url: `/v1/officer/incidents/${id}/reply-draft` })).statusCode).toBe(401);
+    const ok = await app.inject({ method: 'POST', url: `/v1/officer/incidents/${id}/reply-draft`, headers: officer });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().data).toMatchObject({ requestMedia: true, provider: 'Gemini' });
+    expect((await app.inject({ method: 'GET', url: '/v1/ai/status' })).json().data.features).toContain('reply_draft');
+    await app.close();
+    app = await testApp();
+    expect((await app.inject({ method: 'POST', url: `/v1/officer/incidents/${id}/reply-draft`, headers: officer })).statusCode).toBe(503);
   });
 });

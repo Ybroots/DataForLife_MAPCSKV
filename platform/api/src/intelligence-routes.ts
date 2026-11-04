@@ -1,6 +1,6 @@
 import type { FastifyReply } from 'fastify';
 import { AiUnavailableError, type JsonModel } from './ai-client.js';
-import { draftIncident, incidentCategoryValues, IntelligenceError, reviewIncident, type IncidentCategory, type ReviewImage } from './incident-intelligence.js';
+import { draftIncident, draftReply, incidentCategoryValues, IntelligenceError, reviewIncident, type IncidentCategory, type ReviewImage } from './incident-intelligence.js';
 import { AttemptWindow } from './rate-limit.js';
 import { optionalText } from './request-parsing.js';
 import type { RouteContext } from './route-context.js';
@@ -75,7 +75,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
 
   app.get('/v1/ai/status', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review'] : [] } };
+    return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review', 'reply_draft'] : [] } };
   });
 
   app.post<{ Body: { text?: unknown } }>('/v1/citizen/incident-draft', { preHandler: workflowDisabled, bodyLimit: 16 * 1024 }, async (request, reply) => {
@@ -129,6 +129,17 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
       const suggestion = await reviewIncident(model, incident, images);
       return repository.saveIncidentAiReview(officerId, incident.id, suggestion);
     });
+  });
+
+  app.post<{ Params: { id: string } }>('/v1/officer/incidents/:id/reply-draft', { preHandler: workflowDisabled }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    if (!model) return notConfigured(reply);
+    const incident = await repository.getOfficerIncident(officerId, request.params.id);
+    if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
+    const thread = await repository.listOfficerIncidentMessages(officerId, incident.id);
+    return runAi(reply, officerId, reviewWindow, () => draftReply(model, incident, thread));
   });
 
   app.post<{ Params: { id: string }; Body: { category?: unknown; reviewId?: unknown } }>('/v1/officer/incidents/:id/category', { preHandler: workflowDisabled }, async (request, reply) => {

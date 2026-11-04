@@ -211,6 +211,9 @@ export function createKeywordPlanner(): AssistantPlanner {
   };
 }
 
+// Room for the model's hidden "thinking" tokens (several hundred on Gemini 3.x) plus the JSON plan; 800 truncated real questions.
+const PLANNER_MAX_OUTPUT_TOKENS = 2048;
+
 /** No implicit provider or model selection: an unconfigured integration stays unavailable. */
 export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof fetch = fetch): AssistantPlanner | undefined {
   const provider = env.AI_PROVIDER;
@@ -225,12 +228,12 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
       const endpoint = openai ? 'https://api.openai.com/v1/responses'
         : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
       const body = openai ? {
-        model, instructions, input, store: false, max_output_tokens: 800,
+        model, instructions, input, store: false, max_output_tokens: PLANNER_MAX_OUTPUT_TOKENS,
         text: { format: { type: 'json_schema', name: 'map_lookup_plan', strict: true, schema: planSchema } },
       } : {
         systemInstruction: { parts: [{ text: instructions }] },
         contents: [{ role: 'user', parts: [{ text: input }] }],
-        generationConfig: { responseMimeType: 'application/json', responseJsonSchema: planSchema, maxOutputTokens: 800 },
+        generationConfig: { responseMimeType: 'application/json', responseJsonSchema: planSchema, maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS },
       };
       try {
         const response = await fetcher(endpoint, {
@@ -239,7 +242,7 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
           body: JSON.stringify(body),
         });
         // Never expose provider errors, prompts or credentials to public clients or application logs.
-        if (!response.ok) throw new Error('Provider unavailable');
+        if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
         const payload = await response.json() as Record<string, unknown>;
         let output: unknown;
         if (openai) {
@@ -250,14 +253,16 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
         } else {
           const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
           const candidate = record(candidates[0]);
-          if (candidate?.finishReason !== 'STOP') throw new Error('Incomplete result');
+          if (candidate?.finishReason !== 'STOP') throw new Error(`Incomplete result (${String(candidate?.finishReason)})`);
           const content = record(candidate.content);
           const parts = Array.isArray(content?.parts) ? content.parts.map(record) : [];
           output = parts.filter(part => part?.thought !== true).map(part => typeof part?.text === 'string' ? part.text : '').join('');
         }
         if (typeof output !== 'string' || output.length > 8_000) throw new Error('Invalid result');
         return JSON.parse(output) as unknown;
-      } catch {
+      } catch (error) {
+        // Reason only (status / finishReason / parse failure): never the prompt, the reply or the key.
+        console.error(`[assistant] AI planner failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý AI. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.');
       }
     },

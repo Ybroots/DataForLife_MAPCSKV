@@ -386,7 +386,13 @@ export interface CaseRef {
 export interface AiStatus {
   configured: boolean;
   provider: 'OpenAI' | 'Gemini' | null;
-  features: Array<'incident_draft' | 'incident_review'>;
+  features: Array<'incident_draft' | 'incident_review' | 'reply_draft'>;
+}
+
+export interface IncidentReplyDraft {
+  message: string;
+  requestMedia: boolean;
+  provider: 'OpenAI' | 'Gemini';
 }
 
 export interface IncidentDraft {

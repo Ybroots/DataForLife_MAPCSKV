@@ -33,6 +33,7 @@ import type {
   AppRating,
   DuplicateCandidate,
   IncidentAiReview,
+  IncidentReplyDraft,
   IncidentDraft,
 } from './types';
 
@@ -550,6 +551,12 @@ export async function getAiStatus(signal?: AbortSignal): Promise<AiStatus> {
 export async function draftIncidentWithAi(text: string): Promise<IncidentDraft> {
   return (await request<{ data: IncidentDraft }>('/v1/citizen/incident-draft', {
     method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ text }),
+  })).data;
+}
+
+export async function draftIncidentReply(id: string): Promise<IncidentReplyDraft> {
+  return (await request<{ data: IncidentReplyDraft }>(`/v1/officer/incidents/${encodeURIComponent(id)}/reply-draft`, {
+    method: 'POST', headers: officerHeaders(),
   })).data;
 }
 
