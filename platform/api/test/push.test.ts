@@ -154,6 +154,10 @@ describe('officer push', () => {
     const incident = officerMessage({ id: 'i1', kind: 'incident', receiptCode: 'PA-2026-0009', category: 'traffic', localityName: 'Xuân Hương' });
     expect(incident).toMatchObject({ title: 'Phản ánh mới · Xuân Hương', body: 'PA-2026-0009 · Giao thông', channel: 'officer', urgent: false });
     expect(officerMessage({ id: 'i2', kind: 'incident', receiptCode: 'PA-1', category: 'lạ', localityName: 'X' }).body).toBe('PA-1 · Khác');
+    const remind = officerMessage({ id: 's1', kind: 'sos', receiptCode: 'SOS-2026-0001', category: 'medical', localityName: 'Xuân Hương', reminder: 2 });
+    expect(remind).toMatchObject({ title: 'SOS chưa có người nhận · Xuân Hương', urgent: true, channel: 'sos', tag: 'officer-sos-s1-r2' });
+    expect(remind.data.id).toBe('s1');
+    expect(sos.tag).toBe('officer-sos-s1');
   });
 
   let app: FastifyInstance | undefined;

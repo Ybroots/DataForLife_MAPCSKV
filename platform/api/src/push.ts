@@ -217,18 +217,20 @@ const INCIDENT_CATEGORY_LABELS: Record<string, string> = {
   security: 'An ninh trật tự', traffic: 'Giao thông', public_order: 'Trật tự công cộng', administrative: 'Hành chính', environment: 'Môi trường', other: 'Khác',
 };
 
-export interface OfficerPushRow { id: string; kind: 'sos' | 'incident'; receiptCode: string; category: string; localityName: string }
+/** reminder: số thứ tự lần nhắc (1, 2) khi SOS vẫn chưa có người nhận; không có nghĩa là thông báo đầu tiên. */
+export interface OfficerPushRow { id: string; kind: 'sos' | 'incident'; receiptCode: string; category: string; localityName: string; reminder?: number }
 
 /** Màn hình khóa chỉ có địa bàn, mã hồ sơ và nhóm sự việc, không có mô tả hay vị trí. */
 export function officerMessage(row: OfficerPushRow): PushMessage {
   const sos = row.kind === 'sos';
   const labels = sos ? SOS_CATEGORY_LABELS : INCIDENT_CATEGORY_LABELS;
   return {
-    title: `${sos ? 'SOS khẩn cấp' : 'Phản ánh mới'} · ${row.localityName}`,
+    title: `${sos ? (row.reminder ? 'SOS chưa có người nhận' : 'SOS khẩn cấp') : 'Phản ánh mới'} · ${row.localityName}`,
     body: `${row.receiptCode} · ${labels[row.category] ?? 'Khác'}`,
     channel: sos ? 'sos' : 'officer',
     urgent: sos,
-    tag: `officer-${row.kind}-${row.id}`,
+    // Mỗi lần nhắc có tag riêng để không thay thế thông báo trước và điện thoại kêu lại.
+    tag: `officer-${row.kind}-${row.id}${row.reminder ? `-r${row.reminder}` : ''}`,
     data: { type: 'officer', kind: row.kind, id: row.id, receiptCode: row.receiptCode },
   };
 }
@@ -245,6 +247,7 @@ export function citizenMessage(row: CitizenPushRow): PushMessage {
   };
 }
 
+// SOS chưa có người nhận: thông báo gốc (dưới 2 phút), nhắc lần 1 (2–5 phút), nhắc lần 2 (5–30 phút). Mỗi lúc chỉ một tầng hiện hành, tránh bắn dồn khi máy chủ chạy lại.
 // Sự kiện chỉ được gửi trong khoảng này sau khi phát sinh: tránh gửi dồn tin cũ khi máy chủ khởi động lại sau thời gian dài.
 const DELIVERY_WINDOW = "interval '30 minutes'";
 const MAX_ATTEMPTS = 3;
@@ -298,9 +301,23 @@ export class PostgresPushStore implements PushStore {
          JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
          JOIN push_devices d ON d.officer_id = a.id
          WHERE s.status IN ('triggered', 'dispatched', 'escalated')
-           AND s.created_at > now() - ${DELIVERY_WINDOW} AND s.created_at >= d.created_at
+           AND s.created_at > now() - interval '2 minutes' AND s.created_at >= d.created_at
            AND NOT EXISTS (
              SELECT 1 FROM push_deliveries x WHERE x.kind = 'officer_sos' AND x.ref_id = s.id::text AND x.device_id = d.id
+               AND NOT (x.status = 'failed' AND x.attempts < ${MAX_ATTEMPTS} AND x.updated_at < now() - interval '1 minute'))
+         UNION ALL
+         SELECT 'officer_sos', s.id::text || ':r' || rm.n, d.id, d.token, NULL, l.name, NULL, NULL, NULL,
+                s.receipt_code, 'sos', s.status, s.category, s.created_at + rm.after
+         FROM sos_events s
+         CROSS JOIN (VALUES (1, interval '2 minutes', interval '5 minutes'), (2, interval '5 minutes', interval '30 minutes')) AS rm(n, after, until)
+         JOIN localities l ON l.id = s.locality_id
+         JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+         JOIN push_devices d ON d.officer_id = a.id
+         WHERE s.status IN ('triggered', 'dispatched', 'escalated')
+           AND s.created_at + rm.after <= now() AND s.created_at + rm.until > now()
+           AND s.created_at > now() - ${DELIVERY_WINDOW} AND s.created_at >= d.created_at
+           AND NOT EXISTS (
+             SELECT 1 FROM push_deliveries x WHERE x.kind = 'officer_sos' AND x.ref_id = s.id::text || ':r' || rm.n AND x.device_id = d.id
                AND NOT (x.status = 'failed' AND x.attempts < ${MAX_ATTEMPTS} AND x.updated_at < now() - interval '1 minute'))
          UNION ALL
          SELECT 'officer_incident', r.id::text, d.id, d.token, NULL, l.name, NULL, NULL, NULL,
@@ -335,8 +352,9 @@ export class PostgresPushStore implements PushStore {
       if (!claim.rowCount) continue;
       const message = kind === 'officer_sos' || kind === 'officer_incident'
         ? officerMessage({
-          id: refId, kind: kind === 'officer_sos' ? 'sos' : 'incident', receiptCode: String(row.receipt_code),
+          id: refId.split(':r')[0]!, kind: kind === 'officer_sos' ? 'sos' : 'incident', receiptCode: String(row.receipt_code),
           category: String(row.event_type), localityName: String(row.area_name),
+          reminder: refId.includes(':r') ? Number(refId.split(':r')[1]) : undefined,
         })
         : kind === 'alert'
         ? alertMessage({

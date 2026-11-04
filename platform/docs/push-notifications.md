@@ -65,5 +65,7 @@ Việc cần làm (một lần), dùng chung dự án Firebase và khóa máy ch
 
 Cách hoạt động: sau khi đăng nhập, app xin quyền thông báo và gọi `POST /v1/push/officer-devices` (cần phiên cán bộ). API quét mỗi 5 giây: SOS ở trạng thái chưa nhận (`triggered`, `dispatched`, `escalated`) và phản ánh `submitted` trong 30 phút gần nhất, gửi tới mọi thiết bị của cán bộ và chỉ huy đang hoạt động cùng địa bàn, một lần cho mỗi thiết bị. Đăng xuất thì app hủy mã thiết bị. Bấm thông báo mở đúng hồ sơ trong hàng đợi. Còi báo trong app (khi đang mở) vẫn hoạt động như cũ.
 
-Giới hạn hiện tại: chưa thử trên điện thoại thật; thông báo chỉ gửi một lần cho mỗi SOS (nhắc lại khi chưa ai nhận chỉ có khi app đang mở); khi cán bộ tắt quyền thông báo, app hiện dòng nhắc ở đầu cổng.
+SOS chưa có người nhận được nhắc lại: thông báo gốc trong 2 phút đầu, nhắc lần 1 từ phút thứ 2, nhắc lần 2 từ phút thứ 5 (tiêu đề "SOS chưa có người nhận"), mỗi lúc chỉ gửi một tầng và dừng ngay khi có người nhận hoặc sau 30 phút.
+
+Giới hạn hiện tại: chưa thử trên điện thoại thật; khi cán bộ tắt quyền thông báo, app hiện dòng nhắc ở đầu cổng.
 
