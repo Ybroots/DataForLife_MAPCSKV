@@ -221,9 +221,6 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
   // Hướng dẫn nhanh
   'Làm quen nhanh trong 1 phút': 'A one-minute tour',
   'Xem nhanh 6 điểm chính của ứng dụng.': 'A quick look at the 6 key points of the app.',
-  'Cán bộ Công an': 'Police officer',
-  'Cổng nghiệp vụ địa bàn CSKV': 'CSKV area operations portal',
-  'Đăng nhập CSKV': 'CSKV sign-in',
   'Menu Tính năng': 'Menu',
   'Mở danh sách đầy đủ: cảnh báo, phản ánh, đánh giá, trợ lý.': 'Open the full list: alerts, reports, ratings, assistant.',
   'Bản đồ toàn tỉnh': 'Province map',
@@ -551,8 +548,6 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
   'Nơi làm thủ tục': 'Where to apply',
   'Lưu ý': 'Notes',
   'Thông tin tham khảo, hãy xác nhận với Công an xã/phường trước khi làm thủ tục.': 'For reference only. Please confirm with the Commune/Ward Police before starting the procedure.',
-  'AI soạn nháp': 'Draft with AI',
-  'AI đang soạn…': 'Drafting…',
   'Chưa có địa chỉ công khai.': 'No public address yet.',
   'Chưa có đầu mối liên hệ công khai tại địa bàn này.': 'No public contacts in this area yet.',
   'Chưa có cảnh báo công khai đang hiệu lực. Điều này không xác nhận địa bàn không có rủi ro.': 'No active public alerts. This does not mean the area is risk-free.',
