@@ -82,7 +82,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
   const maxTrend = useMemo(() => Math.max(1, ...(data?.trend.map((item) => item.incidents + item.sos) ?? [1])), [data]);
 
   return <div className="statistics-panel">
-    <div className="operations-intro"><CalendarDays size={24} /><div><h3>Báo cáo tình hình địa bàn</h3><p>Số liệu trực tiếp từ phản ánh, SOS và đánh giá của Phường Xuân Hương.</p></div></div>
+    <div className="operations-intro"><CalendarDays size={24} /><div><h3>Báo cáo tình hình địa bàn</h3></div></div>
     <div className="report-controls">
       <div className="report-period" role="tablist" aria-label="Kỳ báo cáo">
         {(Object.keys(periodLabels) as StatisticsPeriod[]).map((item) => <button key={item} type="button" role="tab" aria-selected={period === item} className={period === item ? 'active' : ''} onClick={() => setPeriod(item)}>{periodLabels[item]}</button>)}

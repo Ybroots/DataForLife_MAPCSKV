@@ -43,7 +43,7 @@ export function OfficerMapDataManager({ onChanged }: { onChanged?: () => void })
 
   const defaults = editing && editing !== 'new' ? editing : emptyInput;
   return <div className="map-data-manager">
-    <div className="operations-intro"><MapPin size={24} /><div><h3>Dữ liệu bản đồ địa bàn</h3><p>Thêm, sửa, ẩn hoặc xóa các điểm nghiệp vụ thuộc phạm vi tài khoản đang đăng nhập.</p></div><button type="button" className="ops-add-button" onClick={() => setEditing('new')}><Plus size={17} /> Thêm điểm</button></div>
+    <div className="operations-intro"><MapPin size={24} /><div><h3>Dữ liệu bản đồ địa bàn</h3></div><button type="button" className="ops-add-button" onClick={() => setEditing('new')}><Plus size={17} /> Thêm điểm</button></div>
     <div className="map-data-list">
       {items.length === 0 && <p className="workflow-empty">Chưa có điểm nghiệp vụ tùy chỉnh.</p>}
       {items.map((item) => { const Icon = icons[item.pointType]; return <article key={item.id} className={item.status !== 'active' ? 'muted' : ''}>
@@ -52,7 +52,7 @@ export function OfficerMapDataManager({ onChanged }: { onChanged?: () => void })
       </article>; })}
     </div>
     {editing && <div className="map-data-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><form className="map-data-sheet" onSubmit={submit} aria-label={editing === 'new' ? 'Thêm điểm bản đồ' : 'Sửa điểm bản đồ'}>
-      <header><div><small>DỮ LIỆU POSTGIS</small><h3>{editing === 'new' ? 'Thêm điểm bản đồ' : 'Chỉnh sửa điểm bản đồ'}</h3></div><button type="button" onClick={() => setEditing(null)} aria-label="Đóng"><X /></button></header>
+      <header><div><h3>{editing === 'new' ? 'Thêm điểm bản đồ' : 'Chỉnh sửa điểm bản đồ'}</h3></div><button type="button" onClick={() => setEditing(null)} aria-label="Đóng"><X /></button></header>
       <label>Tên điểm<input name="name" required minLength={3} maxLength={160} defaultValue={defaults.name} /></label>
       <div className="form-grid"><label>Loại điểm<select name="pointType" defaultValue={defaults.pointType}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Trạng thái<select name="status" defaultValue={defaults.status}><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Tạm ẩn</option></select></label></div>
       <div className="form-grid"><label>Vĩ độ<input name="latitude" type="number" step="0.000001" min="-90" max="90" required defaultValue={defaults.latitude} /></label><label>Kinh độ<input name="longitude" type="number" step="0.000001" min="-180" max="180" required defaultValue={defaults.longitude} /></label></div>

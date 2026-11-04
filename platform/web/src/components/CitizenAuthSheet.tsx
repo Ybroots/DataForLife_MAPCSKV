@@ -109,7 +109,7 @@ export function CitizenAuthSheet({ open, action, onClose, onSuccess }: CitizenAu
         <span className="citizen-auth-grip" aria-hidden="true" />
         <header>
           <span className="citizen-auth-mark" aria-hidden="true"><UserRoundCheck size={26} /></span>
-          <div><small>TÀI KHOẢN NGƯỜI DÂN</small><h2 id="citizen-auth-sheet-title">{emailStep ? 'Xác minh email' : recovery ? 'Lưu mã khôi phục' : mode === 'forgot' ? 'Quên mật khẩu' : mode === 'login' ? `Đăng nhập để ${action}` : 'Tạo tài khoản mới'}</h2></div>
+          <div><h2 id="citizen-auth-sheet-title">{emailStep ? 'Xác minh email' : recovery ? 'Lưu mã khôi phục' : mode === 'forgot' ? 'Quên mật khẩu' : mode === 'login' ? `Đăng nhập để ${action}` : 'Tạo tài khoản mới'}</h2></div>
           <button type="button" onClick={dismiss} aria-label="Đóng"><X size={21} aria-hidden="true" /></button>
         </header>
         {recovery && <RecoveryCodeNotice

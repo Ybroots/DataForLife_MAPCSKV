@@ -770,7 +770,6 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
           {(area?.serviceAreas?.length ?? 0) > 0 && <label><input name="demoOfficersVisible" type="checkbox" checked={demoOfficersVisible} onChange={(event) => setDemoOfficersVisible(event.target.checked)} /> <span>Trụ sở và CSKV</span></label>}
           <label><input name="alertsVisible" type="checkbox" checked={alertsVisible} onChange={(event) => setAlertsVisible(event.target.checked)} /> <span>Cảnh báo địa bàn</span></label>
           {alertsFailed && <small><ShieldAlert size={15} aria-hidden="true" /> Chưa tải được cảnh báo. Hãy tải lại trang để thử lại.</small>}
-          {(area?.serviceAreas?.length ?? 0) > 0 && <small>Ranh khu vực và vị trí trụ sở, CSKV chỉ để tham chiếu.</small>}
         </div>
       )}
       <div ref={containerRef} className="map-canvas" data-testid="map-canvas" />

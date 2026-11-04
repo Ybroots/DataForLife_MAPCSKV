@@ -489,7 +489,7 @@ export function PoliceDutyMap({ active, localityCode, queue, onBackToQueue, onOp
         </button>
         <span className="duty-map-heading-icon"><MapPinned size={21} aria-hidden="true" /></span>
         <div>
-          <small>BẢN ĐỒ TRỰC BAN</small>
+          
           <strong>{area?.name ?? (areaLoading ? 'Đang tải địa bàn…' : 'Chưa gán địa bàn')}</strong>
           <span>{area ? `${referenceAreaCount ? `${referenceAreaCount} ranh tham chiếu` : `${area.serviceAreas.length} khu phụ trách`} · ${points.length} hồ sơ · ${operationalPoints.length} điểm quản lý` : 'Theo tài khoản đang đăng nhập'}</span>
         </div>

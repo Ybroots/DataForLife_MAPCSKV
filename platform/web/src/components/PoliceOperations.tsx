@@ -1,6 +1,6 @@
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
-import { BarChart3, BellRing, Bot, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
+import { BarChart3, BellRing, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
 import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
 import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
 
@@ -91,7 +91,7 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
 
   return (
     <section className="police-operations-pane" aria-label="Nghiệp vụ địa bàn">
-      <header className="operations-heading"><div><small>CÔNG CỤ TRỰC BAN</small><h2>Nghiệp vụ địa bàn</h2></div><span className="capability-active"><ShieldCheck size={15} /> Hoạt động local</span></header>
+      <header className="operations-heading"><div><h2>Nghiệp vụ địa bàn</h2></div></header>
       <div className="operations-tabs" role="tablist" aria-label="Nhóm nghiệp vụ">
         <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}><BarChart3 size={18} /> Báo cáo</button>
         <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>
@@ -107,7 +107,7 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
       {tab === 'accounts' && PASSWORD_RECOVERY_ENABLED && <OfficerCitizenReset />}
 
       {tab === 'alerts' && <form className="operations-form" onSubmit={submitAlert}>
-        <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3><p>Chọn vị trí trên bản đồ hoặc nhập tọa độ. Cảnh báo hiện ngay trên bản đồ người dân trong thời gian hiệu lực và gửi thông báo tới thiết bị đã bật thông báo.</p></div></div>
+        <div className="operations-intro"><BellRing size={24} /><div><h3>Phát hành cảnh báo khu vực</h3></div></div>
         <label>Tiêu đề<input name="title" minLength={5} maxLength={160} required placeholder="Ví dụ: Mật độ giao thông tăng" /></label>
         <div className="form-grid"><label>Nhóm<select name="category" defaultValue="security"><option value="security">An ninh</option><option value="traffic">Giao thông</option><option value="fire_rescue">PCCC/CNCH</option><option value="weather">Thời tiết</option><option value="other">Khác</option></select></label><label>Mức độ<select name="risk" defaultValue="info"><option value="info">Thông tin</option><option value="medium">Mức vừa</option><option value="high">Mức cao</option></select></label></div>
         <label>Nội dung<textarea name="summary" minLength={10} maxLength={1200} rows={5} required placeholder="Thông tin ngắn gọn, có hướng dẫn hành động cụ thể…" /></label>
@@ -120,7 +120,7 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
 
       {tab === 'patrol' && <div className="operations-stack">
         <form className="operations-form" onSubmit={submitPatrol}>
-          <div className="operations-intro"><MapPinned size={24} /><div><h3>Lập lịch tuần tra</h3><p>Theo dõi bắt đầu, tạm dừng, check-in GPS và kết thúc.</p></div></div>
+          <div className="operations-intro"><MapPinned size={24} /><div><h3>Lập lịch tuần tra</h3></div></div>
           <label>Tên ca/tuyến<input name="title" minLength={5} maxLength={160} required placeholder="Tuần tra khu Hòa Bình" /></label>
           <label>Thời gian dự kiến<input name="scheduledAt" type="datetime-local" required /></label>
           <label>Tuyến và điểm cần kiểm tra<textarea name="routeNote" maxLength={1000} rows={3} /></label>
@@ -130,14 +130,14 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
       </div>}
 
       {tab === 'shift' && <form className="operations-form" onSubmit={submitShift}>
-        <div className="operations-intro"><ClipboardCheck size={24} /><div><h3>Báo cáo nhanh cuối ca</h3><p>Số liệu được tổng hợp trực tiếp từ hồ sơ, SOS và lịch tuần tra trong ngày.</p></div></div>
+        <div className="operations-intro"><ClipboardCheck size={24} /><div><h3>Báo cáo nhanh cuối ca</h3></div></div>
         {summary && <div className="shift-metrics"><span><strong>{summary.incidentsReceived}</strong>Phản ánh nhận</span><span><strong>{summary.incidentsResolved}</strong>Phản ánh xong</span><span><strong>{summary.sosReceived}</strong>SOS nhận</span><span><strong>{summary.sosResolved}</strong>SOS xong</span><span><strong>{summary.patrolsCompleted}</strong>Ca tuần tra</span><span className={summary.overdueOpen ? 'warning' : ''}><strong>{summary.overdueOpen}</strong>Quá hạn mở</span></div>}
         <label>Ghi chú bàn giao<textarea name="note" maxLength={2000} rows={6} placeholder="Việc còn tồn, đầu mối phối hợp, nội dung cần ca sau tiếp tục…" /></label>
         <button className="ops-submit" disabled={busy}><ClipboardCheck size={17} /> Xác nhận báo cáo ca</button>
       </form>}
 
       {tab === 'roadmap' && <div className="development-grid">
-        {[{ icon: <ShieldCheck />, title: 'Xác thực VNeID', note: 'Chờ kết nối định danh và quy trình phê duyệt.' }, { icon: <Bot />, title: 'AI phân loại & trợ lý', note: 'Chờ mô hình, kho tri thức và cơ chế kiểm duyệt.' }, { icon: <Camera />, title: 'Camera địa bàn', note: 'Chờ nền tảng camera và phân quyền truy cập.' }, { icon: <RadioTower />, title: 'SMS, Web Push, 112/113', note: 'Chờ nhà cung cấp và đầu mối nghiệp vụ chính thức.' }].map((item) => <article key={item.title}><span>{item.icon}</span><div><em>Đang phát triển</em><h3>{item.title}</h3><p>{item.note}</p></div></article>)}
+        {[{ icon: <ShieldCheck />, title: 'Xác thực VNeID' }, { icon: <Camera />, title: 'Camera địa bàn' }, { icon: <RadioTower />, title: 'SMS, Web Push, 112/113' }].map((item) => <article key={item.title}><span>{item.icon}</span><div><em>Đang phát triển</em><h3>{item.title}</h3></div></article>)}
       </div>}
       {notice && <p className="inline-notice" role="status">{notice}</p>}
     </section>

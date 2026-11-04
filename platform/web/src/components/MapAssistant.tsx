@@ -140,7 +140,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
             {areaCode && <button className="map-assistant-text-button" type="button" onClick={() => onAreaSelect(areaCode)}><MapPinned size={16} aria-hidden="true" />Xem đầu mối {areaName ?? 'địa bàn đang xem'}</button>}
             <button className="map-assistant-text-button" type="button" onClick={onOpenReports}>Gửi câu hỏi cho cán bộ (mục Phản ánh)</button>
           </div>}
-          <small className="map-assistant-source">Nguồn: danh bạ, địa bàn và cảnh báo công khai{answer.meta.provider === 'keyword' ? ' · tra cứu theo tên, không dùng AI' : answer.intent === 'emergency' ? '' : ` · ${answer.meta.provider} chỉ phân loại câu hỏi`} · {new Date(answer.meta.retrievedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{answer.meta.dataSource === 'fixture' && ' · Dữ liệu kiểm thử, không dùng thực tế'}</small>
+          {answer.meta.dataSource === 'fixture' && <small className="map-assistant-source">Dữ liệu kiểm thử, không dùng thực tế</small>}
         </article>)}
         <div role="status" aria-live="polite" aria-atomic="true" className={pending ? 'map-assistant-progress' : 'sr-only'}>{pending ? <><LoaderCircle size={16} className="spin" aria-hidden="true" /> Đang đối chiếu dữ liệu…</> : turns.length > 0 ? 'Đã trả kết quả tra cứu.' : ''}</div>
         {error && <p role="alert" className="map-assistant-error">{error}</p>}

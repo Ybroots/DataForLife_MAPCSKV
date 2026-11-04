@@ -169,7 +169,7 @@ export function AlertLocationPicker({ localityCode, onChange }: AlertLocationPic
 
   return (
     <div className="alert-location-picker">
-      <div className="alert-picker-head"><strong>Vị trí cảnh báo</strong><small>Bắt buộc. Người dân sẽ thấy điểm này trên bản đồ.</small></div>
+      <div className="alert-picker-head"><strong>Vị trí cảnh báo</strong><small>Bắt buộc</small></div>
       <div ref={containerRef} className="alert-picker-map" role="application" aria-label="Bản đồ chọn vị trí cảnh báo" />
       <div className="form-grid">
         <label>Vĩ độ<input inputMode="decimal" value={latText} onChange={(event) => { setLatText(event.target.value); setGpsMessage(''); }} placeholder="11.944000" autoComplete="off" aria-invalid={hasText && !point} /></label>

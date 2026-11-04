@@ -459,7 +459,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
 
           <section className="police-case-pane" aria-label="Chi tiết hồ sơ">
             {detailLoading && <div className="case-loading"><span className="loader" /> Đang tải hồ sơ…</div>}
-            {!detailLoading && !detail && <div className="case-placeholder"><ListFilter size={40} aria-hidden="true" /><h2>Chọn một hồ sơ</h2><p>Chi tiết, vị trí, lịch sử và hành động xử lý sẽ hiển thị tại đây.</p></div>}
+            {!detailLoading && !detail && <div className="case-placeholder"><ListFilter size={40} aria-hidden="true" /><h2>Chọn một hồ sơ</h2></div>}
             {!detailLoading && detail && (
               <>
                 <button className="mobile-back-queue" type="button" onClick={() => setMobilePane('queue')}><ArrowLeft size={18} aria-hidden="true" /> Hàng đợi</button>

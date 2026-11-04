@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import {
-  DUPLICATE_LIKELY_SCORE,
   DUPLICATE_RADIUS_M,
   DUPLICATE_WINDOW_HOURS,
   rankDuplicates,

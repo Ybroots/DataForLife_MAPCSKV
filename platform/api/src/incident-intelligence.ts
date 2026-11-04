@@ -33,9 +33,7 @@ function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
 }
 
-/* ------------------------------------------------------------------ */
 /* 1. AI hỗ trợ điền phiếu                                             */
-/* ------------------------------------------------------------------ */
 
 const draftSchema = {
   type: 'object', additionalProperties: false,
@@ -100,9 +98,7 @@ export async function draftIncident(model: JsonModel, text: string, image?: AiIm
   return { ...validateDraft(result, value), emergency, provider: model.provider };
 }
 
-/* ------------------------------------------------------------------ */
 /* 2. AI gợi ý lĩnh vực và nhận biết sơ bộ ảnh (cho cán bộ)            */
-/* ------------------------------------------------------------------ */
 
 const reviewSchema = {
   type: 'object', additionalProperties: false,
@@ -180,9 +176,7 @@ export async function reviewIncident(
   return { ...validateReview(result, images), provider: model.provider, model: model.model };
 }
 
-/* ------------------------------------------------------------------ */
 /* 2b. AI soạn nháp phản hồi cho người dân (cán bộ sửa rồi mới gửi)    */
-/* ------------------------------------------------------------------ */
 
 const replySchema = {
   type: 'object', additionalProperties: false,
@@ -237,9 +231,7 @@ export async function draftReply(
   return { ...validateReply(result), provider: model.provider };
 }
 
-/* ------------------------------------------------------------------ */
 /* 2c. Gợi ý người phụ trách (quy tắc, không dùng AI)                  */
-/* ------------------------------------------------------------------ */
 
 export interface AssigneeSuggestion {
   id: string;
@@ -247,10 +239,7 @@ export interface AssigneeSuggestion {
   openCases: number;
 }
 
-/**
- * Cán bộ cùng địa bàn đang giữ ít hồ sơ mở nhất; hòa thì xếp theo tên. Chỉ là gợi ý: hồ sơ vẫn do cán bộ tự nhận,
- * hệ thống không tự chuyển hồ sơ cho người khác.
- */
+/** Cán bộ cùng địa bàn đang giữ ít hồ sơ mở nhất. Chỉ là gợi ý, không tự chuyển hồ sơ. */
 export function suggestAssignee(
   localityCode: string,
   actors: Array<{ id: string; actorType: string; displayName: string; localityCode: string | null }>,
@@ -268,9 +257,7 @@ export function suggestAssignee(
   return candidates[0] ?? null;
 }
 
-/* ------------------------------------------------------------------ */
 /* 3. Nhóm phản ánh trùng: quy tắc nghiệp vụ + so khớp nội dung        */
-/* ------------------------------------------------------------------ */
 
 /** Ứng viên trùng: cùng địa bàn, cách nhau tối đa 500 m và 12 giờ. Giá trị đề xuất cho giai đoạn thí điểm. */
 export const DUPLICATE_RADIUS_M = 500;
