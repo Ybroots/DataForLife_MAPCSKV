@@ -914,7 +914,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     if (['closed', 'rejected'].includes(item.status)) throw new WorkflowError('INVALID_TRANSITION', 'Hồ sơ đã đóng, không đổi lĩnh vực được nữa.');
     if (reviewId) {
       const review = this.aiReviews.find((entry) => entry.id === reviewId && entry.incidentId === incidentId);
-      if (!review) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy gợi ý AI của hồ sơ này.');
+      if (!review) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy kết quả phân tích của hồ sơ này.');
       review.decision = category === review.suggestedCategory ? 'accepted' : category === item.category ? 'kept' : 'changed';
       review.decidedCategory = category;
       review.decidedAt = new Date().toISOString();

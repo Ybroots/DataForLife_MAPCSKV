@@ -87,7 +87,7 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
     try {
       setReview(await requestIncidentAiReview(incident.id));
     } catch (caught) {
-      setError(errorText(caught, 'Chưa kết nối được AI. Hãy thử lại sau.'));
+      setError(errorText(caught, 'Chưa kết nối được hệ thống phân tích. Hãy thử lại sau.'));
     } finally {
       setBusy(null);
     }
@@ -165,10 +165,10 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
       </section>}
 
       {showAi && <section className="ops-card incident-ai-card" aria-labelledby={`ai-title-${incident.id}`}>
-        <div className="ops-card-title"><h3 id={`ai-title-${incident.id}`}>AI gợi ý lĩnh vực và đọc ảnh</h3><Sparkles size={19} aria-hidden="true" /></div>
+        <div className="ops-card-title"><h3 id={`ai-title-${incident.id}`}>Phân tích lĩnh vực và ảnh</h3><Sparkles size={19} aria-hidden="true" /></div>
         {!review && aiConfigured && (
           <button type="button" className="insight-primary" disabled={busy !== null || closed} onClick={() => void askAi()}>
-            <Sparkles size={16} aria-hidden="true" /> {busy === 'ai' ? 'AI đang đọc hồ sơ và ảnh…' : 'Nhờ AI gợi ý'}
+            <Sparkles size={16} aria-hidden="true" /> {busy === 'ai' ? 'Đang phân tích hồ sơ và ảnh…' : 'Phân tích hồ sơ'}
           </button>
         )}
         {review && (
@@ -203,7 +203,7 @@ export function IncidentInsights({ incident, categoryLabels, onIncidentChange, o
             {review.decision !== null && review.decidedCategory && (
               <p className="insight-muted">
                 Cán bộ đã chọn <strong>{categoryLabels[review.decidedCategory] ?? review.decidedCategory}</strong>
-                {review.decision === 'accepted' ? ' (theo gợi ý AI).' : ' (khác gợi ý AI).'}
+                {review.decision === 'accepted' ? ' (theo kết quả phân tích).' : ' (khác kết quả phân tích).'}
               </p>
             )}
             {review.decision !== null && aiConfigured && !closed && (

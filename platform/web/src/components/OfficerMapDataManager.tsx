@@ -5,10 +5,10 @@ import { filterPointsInZone } from '../area-scope';
 import { pointInBoundary } from '../citizen-map-points';
 import type { OperationalMapPoint, OperationalMapPointInput, ServiceArea } from '../types';
 
-const labels: Record<OperationalMapPoint['pointType'], string> = { police_post: 'Điểm CSKV', camera: 'Camera', risk_point: 'Điểm nguy cơ', patrol_checkpoint: 'Điểm tuần tra', public_facility: 'Tiện ích công cộng' };
+const labels: Record<OperationalMapPoint['pointType'], string> = { police_post: 'Điểm CSKV', camera: 'Camera', risk_point: 'Điểm nguy cơ', patrol_checkpoint: 'Điểm nghiệp vụ', public_facility: 'Tiện ích công cộng' };
 const icons = { police_post: Shield, camera: Camera, risk_point: TriangleAlert, patrol_checkpoint: CircleParking, public_facility: MapPin };
 
-const emptyInput: OperationalMapPointInput = { name: '', pointType: 'patrol_checkpoint', description: null, contactPhone: null, status: 'active', visibility: 'officer', latitude: 11.944, longitude: 108.441 };
+const emptyInput: OperationalMapPointInput = { name: '', pointType: 'police_post', description: null, contactPhone: null, status: 'active', visibility: 'officer', latitude: 11.944, longitude: 108.441 };
 
 export function OfficerMapDataManager({ onChanged, zoneBoundary = null }: { onChanged?: () => void; zoneBoundary?: ServiceArea['boundary'] | null }) {
   const [allItems, setItems] = useState<OperationalMapPoint[]>([]);
@@ -62,7 +62,7 @@ export function OfficerMapDataManager({ onChanged, zoneBoundary = null }: { onCh
     {editing && <div className="map-data-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><form className="map-data-sheet" onSubmit={submit} aria-label={editing === 'new' ? 'Thêm điểm bản đồ' : 'Sửa điểm bản đồ'}>
       <header><div><h3>{editing === 'new' ? 'Thêm điểm bản đồ' : 'Chỉnh sửa điểm bản đồ'}</h3></div><button type="button" onClick={() => setEditing(null)} aria-label="Đóng"><X /></button></header>
       <label>Tên điểm<input name="name" required minLength={3} maxLength={160} defaultValue={defaults.name} /></label>
-      <div className="form-grid"><label>Loại điểm<select name="pointType" defaultValue={defaults.pointType}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Trạng thái<select name="status" defaultValue={defaults.status}><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Tạm ẩn</option></select></label></div>
+      <div className="form-grid"><label>Loại điểm<select name="pointType" defaultValue={defaults.pointType}>{Object.entries(labels).filter(([value]) => value !== 'patrol_checkpoint' || defaults.pointType === 'patrol_checkpoint').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Trạng thái<select name="status" defaultValue={defaults.status}><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Tạm ẩn</option></select></label></div>
       <div className="form-grid"><label>Vĩ độ<input name="latitude" type="number" step="0.000001" min="-90" max="90" required defaultValue={defaults.latitude} /></label><label>Kinh độ<input name="longitude" type="number" step="0.000001" min="-180" max="180" required defaultValue={defaults.longitude} /></label></div>
       <label>Phạm vi hiển thị<select name="visibility" defaultValue={defaults.visibility}><option value="officer">Chỉ cán bộ</option><option value="public">Công khai cho người dân</option></select></label>
       <label>Số điện thoại<input name="contactPhone" type="tel" inputMode="tel" defaultValue={defaults.contactPhone ?? ''} placeholder="02633…" /></label>

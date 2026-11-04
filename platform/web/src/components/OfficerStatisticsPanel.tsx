@@ -40,7 +40,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
   const writeSummary = async () => {
     setSummarizing(true); setError('');
     try { setSummary(await summarizeReportWithAi(period, date)); }
-    catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Chưa kết nối được AI. Bạn vẫn có thể tự viết nhận xét.'); }
+    catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Chưa kết nối được hệ thống phân tích. Bạn vẫn có thể tự viết nhận xét.'); }
     finally { setSummarizing(false); }
   };
 
@@ -110,9 +110,9 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
       </div>
       {aiReady && <section className="statistics-ai" aria-labelledby="statistics-ai-title">
         <header>
-          <h4 id="statistics-ai-title">Nhận xét của AI</h4>
+          <h4 id="statistics-ai-title">Nhận xét tổng hợp</h4>
           <button type="button" className="report-refresh" onClick={() => void writeSummary()} disabled={summarizing}>
-            {summarizing ? <RefreshCw className="spin" size={16} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />} {summarizing ? 'AI đang viết…' : summary ? 'Viết lại' : 'AI viết nhận xét'}
+            {summarizing ? <RefreshCw className="spin" size={16} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />} {summarizing ? 'Đang viết…' : summary ? 'Viết lại' : 'Tạo nhận xét'}
           </button>
         </header>
         {summary ? <>

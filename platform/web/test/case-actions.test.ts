@@ -70,4 +70,10 @@ describe('officer case actions', () => {
     expect(minNoteLength(planFor('incident', 'processing').primary!, 'incident')).toBe(20);
     expect(minNoteLength(planFor('incident', 'assigned').primary!, 'incident')).toBe(8);
   });
+  it('never offers to close an unassigned report without handling it', () => {
+    for (const status of ['submitted', 'received']) {
+      const closing = actionsOf('incident', status).filter((action) => action.steps.includes('closed'));
+      expect(closing).toEqual([]);
+    }
+  });
 });

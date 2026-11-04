@@ -74,14 +74,14 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
   const budget = new AiBudget(Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 200, clock);
 
   const notConfigured = (reply: FastifyReply) => reply.code(503).send({
-    error: 'AI_NOT_CONFIGURED', message: 'Chức năng AI chưa được bật trên máy chủ.',
+    error: 'AI_NOT_CONFIGURED', message: 'Chức năng phân tích chưa được bật trên máy chủ.',
   });
 
   async function runAi<T>(reply: FastifyReply, subject: string, window: AttemptWindow, task: () => Promise<T>) {
     const wait = window.retryAfterSeconds(subject) || budget.acquire();
     if (wait) {
       reply.header('Retry-After', String(wait));
-      return reply.code(429).send({ error: 'AI_RATE_LIMITED', message: 'Đã đạt giới hạn dùng AI. Hãy thử lại sau.' });
+      return reply.code(429).send({ error: 'AI_RATE_LIMITED', message: 'Đã đạt giới hạn sử dụng. Hãy thử lại sau.' });
     }
     window.record(subject);
     try {
@@ -89,7 +89,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     } catch (error) {
       if (error instanceof IntelligenceError) return reply.code(error.status).send({ error: error.code, message: error.message });
       if (error instanceof AiUnavailableError) {
-        return reply.code(503).send({ error: 'AI_PROVIDER_UNAVAILABLE', message: 'Chưa kết nối được AI. Hãy thử lại sau.' });
+        return reply.code(503).send({ error: 'AI_PROVIDER_UNAVAILABLE', message: 'Chưa kết nối được hệ thống phân tích. Hãy thử lại sau.' });
       }
       throw error;
     } finally {
@@ -134,7 +134,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
   app.post<{ Body: { text?: unknown; image?: unknown } }>('/v1/citizen/incident-draft', { preHandler: workflowDisabled, bodyLimit: DRAFT_BODY_LIMIT }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const citizenId = citizenIdentity(request);
-    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập trước khi dùng AI hỗ trợ điền phiếu.' });
+    if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập trước khi dùng tính năng điền phiếu hỗ trợ.' });
     if (!model) return notConfigured(reply);
     const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
     const rawImage = request.body?.image;

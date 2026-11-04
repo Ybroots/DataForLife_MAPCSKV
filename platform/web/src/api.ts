@@ -17,11 +17,9 @@ import type {
   OperationalMapPoint,
   OperationalMapPointInput,
   OfficerQueueItem,
-  PatrolSession,
   PublicAlert,
   PublicStats,
   SatisfactionRating,
-  ShiftSummary,
   SosEvent,
   SosStatus,
   WorkflowActor,
@@ -218,15 +216,6 @@ export async function confirmPasswordResetEmail(username: string, code: string, 
   });
 }
 
-export interface CitizenResetCode { recoveryCode: string; expiresAt: string; displayName: string; phone: string }
-
-/** Cán bộ cấp mã đặt lại mật khẩu cho người dân (sau khi đã xác minh danh tính). Mã hiện một lần, hiệu lực 24 giờ. */
-export async function issueCitizenResetCode(phone: string): Promise<CitizenResetCode> {
-  const payload = await request<{ data: CitizenResetCode }>('/v1/officer/citizen-accounts/reset-code', {
-    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ phone, verified: true }),
-  });
-  return payload.data;
-}
 
 export async function getCitizenSession(): Promise<CitizenSession | null> {
   try {
@@ -479,37 +468,6 @@ export async function updatePublicAlert(id: string, changes: PublicAlertChanges)
 /** Gỡ cảnh báo đang hiển thị: người dân không còn thấy trên bản đồ. */
 export async function cancelPublicAlert(id: string): Promise<void> {
   await request<void>(`/v1/officer/alerts/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: officerHeaders() });
-}
-
-export async function listPatrolSessions(): Promise<PatrolSession[]> {
-  const payload = await request<{ data: PatrolSession[] }>('/v1/officer/patrols', { headers: officerHeaders() });
-  return payload.data;
-}
-
-export async function createPatrolSession(title: string, routeNote: string, scheduledAt: string): Promise<PatrolSession> {
-  const payload = await request<{ data: PatrolSession }>('/v1/officer/patrols', {
-    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ title, routeNote, scheduledAt }),
-  });
-  return payload.data;
-}
-
-export async function updatePatrolSession(id: string, action: 'start' | 'pause' | 'resume' | 'checkin' | 'complete', latitude?: number, longitude?: number): Promise<PatrolSession> {
-  const payload = await request<{ data: PatrolSession }>(`/v1/officer/patrols/${encodeURIComponent(id)}/actions`, {
-    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ action, latitude, longitude }),
-  });
-  return payload.data;
-}
-
-export async function getShiftSummary(): Promise<ShiftSummary> {
-  const payload = await request<{ data: ShiftSummary }>('/v1/officer/shift-summary', { headers: officerHeaders() });
-  return payload.data;
-}
-
-export async function confirmShiftReport(note: string): Promise<{ id: string; confirmedAt: string; summary: ShiftSummary }> {
-  const payload = await request<{ data: { id: string; confirmedAt: string; summary: ShiftSummary } }>('/v1/officer/shift-reports', {
-    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ note }),
-  });
-  return payload.data;
 }
 
 export async function getOfficerStatistics(period: StatisticsPeriod, date: string): Promise<OfficerStatistics> {

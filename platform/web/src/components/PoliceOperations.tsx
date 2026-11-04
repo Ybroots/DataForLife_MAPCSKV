@@ -1,5 +1,5 @@
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, BellRing, Pencil, Trash2, X, Camera, Database, RadioTower, ShieldCheck, UserRoundCheck } from 'lucide-react';
+import { BarChart3, BellRing, Pencil, Trash2, X, Camera, Database, RadioTower, UserRoundCheck } from 'lucide-react';
 import { ApiError, cancelPublicAlert, createPublicAlert, listPublicAlerts, lookupByCode, updatePublicAlert } from '../api';
 import { filterPointsInZone, zoneBoundaryOf } from '../area-scope';
 import type { PublicAlert, ServiceArea } from '../types';
@@ -159,7 +159,7 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
         </form>
       </div>}
       {tab === 'roadmap' && <div className="development-grid">
-        {[{ icon: <ShieldCheck />, title: 'Xác thực VNeID' }, { icon: <Camera />, title: 'Camera địa bàn' }, { icon: <RadioTower />, title: 'SMS, Web Push, 112/113' }].map((item) => <article key={item.title}><span>{item.icon}</span><div><em>Đang phát triển</em><h3>{item.title}</h3></div></article>)}
+        {[{ icon: <Camera />, title: 'Camera địa bàn' }, { icon: <RadioTower />, title: 'SMS và thông báo đẩy' }].map((item) => <article key={item.title}><span>{item.icon}</span><div><em>Đang phát triển</em><h3>{item.title}</h3></div></article>)}
       </div>}
       {notice && <p className="inline-notice" role="status">{notice}</p>}
     </section>

@@ -7,7 +7,7 @@ export const FEATURE_LABELS: Record<FeatureId, string> = {
   reports: 'Phản ánh kiến nghị',
   sos: 'SOS khẩn cấp',
   feedback: 'Đánh giá hài lòng',
-  assistant: 'Trợ lý AI',
+  assistant: 'Trợ lý bản đồ',
   account: 'Tài khoản',
 };
 

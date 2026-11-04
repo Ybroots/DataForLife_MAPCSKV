@@ -65,7 +65,7 @@ export async function summarizeStatistics(model: JsonModel, stats: OfficerStatis
   const highlights = cleanList(object?.highlights, 4, 300);
   const concerns = cleanList(object?.concerns, 3, 300);
   if (!headline || !highlights || !concerns) {
-    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa tóm tắt được. Bạn vẫn có thể tự viết nhận xét.');
+    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa tóm tắt được. Bạn vẫn có thể tự viết nhận xét.');
   }
   return {
     headline, highlights, concerns,

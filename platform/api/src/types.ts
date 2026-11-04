@@ -376,6 +376,18 @@ export interface AreaOfficerOverviewResponse {
   sosReceived: number;
   incidentRating: { average: number | null; count: number; lowScoreCount: number };
   sosRating: { average: number | null; count: number; lowScoreCount: number };
+  /** Số lượt đánh giá 1, 2, 3, 4, 5 sao của cán bộ trong kỳ (gồm cả phản ánh và SOS). */
+  starCounts: [number, number, number, number, number];
+  /** Các đánh giá mới nhất trong kỳ kèm nội dung góp ý (tối đa 10), không kèm danh tính người dân. */
+  recentReviews: OfficerReviewResponse[];
+}
+
+export interface OfficerReviewResponse {
+  kind: 'incident' | 'sos';
+  score: number;
+  comment: string | null;
+  createdAt: string;
+  receiptCode: string;
 }
 
 export interface CitizenAccountRecord {

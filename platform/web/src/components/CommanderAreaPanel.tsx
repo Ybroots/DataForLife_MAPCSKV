@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Phone, RefreshCw, Star, UserRoundCheck } from 'lucide-react';
 import { ApiError, getAreaOfficerOverview } from '../api';
-import type { AreaOfficerOverview, RatingSummary, StatisticsPeriod } from '../types';
+import type { AreaOfficerOverview, OfficerReview, RatingSummary, StatisticsPeriod } from '../types';
 
 const periodLabels: Record<StatisticsPeriod, string> = { day: 'Ngày', month: 'Tháng', year: 'Năm' };
 
@@ -16,6 +16,33 @@ function ratingText(rating: RatingSummary): string {
 function Stars({ value }: { value: number | null }) {
   const filled = value === null ? 0 : Math.round(value);
   return <span className="area-stars" aria-hidden="true">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={16} fill={score <= filled ? 'currentColor' : 'none'} />)}</span>;
+}
+
+const reviewTimeFormatter = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/** Số lượt từng mức sao (5 sao ở trên cùng) của một cán bộ trong kỳ. */
+function StarBreakdown({ counts }: { counts: AreaOfficerOverview['starCounts'] }) {
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  if (total === 0) return null;
+  return <ul className="area-star-breakdown" aria-label="Số lượt đánh giá theo số sao">
+    {[5, 4, 3, 2, 1].map((stars) => {
+      const count = counts[stars - 1] ?? 0;
+      return <li key={stars}><span>{stars} sao</span><i aria-hidden="true"><b style={{ width: `${Math.round((count / total) * 100)}%` }} /></i><em>{count}</em></li>;
+    })}
+  </ul>;
+}
+
+function ReviewList({ reviews }: { reviews: OfficerReview[] }) {
+  if (reviews.length === 0) return null;
+  return <details className="area-reviews">
+    <summary>Nội dung đánh giá ({reviews.length} gần nhất)</summary>
+    <ul>
+      {reviews.map((review) => <li key={`${review.kind}:${review.receiptCode}:${review.createdAt}`}>
+        <div><Stars value={review.score} /><strong>{review.score}/5</strong><small>{review.kind === 'sos' ? 'SOS' : 'Phản ánh'} · {review.receiptCode} · {reviewTimeFormatter.format(new Date(review.createdAt))}</small></div>
+        <p>{review.comment ?? 'Người dân không nhập góp ý bổ sung.'}</p>
+      </li>)}
+    </ul>
+  </details>;
 }
 
 /** Chỉ huy xem từng khu vực của phường: cán bộ phụ trách, khối lượng hồ sơ và đánh giá của người dân. Chỉ đọc, không phân công. */
@@ -68,7 +95,9 @@ export function CommanderAreaPanel() {
             <div><Stars value={rating.average} /><strong>{ratingText(rating)}</strong><small>Sau xử lý phản ánh</small></div>
             <div><Stars value={row.sosRating.average} /><strong>{ratingText(row.sosRating)}</strong><small>Sau hỗ trợ SOS</small></div>
             {(rating.lowScoreCount > 0 || row.sosRating.lowScoreCount > 0) && <p className="area-low">Có {rating.lowScoreCount + row.sosRating.lowScoreCount} đánh giá từ 2 sao trở xuống trong kỳ.</p>}
+            <StarBreakdown counts={row.starCounts} />
           </div>
+          <ReviewList reviews={row.recentReviews} />
         </article>;
       })}
     </div>

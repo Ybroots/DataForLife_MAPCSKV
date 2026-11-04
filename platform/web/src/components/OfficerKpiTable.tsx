@@ -22,7 +22,6 @@ export function OfficerKpiTable({ kpis }: { kpis: OfficerKpis }) {
       items: [
         { label: 'Tài khoản người dân (toàn hệ thống)', value: String(kpis.reach.citizenAccounts), note: `${kpis.reach.newCitizenAccounts} tài khoản mới trong kỳ` },
         { label: 'Thiết bị nhận thông báo của địa bàn', value: String(kpis.reach.pushDevices) },
-        { label: 'Tỷ lệ du khách / dân cư', value: 'Chưa thu thập', note: 'Cần thêm câu hỏi khi đăng ký' },
       ],
     },
     {
@@ -31,19 +30,6 @@ export function OfficerKpiTable({ kpis }: { kpis: OfficerKpis }) {
         { label: 'Thời gian đến phản hồi đầu tiên (phản ánh)', value: minutes(kpis.response.incidentFirstResponseMinutes) },
         { label: 'Thời gian xác nhận SOS', value: minutes(kpis.response.sosAcknowledgeMinutes) },
         { label: 'Tỷ lệ vụ việc được phản hồi', value: percent(kpis.response.respondedRate) },
-      ],
-    },
-    {
-      group: 'Chất lượng dữ liệu',
-      items: [
-        { label: 'Phản ánh đã gộp trùng', value: `${kpis.dataQuality.duplicateLinked} (${percent(kpis.dataQuality.duplicateRate)})` },
-        { label: 'Phản ánh có xác thực VNeID', value: 'Chưa kết nối VNeID' },
-      ],
-    },
-    {
-      group: 'Độ chính xác của AI',
-      items: [
-        { label: 'Gợi ý lĩnh vực được cán bộ giữ nguyên', value: `${kpis.ai.accepted}/${kpis.ai.decided} (${percent(kpis.ai.accuracy)})`, note: `${kpis.ai.reviews} lượt nhờ AI trong kỳ` },
       ],
     },
     {

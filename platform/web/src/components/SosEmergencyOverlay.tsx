@@ -95,7 +95,7 @@ export function SosEmergencyOverlay({
           <span>Gửi {elapsedLabel(first.createdAt, now)} · Chưa cán bộ nào nhận</span>
         </div>
         {first.reporterPhone && (
-          <a className="sos-emergency-call" href={`tel:${first.reporterPhone}`}><Phone size={22} aria-hidden="true" /> Gọi lại · {first.reporterPhone}</a>
+          <a className="sos-emergency-call" href={`tel:${first.reporterPhone}`} onClick={() => { if (sirenOn) onMute(); }}><Phone size={22} aria-hidden="true" /> Gọi lại · {first.reporterPhone}</a>
         )}
         {others.length > 0 && (
           <p className="sos-emergency-others">

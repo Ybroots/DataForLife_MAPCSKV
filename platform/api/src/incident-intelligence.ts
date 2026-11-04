@@ -68,7 +68,7 @@ function fallbackSummary(text: string): string {
 export function validateDraft(value: unknown, text: string): Omit<IncidentDraftResponse, 'emergency' | 'provider'> {
   const object = record(value);
   if (!object || !incidentCategoryValues.includes(object.category as IncidentCategory)) {
-    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa đọc được nội dung. Bạn vẫn có thể tự điền phiếu.');
+    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa đọc được nội dung. Bạn vẫn có thể tự điền phiếu.');
   }
   let summary = clean(object.summary, 180);
   if (summary.length < 10 || containsPersonalIdNumber(summary)) summary = fallbackSummary(text);
@@ -141,7 +141,7 @@ export function validateReview(value: unknown, images: ReviewImage[]): Omit<Inci
   const object = record(value);
   if (!object || !incidentCategoryValues.includes(object.suggestedCategory as IncidentCategory)
     || !['low', 'medium', 'high'].includes(object.confidence as string) || !Array.isArray(object.images)) {
-    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa đưa ra được gợi ý hợp lệ. Hãy thử lại sau.');
+    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa phân tích được hồ sơ. Hãy thử lại sau.');
   }
   const findings = new Map<string, ImageLabel[]>();
   for (const entry of object.images.map(record)) {
@@ -208,7 +208,7 @@ export function validateReply(value: unknown): Omit<ReplyDraft, 'provider'> {
   const object = record(value);
   const message = object && typeof object.message === 'string' ? object.message.trim().replace(/[ \t]+/g, ' ').slice(0, 1000) : '';
   if (!object || message.length < 10 || typeof object.requestMedia !== 'boolean' || containsPersonalIdNumber(message)) {
-    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa soạn được nháp hợp lệ. Bạn vẫn có thể tự viết.');
+    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa soạn được nháp hợp lệ. Bạn vẫn có thể tự viết.');
   }
   return { message, requestMedia: object.requestMedia };
 }

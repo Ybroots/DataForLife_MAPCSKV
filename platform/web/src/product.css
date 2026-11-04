@@ -1074,6 +1074,17 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 .area-rating small { color: var(--color-muted); font-size: .75rem; }
 .area-stars { display: flex; gap: 2px; color: #c8872f; }
 .area-low { margin: 0; color: #9a3412; font-size: .8rem; }
+.area-star-breakdown { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: .82rem; }
+.area-star-breakdown li { display: grid; grid-template-columns: 44px 1fr 28px; align-items: center; gap: 8px; }
+.area-star-breakdown i { display: block; height: 8px; border-radius: 999px; background: var(--color-line); overflow: hidden; }
+.area-star-breakdown b { display: block; height: 100%; border-radius: 999px; background: #d97706; }
+.area-star-breakdown em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.area-reviews { border-top: 1px solid var(--color-line); padding-top: 10px; font-size: .88rem; }
+.area-reviews summary { cursor: pointer; font-weight: 700; }
+.area-reviews ul { display: grid; gap: 10px; margin: 10px 0 0; padding: 0; list-style: none; max-height: 320px; overflow-y: auto; }
+.area-reviews li > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.area-reviews li small { color: var(--color-muted); }
+.area-reviews li p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .police-profile-card { display: grid; gap: 3px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); font-size: .85rem; }
 .police-profile-card strong { overflow-wrap: anywhere; }
 .police-profile-card span { color: var(--color-muted); overflow-wrap: anywhere; }

@@ -77,7 +77,7 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
       onDraft(value);
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) onRequireLogin();
-      setError(caught instanceof ApiError ? caught.message : 'Chưa kết nối được AI. Bạn vẫn có thể tự điền phiếu.');
+      setError(caught instanceof ApiError ? caught.message : 'Chưa kết nối được hệ thống phân tích. Bạn vẫn có thể tự điền phiếu.');
     } finally {
       setBusy(false);
     }
@@ -89,7 +89,7 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
       <div className="incident-draft-head">
         <span aria-hidden="true"><Sparkles size={20} /></span>
         <div>
-          <h3 id="incident-draft-title">Kể lại sự việc, AI điền giúp</h3>
+          <h3 id="incident-draft-title">Kể lại sự việc, hệ thống điền giúp</h3>
         </div>
       </div>
       <label className="incident-draft-input">
@@ -106,13 +106,13 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
       <div className="incident-draft-actions">
         <button type="button" className="incident-draft-submit" onClick={() => void draft()} disabled={busy || (length < MIN_LENGTH && !usablePhoto)}>
           {busy ? <span className="loader" /> : <Sparkles size={17} aria-hidden="true" />}
-          {busy ? 'AI đang đọc…' : 'Điền giúp tôi'}
+          {busy ? 'Đang đọc…' : 'Điền giúp tôi'}
         </button>
       </div>
       {error && <p className="incident-draft-error" role="alert">{error}</p>}
       {result && (
         <div className="incident-draft-result" role="status">
-          <strong>AI đã điền sẵn — hãy kiểm tra lại trước khi gửi</strong>
+          <strong>Đã điền sẵn — hãy kiểm tra lại trước khi gửi</strong>
           <ul>
             <li><span>Nhóm</span>{categoryLabels[result.category]}</li>
             <li><span>Thời gian</span>{result.occurredAt ?? 'Chưa nói rõ'}</li>

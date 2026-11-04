@@ -48,7 +48,7 @@ export function IncidentCollaboration({ incident, onAttachmentAdded, readOnly = 
   }, []);
 
   const draftReply = async () => {
-    if (message.trim().length >= 2 && !window.confirm('Thay nội dung đang soạn bằng bản nháp của AI?')) return;
+    if (message.trim().length >= 2 && !window.confirm('Thay nội dung đang soạn bằng bản nháp của hệ thống?')) return;
     setDrafting(true); setNotice('');
     try {
       const draft = await draftIncidentReply(incident.id);
@@ -95,7 +95,7 @@ export function IncidentCollaboration({ incident, onAttachmentAdded, readOnly = 
         <label className="sr-only" htmlFor="officer-message">Nội dung trao đổi</label>
         <textarea id="officer-message" value={message} onChange={(event) => setMessage(event.target.value)} rows={2} maxLength={2000} placeholder="Yêu cầu bổ sung hoặc thông báo tiến độ…" required />
         <label className="compact-check"><input type="checkbox" checked={requestMedia} onChange={(event) => setRequestMedia(event.target.checked)} /> Yêu cầu ảnh/video</label>
-        {aiReady && <button className="secondary-action" type="button" disabled={busy || drafting} onClick={() => void draftReply()}><Sparkles size={16} aria-hidden="true" /> {drafting ? 'AI đang soạn…' : 'AI soạn nháp'}</button>}
+        {aiReady && <button className="secondary-action" type="button" disabled={busy || drafting} onClick={() => void draftReply()}><Sparkles size={16} aria-hidden="true" /> {drafting ? 'Đang soạn…' : 'Soạn nháp tự động'}</button>}
         <button className="ops-submit" type="submit" disabled={busy || drafting || message.trim().length < 2}><Send size={17} /> Gửi người dân</button>
       </form>}
       {notice && <p className="inline-notice" role="status">{notice}</p>}

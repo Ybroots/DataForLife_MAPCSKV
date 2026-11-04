@@ -48,7 +48,6 @@ function written(id: string, label: string, steps: string[], noteLabel: string, 
 }
 
 const outOfScope = written('reject', 'Không thuộc phạm vi', ['rejected'], 'Lý do và nơi người dân cần liên hệ', 'Ví dụ: Việc thuộc thẩm quyền của UBND phường, người dân liên hệ bộ phận một cửa.', { tellCitizenByDefault: true });
-const closeWithReason = written('close-reason', 'Đóng, không xử lý', ['closed'], 'Lý do đóng hồ sơ', 'Ví dụ: Nội dung trùng với hồ sơ đã xử lý, không cần xử lý thêm.', { confirm: true });
 const reopenIncident = written('reopen', 'Mở lại để xử lý tiếp', ['processing'], 'Lý do mở lại', 'Ví dụ: Người dân báo sự việc tái diễn.');
 
 const sosDone = written('sos-done', 'Đã xử lý xong', ['resolved'], 'Kết quả và tình trạng an toàn của người dân', 'Ví dụ: Đã đến nơi, người dân an toàn, tình huống đã ổn định.', { tone: 'primary', tellCitizenByDefault: true });
@@ -61,9 +60,9 @@ export function planFor(kind: CaseKind, status: string): CasePlan {
   if (kind === 'incident') {
     switch (status) {
       case 'submitted':
-        return { prompt: 'Hồ sơ mới, chưa có ai nhận.', primary: quick('take', 'Nhận hồ sơ', ['received', 'assigned'], 'CSKV đã tiếp nhận hồ sơ và nhận xử lý.'), others: [closeWithReason] };
+        return { prompt: 'Hồ sơ mới, chưa có ai nhận.', primary: quick('take', 'Nhận hồ sơ', ['received', 'assigned'], 'CSKV đã tiếp nhận hồ sơ và nhận xử lý.'), others: [] };
       case 'received':
-        return { prompt: 'Hồ sơ đã được ghi nhận, chưa có người phụ trách.', primary: quick('take', 'Nhận xử lý', ['assigned'], 'CSKV nhận xử lý hồ sơ.'), others: [outOfScope, closeWithReason] };
+        return { prompt: 'Hồ sơ đã được ghi nhận, chưa có người phụ trách.', primary: quick('take', 'Nhận xử lý', ['assigned'], 'CSKV nhận xử lý hồ sơ.'), others: [outOfScope] };
       case 'assigned':
         return {
           prompt: 'Bạn đang phụ trách hồ sơ này. Hãy xem nội dung rồi bắt đầu xử lý.',

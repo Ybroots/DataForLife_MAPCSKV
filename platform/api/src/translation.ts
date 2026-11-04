@@ -26,7 +26,7 @@ export async function translateMessage(model: JsonModel, text: string, target: T
     text, schema: textSchema, schemaName: 'translate_text', maxOutputTokens: 2048,
   });
   const translation = clean((result as { translation?: unknown } | null)?.translation, 4000);
-  if (!translation) throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa dịch được nội dung này.');
+  if (!translation) throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa dịch được nội dung này.');
   return translation;
 }
 
@@ -68,7 +68,7 @@ export async function translateProcedure(model: JsonModel, procedure: Procedure)
   const summary = clean(object?.summary, 1000);
   const where = clean(object?.where, 500);
   if (!conditions || !documents || !steps || !notes || !title || !summary || !where) {
-    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'AI chưa dịch được mục này.');
+    throw new IntelligenceError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa dịch được mục này.');
   }
   return { title, summary, conditions, documents, steps, where, notes };
 }

@@ -96,7 +96,7 @@ export function validatePlan(value: unknown, areas: AreaSummary[], hotlines: Hot
               : !object.hotlineIds.every(id => typeof id === 'string' && hotlineIds.has(id)) ? 'hotlineIds-unknown'
                 : null;
   if (problem || !object) {
-    throw new MapAssistantError(502, 'AI_INVALID_RESULT', 'AI chưa xác định được yêu cầu hợp lệ. Hãy thử ghi rõ tên xã/phường.', `invalid-plan:${problem}`);
+    throw new MapAssistantError(502, 'AI_INVALID_RESULT', 'Hệ thống chưa xác định được yêu cầu hợp lệ. Hãy thử ghi rõ tên xã/phường.', `invalid-plan:${problem}`);
   }
   return {
     intent: object.intent as AssistantIntent,
@@ -278,7 +278,7 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
         return JSON.parse(output) as unknown;
       } catch (error) {
         console.error(`[assistant] AI planner failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý AI. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.', plannerFailureReason(error));
+        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý bản đồ. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.', plannerFailureReason(error));
       }
     },
   };

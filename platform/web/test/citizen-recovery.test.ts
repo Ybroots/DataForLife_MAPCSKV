@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock('../src/native-api', () => ({ apiFetch }));
 
-import { ApiError, confirmPasswordResetEmail, createCitizenRecoveryCode, getCitizenRecoveryOptions, issueCitizenResetCode, registerCitizen, requestCitizenEmailVerification, requestPasswordResetEmail, resetCitizenPassword, verifyCitizenEmail } from '../src/api';
+import { ApiError, confirmPasswordResetEmail, createCitizenRecoveryCode, getCitizenRecoveryOptions, registerCitizen, requestCitizenEmailVerification, requestPasswordResetEmail, resetCitizenPassword, verifyCitizenEmail } from '../src/api';
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 beforeEach(() => apiFetch.mockReset());
@@ -44,15 +44,6 @@ describe('citizen password recovery client', () => {
     apiFetch.mockResolvedValueOnce(reply({ data: { id: 'citizen-2', displayName: 'Bình' } }, 201));
     await registerCitizen('0911222444', 'Bình', 'MatKhauCu12345');
     expect(JSON.parse(String((apiFetch.mock.calls.at(-1) as [string, RequestInit])[1].body))).toEqual({ username: '0911222444', displayName: 'Bình', password: 'MatKhauCu12345' });
-  });
-
-  it('lets an officer request a reset code only with identity confirmed', async () => {
-    apiFetch.mockResolvedValue(reply({ data: { recoveryCode: 'ABCD-EFGH-JKMN-PQRS', expiresAt: '2026-11-04T03:00:00.000Z', displayName: 'An', phone: '0911222333' } }, 201));
-    const issued = await issueCitizenResetCode('0911222333');
-    expect(issued.recoveryCode).toBe('ABCD-EFGH-JKMN-PQRS');
-    const [url, init] = apiFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('/v1/officer/citizen-accounts/reset-code');
-    expect(JSON.parse(String(init.body))).toEqual({ phone: '0911222333', verified: true });
   });
 
   it('calls the email recovery endpoints with the right payloads', async () => {

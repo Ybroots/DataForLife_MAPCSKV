@@ -94,7 +94,7 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
       </header>
 
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>
-        {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối AI…</p>}
+        {!status && !statusFailed && <p role="status">Đang kiểm tra kết nối…</p>}
         {statusFailed && <div role="alert"><p>Chưa kiểm tra được kết nối trợ lý.</p><button className="map-assistant-text-button" type="button" onClick={() => setStatusAttempt(value => value + 1)}>Thử lại</button></div>}
         {ready && turns.length === 0 && <div className="map-assistant-welcome">
           <h3>Bạn cần tìm gì trên bản đồ?</h3>

@@ -424,7 +424,6 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             onClick={() => void toggleSound()}
           >
             {alerts.enabled ? <Bell size={19} aria-hidden="true" /> : <BellOff size={19} aria-hidden="true" />}
-            <span>{alerts.enabled ? 'Còi bật' : 'Còi tắt'}</span>
           </button>
           <button className="topbar-icon-btn logout" type="button" onClick={onSignOut} aria-label="Đăng xuất" title="Đăng xuất">
             <LogOut size={18} aria-hidden="true" />

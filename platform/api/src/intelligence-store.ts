@@ -16,6 +16,7 @@ import type {
   OfficerKpiResponse,
   SatisfactionRatingResponse,
   AreaOfficerOverviewResponse,
+  OfficerReviewResponse,
 } from './types.js';
 import { areaScopeOf, COMMANDER_READ_ONLY_MESSAGE, WorkflowError } from './workflow.js';
 
@@ -221,7 +222,7 @@ export class IntelligenceStore {
           [reviewId, incidentId],
         );
         const row = review.rows[0];
-        if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy gợi ý AI của hồ sơ này.');
+        if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy kết quả phân tích của hồ sơ này.');
         const decision = category === row.suggested_category ? 'accepted' : category === row.original_category ? 'kept' : 'changed';
         await client.query(
           `UPDATE incident_ai_reviews SET decision=$2, decided_category=$3, decided_by=$4, decided_at=now() WHERE id=$1`,
@@ -396,6 +397,31 @@ export class IntelligenceStore {
        ORDER BY sa.display_order, sa.name, a.display_name`,
       [actor.locality_id, from, to],
     );
+    // Đánh giá theo từng cán bộ trong kỳ: phân bố số sao và các nhận xét mới nhất.
+    const reviewRows = await this.pool.query<{ officer_id: string; kind: 'incident' | 'sos'; score: number; comment: string | null; created_at: Date | string; receipt_code: string }>(
+      `SELECT * FROM (
+         SELECT i.assigned_officer_id AS officer_id, 'incident'::text AS kind, r.score::int AS score, r.comment, r.created_at, i.receipt_code
+         FROM satisfaction_ratings r JOIN incident_reports i ON i.id = r.incident_id
+         WHERE i.locality_id = $1 AND i.assigned_officer_id IS NOT NULL AND r.created_at >= $2 AND r.created_at < $3
+         UNION ALL
+         SELECT s.assigned_officer_id, 'sos'::text, r.score::int, r.comment, r.created_at, s.receipt_code
+         FROM sos_ratings r JOIN sos_events s ON s.id = r.sos_event_id
+         WHERE s.locality_id = $1 AND s.assigned_officer_id IS NOT NULL AND r.created_at >= $2 AND r.created_at < $3
+       ) reviews ORDER BY created_at DESC LIMIT 5000`,
+      [actor.locality_id, from, to],
+    );
+    const reviewsByOfficer = new Map<string, { starCounts: [number, number, number, number, number]; recent: OfficerReviewResponse[] }>();
+    for (const review of reviewRows.rows) {
+      const entry = reviewsByOfficer.get(review.officer_id) ?? { starCounts: [0, 0, 0, 0, 0] as [number, number, number, number, number], recent: [] };
+      if (review.score >= 1 && review.score <= 5) entry.starCounts[review.score - 1] = (entry.starCounts[review.score - 1] ?? 0) + 1;
+      if (entry.recent.length < 10) {
+        entry.recent.push({
+          kind: review.kind, score: review.score, comment: review.comment?.trim() || null,
+          createdAt: new Date(review.created_at).toISOString(), receiptCode: review.receipt_code,
+        });
+      }
+      reviewsByOfficer.set(review.officer_id, entry);
+    }
     return result.rows.map((row) => ({
       serviceArea: { code: row.area_code, name: row.area_name },
       officer: row.officer_id ? { id: row.officer_id, displayName: row.display_name, phone: row.phone, beatNote: row.beat_note } : null,
@@ -404,6 +430,8 @@ export class IntelligenceStore {
       sosReceived: row.sos_received,
       incidentRating: { average: numberOrNull(row.incident_rating), count: row.incident_rating_count, lowScoreCount: row.incident_low },
       sosRating: { average: numberOrNull(row.sos_rating), count: row.sos_rating_count, lowScoreCount: row.sos_low },
+      starCounts: reviewsByOfficer.get(row.officer_id)?.starCounts ?? [0, 0, 0, 0, 0],
+      recentReviews: reviewsByOfficer.get(row.officer_id)?.recent ?? [],
     }));
   }
 
