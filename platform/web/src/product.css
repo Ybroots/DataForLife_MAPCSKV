@@ -753,7 +753,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 
   /* Thanh tab dưới: một dòng, cắt bằng … khi chữ quá dài. */
-  .mobile-tabs button { min-width: 0; font-size: clamp(10px, 3vw, 12px); }
+  .mobile-tabs button { min-width: 0; font-size: clamp(11px, 3vw, 12px); }
   .mobile-tabs button > span { max-width: 100%; }
 
   /* Nút nổi trên bản đồ: nguồn bản đồ chỉ còn biểu tượng (i), SOS và định vị không chồng nhau. */

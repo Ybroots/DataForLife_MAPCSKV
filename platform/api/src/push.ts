@@ -211,7 +211,7 @@ export function citizenMessage(row: CitizenPushRow): PushMessage {
   return {
     // Màn hình khóa chỉ thấy trạng thái chung và mã hồ sơ, không thấy mô tả vụ việc hay lời nhắn của cán bộ.
     title: notificationTitle(row.kind, row.status, row.eventType),
-    body: `Mã hồ sơ ${row.receiptCode}. Mở ứng dụng để xem chi tiết.`,
+    body: `Mã hồ sơ ${row.receiptCode}`,
     channel: 'cases',
     urgent: row.kind === 'sos',
     tag: `case-${row.id}`,

@@ -8,7 +8,7 @@ interface TourStep {
 }
 
 const steps: TourStep[] = [
-  { target: null, title: 'Làm quen nhanh trong 1 phút', body: 'Xem 6 điểm chính để tra cứu địa bàn, gửi phản ánh và tìm hỗ trợ. Bạn vẫn dùng được ứng dụng trong lúc xem.' },
+  { target: null, title: 'Làm quen nhanh trong 1 phút', body: 'Xem nhanh 6 điểm chính của ứng dụng.' },
   { target: '[data-tour="feature-menu"]', title: 'Menu Tính năng', body: 'Mở danh sách đầy đủ: cảnh báo, phản ánh, đánh giá, trợ lý.' },
   { target: '#map-panel', title: 'Bản đồ toàn tỉnh', body: 'Chạm ranh giới hoặc chọn xã/phường để mở danh bạ đúng địa bàn.' },
   { target: '[data-tour="sos"]', title: 'SOS khẩn cấp', body: 'Giữ nút đủ 3 giây để gửi kèm vị trí, thả sớm để hủy. Chỉ dùng khi thật sự cần.' },

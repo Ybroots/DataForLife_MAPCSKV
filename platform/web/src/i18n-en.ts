@@ -220,7 +220,10 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
 
   // Hướng dẫn nhanh
   'Làm quen nhanh trong 1 phút': 'A one-minute tour',
-  'Xem 6 điểm chính để tra cứu địa bàn, gửi phản ánh và tìm hỗ trợ. Bạn vẫn dùng được ứng dụng trong lúc xem.': 'See 6 key points for finding areas, sending reports and getting help. You can keep using the app meanwhile.',
+  'Xem nhanh 6 điểm chính của ứng dụng.': 'A quick look at the 6 key points of the app.',
+  'Cán bộ Công an': 'Police officer',
+  'Cổng nghiệp vụ địa bàn CSKV': 'CSKV area operations portal',
+  'Đăng nhập CSKV': 'CSKV sign-in',
   'Menu Tính năng': 'Menu',
   'Mở danh sách đầy đủ: cảnh báo, phản ánh, đánh giá, trợ lý.': 'Open the full list: alerts, reports, ratings, assistant.',
   'Bản đồ toàn tỉnh': 'Province map',

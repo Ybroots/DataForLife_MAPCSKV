@@ -136,7 +136,7 @@ describe('message content', () => {
   it('keeps case details off the lock screen', () => {
     const update = citizenMessage({ id: 'incident:7', kind: 'incident', receiptCode: 'PA-2026-0007', status: 'processing', eventType: 'status' });
     expect(update.title).toBe('Phản ánh đang được xử lý');
-    expect(update.body).toBe('Mã hồ sơ PA-2026-0007. Mở ứng dụng để xem chi tiết.');
+    expect(update.body).toBe('Mã hồ sơ PA-2026-0007');
     expect(update.channel).toBe('cases');
     expect(update.urgent).toBe(false);
     expect(update.data).toEqual({ type: 'citizen', kind: 'incident', receiptCode: 'PA-2026-0007' });
