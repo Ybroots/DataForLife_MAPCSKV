@@ -5,6 +5,8 @@ import {
   clearOfficerSessionCookie,
   createOfficerSession,
   officerSessionCookie,
+  readOfficerSessionCookie,
+  revokeOfficerSessionToken,
 } from './officer-auth.js';
 import {
   authenticateCitizen,
@@ -12,6 +14,8 @@ import {
   clearCitizenSessionCookie,
   createCitizenSession,
   revokeCitizenSessions,
+  revokeCitizenSessionToken,
+  readCitizenSessionCookie,
 } from './citizen-auth.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { generateRecoveryCode, normalizeRecoveryCode } from './recovery-code.js';
@@ -128,7 +132,8 @@ export function registerAuthRoutes({ app, repository, options, localWorkflowMeta
     return { data: actor, meta: localWorkflowMeta };
   });
 
-  app.post('/v1/auth/officer/logout', async (_request, reply) => {
+  app.post('/v1/auth/officer/logout', async (request, reply) => {
+    if (options.officerSessionSecret) revokeOfficerSessionToken(readOfficerSessionCookie(request.headers.cookie), options.officerSessionSecret);
     reply.header('Set-Cookie', clearOfficerSessionCookie(options.secureCookies === true));
     reply.header('Cache-Control', 'no-store');
     return reply.code(204).send();
@@ -559,7 +564,8 @@ export function registerAuthRoutes({ app, repository, options, localWorkflowMeta
       (hash) => repository.updateOfficerPasswordHash(actorId, hash), 12);
   });
 
-  app.post('/v1/auth/citizen/logout', async (_request, reply) => {
+  app.post('/v1/auth/citizen/logout', async (request, reply) => {
+    if (options.citizenSessionSecret) revokeCitizenSessionToken(readCitizenSessionCookie(request.headers.cookie), options.citizenSessionSecret);
     reply.header('Set-Cookie', clearCitizenSessionCookie(options.secureCookies === true));
     reply.header('Cache-Control', 'no-store');
     return reply.code(204).send();

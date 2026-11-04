@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { isSessionNonceRevoked, revokeSessionNonce } from './session-revocation.js';
 
 export interface OfficerCredential {
   username: string;
@@ -46,7 +47,9 @@ export function createOfficerSession(actorId: string, secret: string, now = Date
   return `${encodedPayload}.${sign(encodedPayload, secret)}`;
 }
 
-export function verifyOfficerSession(token: string | undefined, secret: string, now = Date.now()): string | null {
+interface OfficerSessionInfo { actorId: string; nonce: string; expiresAt: number }
+
+function readOfficerSession(token: string | undefined, secret: string, now: number): OfficerSessionInfo | null {
   if (!token) return null;
   const [encodedPayload, signature, extra] = token.split('.');
   if (!encodedPayload || !signature || extra || !safeEqual(signature, sign(encodedPayload, secret))) return null;
@@ -59,10 +62,21 @@ export function verifyOfficerSession(token: string | undefined, secret: string, 
       || payload.expiresAt <= now
       || typeof payload.nonce !== 'string'
     ) return null;
-    return payload.actorId;
+    return { actorId: payload.actorId, nonce: payload.nonce, expiresAt: payload.expiresAt };
   } catch {
     return null;
   }
+}
+
+export function verifyOfficerSession(token: string | undefined, secret: string, now = Date.now()): string | null {
+  const session = readOfficerSession(token, secret, now);
+  return session && !isSessionNonceRevoked(session.nonce, now) ? session.actorId : null;
+}
+
+/** Đăng xuất: phiên này không còn dùng được dù cookie bị sao chép trước đó. */
+export function revokeOfficerSessionToken(token: string | undefined, secret: string, now = Date.now()): void {
+  const session = readOfficerSession(token, secret, now);
+  if (session) revokeSessionNonce(session.nonce, session.expiresAt, now);
 }
 
 export function readOfficerSessionCookie(cookieHeader: string | undefined): string | undefined {

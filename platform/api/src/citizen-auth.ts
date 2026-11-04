@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { isSessionNonceRevoked, revokeSessionNonce } from './session-revocation.js';
 
 export interface CitizenCredential {
   username: string;
@@ -38,10 +39,10 @@ export function createCitizenSession(citizenId: string, secret: string, now = Da
   return `${encoded}.${sign(encoded, secret)}`;
 }
 
-export interface CitizenSessionInfo { citizenId: string; issuedAt: number }
+export interface CitizenSessionInfo { citizenId: string; issuedAt: number; nonce: string; expiresAt: number }
 
 /** Đọc và kiểm tra chữ ký phiên; trả thêm thời điểm cấp để biết phiên đã bị thu hồi sau khi đặt lại mật khẩu chưa. */
-export function readCitizenSession(token: string | undefined, secret: string, now = Date.now()): CitizenSessionInfo | null {
+function parseCitizenSession(token: string | undefined, secret: string, now: number): CitizenSessionInfo | null {
   if (!token) return null;
   const [encoded, signature, extra] = token.split('.');
   if (!encoded || !signature || extra || !safeEqual(signature, sign(encoded, secret))) return null;
@@ -49,10 +50,21 @@ export function readCitizenSession(token: string | undefined, secret: string, no
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<CitizenSessionPayload>;
     if (typeof payload.citizenId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}$/.test(payload.citizenId)
       || typeof payload.expiresAt !== 'number' || payload.expiresAt <= now || typeof payload.nonce !== 'string') return null;
-    return { citizenId: payload.citizenId, issuedAt: payload.expiresAt - SESSION_TTL_SECONDS * 1_000 };
+    return { citizenId: payload.citizenId, issuedAt: payload.expiresAt - SESSION_TTL_SECONDS * 1_000, nonce: payload.nonce, expiresAt: payload.expiresAt };
   } catch {
     return null;
   }
+}
+
+export function readCitizenSession(token: string | undefined, secret: string, now = Date.now()): CitizenSessionInfo | null {
+  const session = parseCitizenSession(token, secret, now);
+  return session && !isSessionNonceRevoked(session.nonce, now) ? session : null;
+}
+
+/** Đăng xuất: phiên này không còn dùng được dù cookie bị sao chép trước đó. */
+export function revokeCitizenSessionToken(token: string | undefined, secret: string, now = Date.now()): void {
+  const session = parseCitizenSession(token, secret, now);
+  if (session) revokeSessionNonce(session.nonce, session.expiresAt, now);
 }
 
 export function verifyCitizenSession(token: string | undefined, secret: string, now = Date.now()): string | null {
