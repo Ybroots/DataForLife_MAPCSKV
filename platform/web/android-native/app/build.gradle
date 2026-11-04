@@ -10,7 +10,7 @@ if (keystoreFile.exists()) {
 // Override with -PcskvVersionCode=2 -PcskvVersionName=1.0.1 ; versionCode must increase for every shipped build.
 def cskvVersionCode = (project.findProperty('cskvVersionCode') ?: '1').toString().toInteger()
 def cskvVersionName = (project.findProperty('cskvVersionName') ?: '1.0.0-preview').toString()
-// -PcskvOfficer=true: app dành cho cán bộ CSKV (cài song song với app người dân, không dùng thông báo đẩy của app người dân).
+// -PcskvOfficer=true: app dành cho cán bộ CSKV (cài song song với app người dân, mã ứng dụng riêng).
 def cskvOfficer = (project.findProperty('cskvOfficer') ?: 'false').toString() == 'true'
 
 android {
@@ -78,8 +78,11 @@ dependencies {
 apply from: 'capacitor.build.gradle'
 
 try {
+    // Một tệp google-services.json có thể chứa cả hai ứng dụng; chỉ bật Firebase khi có đúng mã ứng dụng của bản đang build.
     def servicesJSON = file('google-services.json')
-    if (!cskvOfficer && servicesJSON.text) {
+    def appPackage = cskvOfficer ? 'com.bandosocskv.officer' : 'com.bandosocskv.mobile'
+    def packagePattern = java.util.regex.Pattern.compile('"package_name"\\s*:\\s*"' + java.util.regex.Pattern.quote(appPackage) + '"')
+    if (servicesJSON.exists() && packagePattern.matcher(servicesJSON.text).find()) {
         apply plugin: 'com.google.gms.google-services'
     }
 } catch(Exception e) {

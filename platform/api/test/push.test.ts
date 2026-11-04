@@ -8,7 +8,7 @@ import { Pool } from 'pg';
 import { buildApp } from '../src/app.js';
 import { FixtureDirectoryRepository } from '../src/fixture-repository.js';
 import {
-  alertMessage, citizenMessage, createPushSender, FcmSender, MemoryPushStore, parseServiceAccount,
+  alertMessage, citizenMessage, officerMessage, createPushSender, FcmSender, MemoryPushStore, parseServiceAccount,
   PostgresPushStore, PushDispatcher, type PendingPush, type PushMessage, type PushOutcome, type PushSender, type PushStore,
 } from '../src/push.js';
 
@@ -143,6 +143,37 @@ describe('message content', () => {
     const sos = citizenMessage({ id: 'sos:1', kind: 'sos', receiptCode: 'SOS-1', status: 'responding', eventType: 'status' });
     expect(sos.urgent).toBe(true);
     expect(citizenMessage({ id: 'message:2', kind: 'incident', receiptCode: 'PA-1', status: null, eventType: 'request_media' }).title).toBe('Cán bộ yêu cầu bổ sung thông tin');
+  });
+});
+
+describe('officer push', () => {
+  it('shows only locality, receipt code and category on the lock screen, and rings loudly for SOS', () => {
+    const sos = officerMessage({ id: 's1', kind: 'sos', receiptCode: 'SOS-2026-0001', category: 'medical', localityName: 'Xuân Hương' });
+    expect(sos).toMatchObject({ title: 'SOS khẩn cấp · Xuân Hương', body: 'SOS-2026-0001 · Y tế', channel: 'sos', urgent: true });
+    expect(sos.data).toEqual({ type: 'officer', kind: 'sos', id: 's1', receiptCode: 'SOS-2026-0001' });
+    const incident = officerMessage({ id: 'i1', kind: 'incident', receiptCode: 'PA-2026-0009', category: 'traffic', localityName: 'Xuân Hương' });
+    expect(incident).toMatchObject({ title: 'Phản ánh mới · Xuân Hương', body: 'PA-2026-0009 · Giao thông', channel: 'officer', urgent: false });
+    expect(officerMessage({ id: 'i2', kind: 'incident', receiptCode: 'PA-1', category: 'lạ', localityName: 'X' }).body).toBe('PA-1 · Khác');
+  });
+
+  let app: FastifyInstance | undefined;
+  afterEach(async () => { await app?.close(); app = undefined; });
+
+  it('registers a device only for a signed-in officer and moves it away from the citizen when the token is reused', async () => {
+    const store = new MemoryPushStore();
+    app = await buildApp(new FixtureDirectoryRepository(), { corsOrigin: 'http://localhost:5173', pushStore: store, allowTestAuthHeaders: true });
+    const register = (headers?: Record<string, string>, token: unknown = FCM_TOKEN) => app!.inject({ method: 'POST', url: '/v1/push/officer-devices', payload: { token }, headers });
+
+    expect((await register()).statusCode).toBe(401);
+    expect(store.devices.size).toBe(0);
+    expect((await register({ 'x-officer-id': 'officer-demo-xuan-huong' }, 'ngắn')).statusCode).toBe(400);
+    const ok = await register({ 'x-officer-id': 'officer-demo-xuan-huong' });
+    expect(ok.statusCode).toBe(200);
+    expect(store.devices.get(FCM_TOKEN)).toEqual({ token: FCM_TOKEN, citizenId: null, officerId: 'officer-demo-xuan-huong', areaCodes: [] });
+
+    // Cùng một máy được dùng lại cho người dân: không còn nhận tin của cán bộ.
+    await app.inject({ method: 'POST', url: '/v1/push/devices', payload: { token: FCM_TOKEN, areaCodes: ['24781'] } });
+    expect(store.devices.get(FCM_TOKEN)).toEqual({ token: FCM_TOKEN, citizenId: null, areaCodes: ['24781'] });
   });
 });
 

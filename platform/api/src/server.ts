@@ -27,7 +27,7 @@ const pushSender = createPushSender(process.env);
 const pushPool = dataSource === 'fixture' ? undefined : new Pool({ connectionString: required('DATABASE_URL'), max: 2 });
 const pushStore: PushStore | undefined = pushPool ? new PostgresPushStore(pushPool) : undefined;
 const pushDispatcher = pushSender && pushStore
-  ? new PushDispatcher(pushStore, pushSender, { intervalMs: Number(process.env.PUSH_POLL_INTERVAL_MS) || 15_000 })
+  ? new PushDispatcher(pushStore, pushSender, { intervalMs: Number(process.env.PUSH_POLL_INTERVAL_MS) || 5_000 })
   : null;
 
 const app = await buildApp(repository, {

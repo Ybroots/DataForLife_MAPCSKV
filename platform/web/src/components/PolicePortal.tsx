@@ -49,6 +49,8 @@ import { IncidentCollaboration } from './IncidentCollaboration';
 import { PoliceOperations } from './PoliceOperations';
 import { SosEmergencyOverlay } from './SosEmergencyOverlay';
 import { AssigneeHint } from './AssigneeHint';
+import { enablePush, PUSH_EVENT, pushSupported, takePendingPushOpen } from '../push-notifications';
+import type { PushTarget } from '../push-notifications';
 import { IncidentInsights } from './IncidentInsights';
 import { QueueThumb } from './QueueThumb';
 import { CaseActionCard } from './CaseActionCard';
@@ -182,6 +184,21 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const selectedItem = useMemo(() => queue.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? archive.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? null, [archive, queue, selectedKey]);
   const currentActor = actors.find((actor) => actor.id === currentActorId) ?? sessionActor;
   const alerts = useSosAlerts(queue, lastUpdated !== null);
+  const [pushDenied, setPushDenied] = useState(false);
+  const [pushOpen, setPushOpen] = useState<Extract<PushTarget, { type: 'officer' }> | null>(null);
+  const pushRetry = useRef(0);
+
+  // Thông báo đẩy (bản Android): xin quyền và đăng ký thiết bị để nhận SOS khi khóa màn hình hoặc đang dùng app khác.
+  useEffect(() => {
+    if (!pushSupported()) return;
+    let active = true;
+    void enablePush().then((result) => { if (active) setPushDenied(result === 'denied'); });
+    const take = () => { const target = takePendingPushOpen(); if (target?.type === 'officer') { pushRetry.current = 0; setPushOpen(target); } };
+    const onPush = (event: Event) => { if ((event as CustomEvent<{ phase: string }>).detail.phase === 'opened') take(); };
+    window.addEventListener(PUSH_EVENT, onPush);
+    take();
+    return () => { active = false; window.removeEventListener(PUSH_EVENT, onPush); };
+  }, []);
 
   const loadQueue = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -278,6 +295,14 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
     setSelectedKey(key);
     setMobilePane('detail');
   };
+
+  // Bấm thông báo thì mở đúng hồ sơ; hồ sơ mới chưa có trong hàng đợi thì tải lại một lần.
+  useEffect(() => {
+    if (!pushOpen || lastUpdated === null) return;
+    const item = queue.find((entry) => entry.kind === pushOpen.kind && entry.id === pushOpen.id);
+    if (item) { selectItem(item); setPushOpen(null); return; }
+    if (pushRetry.current++ < 1) void loadQueue(true); else setPushOpen(null);
+  }, [pushOpen, queue, lastUpdated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Alarm screen: take the SOS in one tap (acknowledged + assigned to me, message to the citizen), then open it.
   const acceptSos = async (item: OfficerQueueItem) => {
@@ -400,6 +425,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
           </button>
         </div>
       </header>
+      {pushDenied && <p className="police-push-notice" role="status">Thông báo đang tắt: bật trong Cài đặt điện thoại để nhận SOS khi khóa màn hình.</p>}
 
       <main className="police-main" id="police-main">
         <div className="police-workspace">

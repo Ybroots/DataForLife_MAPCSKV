@@ -9,10 +9,11 @@ import { notificationTitle } from './citizen-notifications.js';
  * - Cảnh báo khu vực: gửi tới các thiết bị đã chọn theo dõi địa bàn đó. Nội dung cảnh báo là thông tin công khai.
  * - Cập nhật hồ sơ phản ánh/SOS: chỉ gửi tới thiết bị gắn với đúng tài khoản người dân. Nội dung hiện trên màn hình
  *   khóa chỉ gồm tiêu đề trạng thái và mã hồ sơ, không có mô tả vụ việc hay tin nhắn của cán bộ.
+ * - Cán bộ: SOS và phản ánh mới tại địa bàn mình phụ trách. Màn hình khóa chỉ hiện mã hồ sơ và nhóm sự việc.
  * - Máy chủ chỉ lưu mã thiết bị FCM, mã tài khoản (nếu đã đăng nhập) và mã địa bàn theo dõi. Không lưu vị trí GPS.
  */
 
-export type PushChannel = 'alerts' | 'cases';
+export type PushChannel = 'alerts' | 'cases' | 'sos' | 'officer';
 
 export interface PushMessage {
   title: string;
@@ -147,11 +148,13 @@ export function createPushSender(env: NodeJS.ProcessEnv, log: (message: string) 
 export interface PushDeviceInput {
   token: string;
   citizenId: string | null;
+  /** Tài khoản cán bộ của thiết bị; một thiết bị chỉ thuộc người dân hoặc cán bộ. */
+  officerId?: string | null;
   areaCodes: string[];
 }
 
 export interface PendingPush {
-  kind: 'alert' | 'citizen';
+  kind: 'alert' | 'citizen' | 'officer_sos' | 'officer_incident';
   refId: string;
   deviceId: number;
   token: string;
@@ -173,7 +176,7 @@ export class MemoryPushStore implements PushStore {
   readonly devices = new Map<string, PushDeviceInput>();
 
   async upsertDevice(input: PushDeviceInput): Promise<void> {
-    this.devices.set(input.token, { token: input.token, citizenId: input.citizenId, areaCodes: [...input.areaCodes] });
+    this.devices.set(input.token, { token: input.token, citizenId: input.citizenId, ...(input.officerId ? { officerId: input.officerId } : {}), areaCodes: [...input.areaCodes] });
   }
 
   async removeDevice(token: string): Promise<boolean> {
@@ -207,6 +210,29 @@ export function alertMessage(row: AlertPushRow): PushMessage {
   };
 }
 
+const SOS_CATEGORY_LABELS: Record<string, string> = {
+  security: 'An ninh', traffic_accident: 'Tai nạn giao thông', fire_rescue: 'Cháy, cứu nạn', medical: 'Y tế', other_emergency: 'Khẩn cấp khác',
+};
+const INCIDENT_CATEGORY_LABELS: Record<string, string> = {
+  security: 'An ninh trật tự', traffic: 'Giao thông', public_order: 'Trật tự công cộng', administrative: 'Hành chính', environment: 'Môi trường', other: 'Khác',
+};
+
+export interface OfficerPushRow { id: string; kind: 'sos' | 'incident'; receiptCode: string; category: string; localityName: string }
+
+/** Màn hình khóa chỉ có địa bàn, mã hồ sơ và nhóm sự việc, không có mô tả hay vị trí. */
+export function officerMessage(row: OfficerPushRow): PushMessage {
+  const sos = row.kind === 'sos';
+  const labels = sos ? SOS_CATEGORY_LABELS : INCIDENT_CATEGORY_LABELS;
+  return {
+    title: `${sos ? 'SOS khẩn cấp' : 'Phản ánh mới'} · ${row.localityName}`,
+    body: `${row.receiptCode} · ${labels[row.category] ?? 'Khác'}`,
+    channel: sos ? 'sos' : 'officer',
+    urgent: sos,
+    tag: `officer-${row.kind}-${row.id}`,
+    data: { type: 'officer', kind: row.kind, id: row.id, receiptCode: row.receiptCode },
+  };
+}
+
 export function citizenMessage(row: CitizenPushRow): PushMessage {
   return {
     // Màn hình khóa chỉ thấy trạng thái chung và mã hồ sơ, không thấy mô tả vụ việc hay lời nhắn của cán bộ.
@@ -228,9 +254,10 @@ export class PostgresPushStore implements PushStore {
 
   async upsertDevice(input: PushDeviceInput): Promise<void> {
     await this.pool.query(
-      `INSERT INTO push_devices (token, citizen_id, area_codes) VALUES ($1, $2, $3::text[])
-       ON CONFLICT (token) DO UPDATE SET citizen_id = EXCLUDED.citizen_id, area_codes = EXCLUDED.area_codes, updated_at = now()`,
-      [input.token, input.citizenId, input.areaCodes],
+      `INSERT INTO push_devices (token, citizen_id, officer_id, area_codes) VALUES ($1, $2, $3, $4::text[])
+       ON CONFLICT (token) DO UPDATE SET citizen_id = EXCLUDED.citizen_id, officer_id = EXCLUDED.officer_id,
+         area_codes = EXCLUDED.area_codes, updated_at = now()`,
+      [input.token, input.citizenId, input.officerId ?? null, input.areaCodes],
     );
   }
 
@@ -263,12 +290,36 @@ export class PostgresPushStore implements PushStore {
            AND NOT EXISTS (
              SELECT 1 FROM push_deliveries x WHERE x.kind = 'citizen' AND x.ref_id = n.id AND x.device_id = d.id
                AND NOT (x.status = 'failed' AND x.attempts < ${MAX_ATTEMPTS} AND x.updated_at < now() - interval '1 minute'))
+         UNION ALL
+         SELECT 'officer_sos', s.id::text, d.id, d.token, NULL, l.name, NULL, NULL, NULL,
+                s.receipt_code, 'sos', s.status, s.category, s.created_at
+         FROM sos_events s
+         JOIN localities l ON l.id = s.locality_id
+         JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+         JOIN push_devices d ON d.officer_id = a.id
+         WHERE s.status IN ('triggered', 'dispatched', 'escalated')
+           AND s.created_at > now() - ${DELIVERY_WINDOW} AND s.created_at >= d.created_at
+           AND NOT EXISTS (
+             SELECT 1 FROM push_deliveries x WHERE x.kind = 'officer_sos' AND x.ref_id = s.id::text AND x.device_id = d.id
+               AND NOT (x.status = 'failed' AND x.attempts < ${MAX_ATTEMPTS} AND x.updated_at < now() - interval '1 minute'))
+         UNION ALL
+         SELECT 'officer_incident', r.id::text, d.id, d.token, NULL, l.name, NULL, NULL, NULL,
+                r.receipt_code, 'incident', r.status, r.category, r.created_at
+         FROM incident_reports r
+         JOIN localities l ON l.id = r.locality_id
+         JOIN workflow_actors a ON a.locality_id = r.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+         JOIN push_devices d ON d.officer_id = a.id
+         WHERE r.status = 'submitted'
+           AND r.created_at > now() - ${DELIVERY_WINDOW} AND r.created_at >= d.created_at
+           AND NOT EXISTS (
+             SELECT 1 FROM push_deliveries x WHERE x.kind = 'officer_incident' AND x.ref_id = r.id::text AND x.device_id = d.id
+               AND NOT (x.status = 'failed' AND x.attempts < ${MAX_ATTEMPTS} AND x.updated_at < now() - interval '1 minute'))
        ) due ORDER BY created_at LIMIT $1`,
       [limit],
     );
     const claimed: PendingPush[] = [];
     for (const row of due.rows as Array<Record<string, string | number | null>>) {
-      const kind = row.kind as 'alert' | 'citizen';
+      const kind = row.kind as PendingPush['kind'];
       const refId = String(row.ref_id);
       const deviceId = Number(row.device_id);
       // Chỉ tiến trình giành được dòng này mới được gửi; chạy song song hay chạy lại đều không gửi trùng.
@@ -282,7 +333,12 @@ export class PostgresPushStore implements PushStore {
         [kind, refId, deviceId],
       );
       if (!claim.rowCount) continue;
-      const message = kind === 'alert'
+      const message = kind === 'officer_sos' || kind === 'officer_incident'
+        ? officerMessage({
+          id: refId, kind: kind === 'officer_sos' ? 'sos' : 'incident', receiptCode: String(row.receipt_code),
+          category: String(row.event_type), localityName: String(row.area_name),
+        })
+        : kind === 'alert'
         ? alertMessage({
           id: refId, areaCode: String(row.area_code), areaName: String(row.area_name), title: String(row.title),
           summary: String(row.summary), riskLevel: String(row.risk_level),

@@ -56,6 +56,7 @@ export async function buildApp(
     store: options.pushStore ?? new MemoryPushStore(),
     enabled: options.pushEnabled ?? false,
     citizenIdentity: context.citizenIdentity,
+    officerIdentity: context.officerIdentity,
     clock: options.limits?.clock,
   });
   registerOfficerCaseRoutes(context);

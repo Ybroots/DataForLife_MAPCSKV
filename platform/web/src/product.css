@@ -1058,3 +1058,4 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 .statistics-ai h4 { margin: 0; }
 .statistics-ai ul { margin: 4px 0 8px; padding-left: 20px; }
 .statistics-ai small { color: var(--color-muted, #5d6672); }
+.police-push-notice { margin: 0; padding: 8px 14px; font-size: .85rem; color: #7a4a00; background: #fff3d6; border-bottom: 1px solid #f0d9a3; }

@@ -8,6 +8,8 @@ export interface PushRouteOptions {
   enabled: boolean;
   /** Mã tài khoản người dân của phiên hiện tại, hoặc null nếu chưa đăng nhập. */
   citizenIdentity(request: FastifyRequest): string | null;
+  /** Mã tài khoản cán bộ của phiên hiện tại, hoặc null. */
+  officerIdentity?(request: FastifyRequest): string | null;
   clock?: () => number;
   /** Số lần đăng ký/gỡ thiết bị tối đa mỗi IP trong 10 phút. */
   perWindow?: number;
@@ -50,6 +52,24 @@ export function registerPushRoutes(app: FastifyInstance, options: PushRouteOptio
       citizenId: options.citizenIdentity(request),
       areaCodes: [...new Set(areaCodes as string[])],
     });
+    return { data: { registered: true, enabled: options.enabled } };
+  });
+
+  // Thiết bị của cán bộ: cần phiên cán bộ, nhận SOS và phản ánh mới tại địa bàn mình phụ trách.
+  app.post<{ Body: { token?: unknown } }>('/v1/push/officer-devices', { bodyLimit: 8192 }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const officerId = options.officerIdentity?.(request) ?? null;
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const wait = limited(request);
+    if (wait) {
+      reply.header('Retry-After', String(wait));
+      return reply.code(429).send({ error: 'PUSH_RATE_LIMITED', message: 'Thiết lập thông báo quá nhiều lần. Vui lòng thử lại sau.' });
+    }
+    const { token } = request.body ?? {};
+    if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) {
+      return reply.code(400).send({ error: 'INVALID_PUSH_DEVICE', message: 'Thông tin thiết bị nhận thông báo không hợp lệ.' });
+    }
+    await options.store.upsertDevice({ token, citizenId: null, officerId, areaCodes: [] });
     return { data: { registered: true, enabled: options.enabled } };
   });
 

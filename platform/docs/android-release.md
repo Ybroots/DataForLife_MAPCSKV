@@ -148,7 +148,7 @@ Dùng bản `ban-do-cskv-preview.apk` (API production, **chỉ đọc**) hoặc 
 1. Trên máy Windows: commit và `git push deploy dataforlife`, lấy mã commit bằng `git rev-parse HEAD`.
 2. Kéo thả `platform\ops\deploy-update.sh` vào `/root` trên VPS (MobaXterm).
 3. Trên VPS, bằng root: `bash /root/deploy-update.sh dataforlife <mã commit 40 ký tự>`.
-   Script kiểm tra, sao lưu (CSDL, web, API, .env, nginx), kéo mã (chỉ fast-forward), typecheck/test/build, áp dụng migration 015–019,
+   Script kiểm tra, sao lưu (CSDL, web, API, .env, nginx), kéo mã (chỉ fast-forward), typecheck/test/build, áp dụng migration 015–020,
    khởi động lại API, đăng web (index.html sau cùng), kiểm tra sức khỏe và so số đếm trước/sau. Lỗi trước bước đăng web thì site đang chạy không bị đổi.
    Không nạp dữ liệu mẫu trình diễn.
 

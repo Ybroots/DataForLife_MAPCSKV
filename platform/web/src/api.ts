@@ -277,6 +277,12 @@ export async function registerPushDevice(token: string, areaCodes: string[]): Pr
   });
 }
 
+export async function registerOfficerPushDevice(token: string): Promise<void> {
+  await request('/v1/push/officer-devices', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+  });
+}
+
 export async function removePushDevice(token: string): Promise<void> {
   await request('/v1/push/devices/remove', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),

@@ -22,10 +22,12 @@ try {
     $env:VITE_API_BASE_URL = if ($Qa) { 'http://10.0.2.2:3001' } elseif ($env:CSKV_API_URL) { $env:CSKV_API_URL } else { 'https://bandosocskv.com/api' }
     # Push notifications are enabled only when the project has its Firebase config. Without the file the app still
     # works and the notification entry shows "in development" (the plugin is never called). See docs\push-notifications.md.
-    $hasFirebase = Test-Path -LiteralPath (Join-Path $nativeRoot 'app\google-services.json')
-    # App can bo (-Officer) khong dung thong bao day cua app nguoi dan (khac ma ung dung, khac Firebase).
-    $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa -and -not $Officer) { 'true' } else { 'false' }
-    Write-Host ("Thong bao day (FCM): " + $(if ($env:VITE_PUSH_ENABLED -eq 'true') { 'BAT' } else { 'TAT - thieu android-native\app\google-services.json' }))
+    # Mot tep google-services.json co the chua ca hai ung dung; moi ban chi bat thong bao khi tep co dung ma ung dung cua no.
+    $servicesFile = Join-Path $nativeRoot 'app\google-services.json'
+    $appPackage = if ($Officer) { 'com.bandosocskv.officer' } else { 'com.bandosocskv.mobile' }
+    $hasFirebase = (Test-Path -LiteralPath $servicesFile) -and ((Get-Content -LiteralPath $servicesFile -Raw) -match ('"package_name"\s*:\s*"' + [regex]::Escape($appPackage) + '"'))
+    $env:VITE_PUSH_ENABLED = if ($hasFirebase -and -not $Qa) { 'true' } else { 'false' }
+    Write-Host ("Thong bao day (FCM): " + $(if ($env:VITE_PUSH_ENABLED -eq 'true') { 'BAT' } else { "TAT - android-native\app\google-services.json thieu ung dung $appPackage" }))
     # Bản preview/QA: vị trí cố định tại phường demo (nút vị trí hiện "Demo"). Bản -Release hoặc -RealLocation dùng GPS thật.
     $env:VITE_DEMO_LOCATION = if ($Release -or $RealLocation -or $Officer) { 'false' } else { 'true' }
     Write-Host ("Vi tri demo co dinh: " + $(if ($env:VITE_DEMO_LOCATION -eq 'true') { 'BAT (dung -RealLocation de dung GPS that)' } else { 'TAT - dung GPS that' }))

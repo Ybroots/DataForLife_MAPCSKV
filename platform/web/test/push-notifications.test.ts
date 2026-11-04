@@ -74,6 +74,16 @@ describe('dữ liệu đi kèm thông báo', () => {
       .toEqual({ type: 'citizen', kind: 'sos', receiptCode: 'SOS-20261101-AB12CD34' });
   });
 
+  it('nhận thông báo của cán bộ đúng định dạng, từ chối mã lạ', () => {
+    expect(parsePushTarget({ type: 'officer', kind: 'sos', id: 'a0000000-0000-0000-0000-000000000001', receiptCode: 'SOS-1' }))
+      .toEqual({ type: 'officer', kind: 'sos', id: 'a0000000-0000-0000-0000-000000000001' });
+    expect(parsePushTarget({ type: 'officer', kind: 'incident', id: 'b0000000-0000-0000-0000-000000000001' }))
+      .toEqual({ type: 'officer', kind: 'incident', id: 'b0000000-0000-0000-0000-000000000001' });
+    for (const value of [{ type: 'officer', kind: 'other', id: 'abcdefgh' }, { type: 'officer', kind: 'sos' }, { type: 'officer', kind: 'sos', id: '../../x' }, { type: 'officer', kind: 'sos', id: 'ab' }]) {
+      expect(parsePushTarget(value), JSON.stringify(value)).toBeNull();
+    }
+  });
+
   it('từ chối mọi dạng khác, kể cả mã có ký tự đặc biệt', () => {
     for (const value of [
       undefined, null, 'chuỗi', 7, {}, { type: 'unknown' },

@@ -1,12 +1,13 @@
 import { Capacitor } from '@capacitor/core';
-import { registerPushDevice, removePushDevice } from './api';
+import { registerOfficerPushDevice, registerPushDevice, removePushDevice } from './api';
 
 /**
  * Thông báo ngoài màn hình điện thoại (thanh trạng thái) cho ứng dụng Android.
  *
- * Chỉ hoạt động khi build có cấu hình Firebase (VITE_PUSH_ENABLED=true, do scripts/build-android.ps1 tự đặt khi có
- * android-native/app/google-services.json). Không có cấu hình đó thì không gọi plugin nào, tránh lỗi lúc chạy.
- * Thiết bị chỉ gửi lên máy chủ: mã thiết bị FCM và mã các địa bàn đang theo dõi. Không gửi vị trí GPS.
+ * Chỉ hoạt động khi build có cấu hình Firebase (VITE_PUSH_ENABLED=true, do scripts/build-android.ps1 tự đặt khi
+ * android-native/app/google-services.json có đúng mã ứng dụng của bản đang build). Không có thì không gọi plugin nào.
+ * Người dân: gửi lên máy chủ mã thiết bị FCM và mã địa bàn theo dõi. Cán bộ: mã thiết bị gắn với phiên cán bộ.
+ * Không gửi vị trí GPS.
  */
 
 export interface FollowedArea { code: string; name: string }
@@ -17,7 +18,8 @@ const KEY = 'cskv-push-v1';
 
 export type PushTarget =
   | { type: 'alert'; areaCode: string }
-  | { type: 'citizen'; kind: 'incident' | 'sos'; receiptCode: string };
+  | { type: 'citizen'; kind: 'incident' | 'sos'; receiptCode: string }
+  | { type: 'officer'; kind: 'incident' | 'sos'; id: string };
 
 export const PUSH_EVENT = 'cskv:push';
 export interface PushEventDetail {
@@ -80,6 +82,9 @@ export function parsePushTarget(data: unknown): PushTarget | null {
     && typeof value.receiptCode === 'string' && /^[\w-]{3,64}$/.test(value.receiptCode)) {
     return { type: 'citizen', kind: value.kind, receiptCode: value.receiptCode };
   }
+  if (value.type === 'officer' && (value.kind === 'incident' || value.kind === 'sos') && typeof value.id === 'string' && /^[\w-]{8,64}$/.test(value.id)) {
+    return { type: 'officer', kind: value.kind, id: value.id };
+  }
   return null;
 }
 
@@ -110,10 +115,12 @@ function announce(detail: PushEventDetail): void {
 
 /** Đồng bộ mã thiết bị, các địa bàn đang theo dõi và tài khoản đang đăng nhập (nếu có) lên máy chủ. */
 export async function syncPushDevice(): Promise<void> {
+  if (!pushSupported() || !deviceToken) return;
   const prefs = readPushPrefs();
-  if (!pushSupported() || !prefs.enabled || !deviceToken) return;
+  if (!__OFFICER_APP__ && !prefs.enabled) return;
   try {
-    await registerPushDevice(deviceToken, prefs.areas.map((area) => area.code));
+    if (__OFFICER_APP__) await registerOfficerPushDevice(deviceToken);
+    else await registerPushDevice(deviceToken, prefs.areas.map((area) => area.code));
   } catch {
     // Mất mạng hoặc máy chủ bận: lần mở ứng dụng sau sẽ đồng bộ lại.
   }
@@ -137,7 +144,12 @@ export async function initPush(): Promise<void> {
     // Từ Android 8 thông báo phải thuộc một kênh; mã kênh khớp với máy chủ (alerts, cases).
     await push.createChannel({ id: 'alerts', name: 'Cảnh báo khu vực', description: 'Cảnh báo an ninh, trật tự, giao thông tại khu vực bạn theo dõi', importance: 5, visibility: 1, vibration: true });
     await push.createChannel({ id: 'cases', name: 'Cập nhật hồ sơ', description: 'Tiến trình xử lý phản ánh và SOS của bạn', importance: 4, visibility: 0, vibration: true });
-    if (readPushPrefs().enabled && (await push.checkPermissions()).receive === 'granted') await push.register();
+    if (__OFFICER_APP__) {
+      await push.createChannel({ id: 'sos', name: 'SOS khẩn cấp', description: 'Tín hiệu SOS tại địa bàn bạn phụ trách', importance: 5, visibility: 0, vibration: true });
+      await push.createChannel({ id: 'officer', name: 'Phản ánh mới', description: 'Phản ánh mới tại địa bàn bạn phụ trách', importance: 4, visibility: 0, vibration: true });
+    }
+    const granted = (await push.checkPermissions()).receive === 'granted';
+    if (granted && (__OFFICER_APP__ || readPushPrefs().enabled)) await push.register();
   } catch {
     initialized = false;
   }

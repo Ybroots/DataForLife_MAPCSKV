@@ -16,7 +16,7 @@ import { PushToast } from './components/PushToast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { AppToasts } from './components/AppToasts';
 import { showToast } from './toast';
-import { initPush, pushSupported, PUSH_EVENT, readPushPrefs, syncPushDevice, takePendingPushOpen, writePushPrefs } from './push-notifications';
+import { disablePush, initPush, pushSupported, PUSH_EVENT, readPushPrefs, syncPushDevice, takePendingPushOpen, writePushPrefs } from './push-notifications';
 import type { PushEventDetail, PushPrefs, PushTarget } from './push-notifications';
 import { readRecentAreas, rememberArea } from './recent-areas';
 import type { RecentArea } from './recent-areas';
@@ -378,6 +378,7 @@ export default function App() {
 
   const handlePoliceLogout = async () => {
     try {
+      if (__OFFICER_APP__) await disablePush();
       await signOutOfficer();
     } finally {
       setPoliceSession(null);
@@ -413,13 +414,14 @@ export default function App() {
   const openFromPush = useCallback((target: PushTarget) => {
     setAppView('citizen');
     if (target.type === 'alert') { navigateToFeature('alerts'); void selectAreaCode(target.areaCode, false); }
-    else openCase(target.kind, target.receiptCode);
+    else if (target.type === 'citizen') openCase(target.kind, target.receiptCode);
   }, [navigateToFeature, openCase, selectAreaCode]);
 
   const updatePushPrefs = useCallback((next: PushPrefs) => { writePushPrefs(next); setPushPrefs(next); }, []);
 
+  // Bản cán bộ tự lo thông báo trong cổng nghiệp vụ (PolicePortal).
   useEffect(() => {
-    if (!pushSupported()) return;
+    if (!pushSupported() || __OFFICER_APP__) return;
     void initPush();
     const onPush = (event: Event) => {
       const detail = (event as CustomEvent<PushEventDetail>).detail;
@@ -434,7 +436,7 @@ export default function App() {
   }, [openFromPush]);
 
   // Đăng nhập/đăng xuất làm đổi tài khoản gắn với thiết bị: báo lại cho máy chủ.
-  useEffect(() => { void syncPushDevice(); }, [citizenSession?.id]);
+  useEffect(() => { if (!__OFFICER_APP__) void syncPushDevice(); }, [citizenSession?.id]);
 
   // Hỏi bật thông báo đúng một lần, sau khi người dùng đã chọn một địa bàn và xem xong hướng dẫn.
   useEffect(() => {

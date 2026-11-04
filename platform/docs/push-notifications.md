@@ -52,3 +52,18 @@ Chưa: gửi tới FCM thật, nhận trên điện thoại thật, hành vi pin
 - API chạy một tiến trình trên một VPS: bộ giới hạn tần suất ở trong bộ nhớ, đủ cho pilot.
 - Đăng ký thiết bị không cần đăng nhập nên có thể bị gửi rác vào bảng; có giới hạn 30 lần/10 phút/IP và độ dài mã, nhưng chưa có hạn mức tổng số thiết bị.
 - Chưa có tùy chọn mức độ cảnh báo (chỉ nhận cảnh báo khẩn) hay giờ yên lặng.
+
+## 5. Thông báo cho cán bộ (app CSKV Cán bộ)
+
+Cán bộ nhận thông báo đẩy khi có **SOS** hoặc **phản ánh mới** tại địa bàn mình phụ trách, kể cả khi khóa màn hình hoặc đang dùng app khác. Màn hình khóa chỉ hiện địa bàn, mã hồ sơ và nhóm sự việc, không có mô tả hay vị trí. SOS dùng kênh "SOS khẩn cấp" (ưu tiên cao nhất, có rung); phản ánh mới dùng kênh "Phản ánh mới".
+
+Việc cần làm (một lần), dùng chung dự án Firebase và khóa máy chủ của app người dân:
+
+1. Firebase Console › dự án › **Thêm ứng dụng Android**, tên gói `com.bandosocskv.officer`. Tải lại `google-services.json` (nay chứa cả hai ứng dụng) và ghi đè `platform/web/android-native/app/google-services.json`.
+2. Kéo thả bản mới của `ops/deploy-update.sh` vào `/root` rồi triển khai như thường lệ: script tự áp migration `020_officer_push.sql` trước khi khởi động lại API.
+3. Dựng lại cả hai APK. Script in `Thong bao day (FCM): BAT` cho từng bản nếu `google-services.json` có đúng mã gói của bản đó.
+
+Cách hoạt động: sau khi đăng nhập, app xin quyền thông báo và gọi `POST /v1/push/officer-devices` (cần phiên cán bộ). API quét mỗi 5 giây: SOS ở trạng thái chưa nhận (`triggered`, `dispatched`, `escalated`) và phản ánh `submitted` trong 30 phút gần nhất, gửi tới mọi thiết bị của cán bộ và chỉ huy đang hoạt động cùng địa bàn, một lần cho mỗi thiết bị. Đăng xuất thì app hủy mã thiết bị. Bấm thông báo mở đúng hồ sơ trong hàng đợi. Còi báo trong app (khi đang mở) vẫn hoạt động như cũ.
+
+Giới hạn hiện tại: chưa thử trên điện thoại thật; thông báo chỉ gửi một lần cho mỗi SOS (nhắc lại khi chưa ai nhận chỉ có khi app đang mở); khi cán bộ tắt quyền thông báo, app hiện dòng nhắc ở đầu cổng.
+
