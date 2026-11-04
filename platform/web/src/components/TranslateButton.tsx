@@ -5,11 +5,9 @@ import { ApiError, translateWithAi } from '../api';
 interface Props {
   text: string;
   target: 'en' | 'vi';
-  /** Đổi theo tin nhắn để xóa bản dịch cũ khi danh sách thay đổi. */
   resetKey?: string;
 }
 
-/** Nút "Dịch" dưới một tin nhắn: bản gốc giữ nguyên, bản dịch (do AI) hiện ngay bên dưới và ghi rõ là bản dịch tự động. */
 export function TranslateButton({ text, target, resetKey }: Props) {
   const [translation, setTranslation] = useState('');
   const [busy, setBusy] = useState(false);

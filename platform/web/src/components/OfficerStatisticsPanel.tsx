@@ -35,7 +35,6 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
     getAiStatus(controller.signal).then((status) => setAiReady(status.configured && status.features.includes('report_summary'))).catch(() => setAiReady(false));
     return () => controller.abort();
   }, []);
-  // Nhận xét thuộc về một kỳ và số liệu cụ thể: đổi kỳ hoặc cập nhật số liệu thì bỏ nhận xét cũ.
   useEffect(() => { setSummary(null); }, [period, date, reloadKey]);
 
   const writeSummary = async () => {
@@ -121,8 +120,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
           {summary.highlights.length > 0 && <ul>{summary.highlights.map((item) => <li key={item}>{item}</li>)}</ul>}
           {summary.concerns.length > 0 && <><strong>Cần lưu ý</strong><ul>{summary.concerns.map((item) => <li key={item}>{item}</li>)}</ul></>}
           {summary.unverifiedNumbers.length > 0 && <p className="inline-notice error" role="alert">Có số chưa đối chiếu được với bảng số liệu: {summary.unverifiedNumbers.join(', ')}. Hãy kiểm tra trước khi dùng.</p>}
-          <small>AI viết từ số liệu tổng hợp ở trên (không dùng nội dung phản ánh). Cán bộ kiểm tra lại trước khi đưa vào báo cáo.</small>
-        </> : <small>AI viết vài dòng nhận xét từ số liệu của kỳ này. Bạn đọc và chỉnh trước khi dùng.</small>}
+        </> : null}
       </section>}
       <section className="statistics-chart" aria-labelledby="trend-title">
         <header><div><h4 id="trend-title">Nhịp tiếp nhận theo thời gian</h4><p>Cột đỏ: SOS · cột xanh: phản ánh</p></div><span>{new Date(data.from).toLocaleDateString('vi-VN')} – {new Date(data.to).toLocaleDateString('vi-VN')}</span></header>

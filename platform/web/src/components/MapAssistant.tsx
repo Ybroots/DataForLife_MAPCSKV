@@ -72,7 +72,6 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
     try {
       const answer = await askMapAssistant(value, areaCode, controller.signal);
       if (controller.signal.aborted) return;
-      // Tra kho thủ tục: khớp từ khóa luôn chạy; chỉ nhờ AI chọn thủ tục khi chưa có kết quả địa bàn.
       const procedure = await askProcedure(value, needsHandoff(answer), getLang(), controller.signal).then(result => result.matched ? result : undefined).catch(() => undefined);
       if (controller.signal.aborted) return;
       setTurns(previous => [...previous, { question: value, answer, procedure }].slice(-6));
@@ -108,17 +107,16 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
 
         {turns.map(({ question: asked, answer, procedure }, index) => <article className="map-assistant-turn" key={index}>
           <h3>{asked}</h3>
-          {procedure?.procedure && needsHandoff(answer) ? <p>Đây là hướng dẫn thủ tục liên quan đến câu hỏi của bạn:</p> : <p>{answer.message}</p>}
+          {!(procedure?.procedure && needsHandoff(answer)) && <p>{answer.message}</p>}
           {procedure?.procedure && <div className="map-assistant-procedure">
             <h4>{procedure.procedure.title}</h4>
-            <p>{procedure.procedure.summary}</p>
             <h5>Điều kiện</h5><ul>{procedure.procedure.conditions.map(item => <li key={item}>{item}</li>)}</ul>
             <h5>Hồ sơ</h5><ul>{procedure.procedure.documents.map(item => <li key={item}>{item}</li>)}</ul>
             <h5>Các bước</h5><ol>{procedure.procedure.steps.map(item => <li key={item}>{item}</li>)}</ol>
             <h5>Nơi làm thủ tục</h5><p>{procedure.procedure.where}</p>
             {procedure.procedure.notes.length > 0 && <><h5>Lưu ý</h5><ul>{procedure.procedure.notes.map(item => <li key={item}>{item}</li>)}</ul></>}
             <p className="map-assistant-procedure-note">{procedure.disclaimer}</p>
-            <p className="map-assistant-procedure-note">Nguồn: {procedure.procedure.sources.map((source, position) => <span key={source.url}>{position > 0 && ' · '}<a href={source.url} target="_blank" rel="noreferrer noopener">{source.label}</a></span>)} · rà soát {procedure.procedure.reviewedAt.split('-').reverse().join('/')}</p>
+            <p className="map-assistant-procedure-note">Nguồn: {procedure.procedure.sources.map((source, position) => <span key={source.url}>{position > 0 && ' · '}<a href={source.url} target="_blank" rel="noreferrer noopener">{source.label}</a></span>)}</p>
           </div>}
           {answer.areas.map(area => <div className="map-assistant-area" key={area.code}>
             <h4>{area.name}</h4>

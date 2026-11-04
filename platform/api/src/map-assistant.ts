@@ -211,7 +211,7 @@ export function createKeywordPlanner(): AssistantPlanner {
   };
 }
 
-// Room for the model's hidden "thinking" tokens (several hundred on Gemini 3.x) plus the JSON plan; 800 truncated real questions.
+// Gemini 3.x tốn vài trăm token suy nghĩ; 800 làm cụt kết quả.
 const PLANNER_MAX_OUTPUT_TOKENS = 2048;
 
 /** No implicit provider or model selection: an unconfigured integration stays unavailable. */
@@ -261,7 +261,6 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
         if (typeof output !== 'string' || output.length > 8_000) throw new Error('Invalid result');
         return JSON.parse(output) as unknown;
       } catch (error) {
-        // Reason only (status / finishReason / parse failure): never the prompt, the reply or the key.
         console.error(`[assistant] AI planner failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý AI. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.');
       }

@@ -6,7 +6,6 @@ export interface ReportSummary {
   headline: string;
   highlights: string[];
   concerns: string[];
-  /** Con số trong bản tóm tắt không có trong dữ liệu gửi cho AI: cán bộ cần đối chiếu. */
   unverifiedNumbers: string[];
   provider: JsonModel['provider'];
 }
@@ -42,7 +41,6 @@ function cleanList(value: unknown, max: number, itemMax: number): string[] | nul
 const numberPattern = /\d+(?:[.,]\d+)?/g;
 const normalizeNumber = (value: string) => String(Number.parseFloat(value.replace(',', '.')));
 
-/** Số trong văn bản (lớn hơn 10) không có trong dữ liệu đầu vào. Số nhỏ thường là đếm thông thường nên bỏ qua. */
 export function findUnverifiedNumbers(output: string, input: string): string[] {
   const known = new Set((input.match(numberPattern) ?? []).map(normalizeNumber));
   const unknown = new Set<string>();
@@ -52,7 +50,6 @@ export function findUnverifiedNumbers(output: string, input: string): string[] {
   return [...unknown];
 }
 
-/** Chỉ gửi số liệu tổng hợp (không có thông tin cá nhân hay nội dung phản ánh). */
 export function statisticsDigest(stats: OfficerStatisticsResponse): Record<string, unknown> {
   return {
     period: stats.period, from: stats.from.slice(0, 10), to: stats.to.slice(0, 10), totals: stats.totals,

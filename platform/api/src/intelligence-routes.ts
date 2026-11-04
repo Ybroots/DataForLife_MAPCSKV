@@ -12,10 +12,8 @@ import type { RouteContext } from './route-context.js';
 const REVIEW_IMAGE_LIMIT = 3;
 const REVIEW_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 const DRAFT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
-/** 4 MB ảnh sau khi mã hóa base64 (x 4/3) cộng phần lời kể. */
 const DRAFT_BODY_LIMIT = 6 * 1024 * 1024;
 
-/** Một ảnh JPG/PNG/WebP, đúng chữ ký tệp, tối đa 4 MB. Trả null nếu không hợp lệ. */
 function parseDraftImage(value: unknown): AiImage | null {
   const candidate = value !== null && typeof value === 'object' ? value as Record<string, unknown> : null;
   const mimeType = candidate?.mimeType;
@@ -100,10 +98,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review', 'reply_draft', 'procedure_help', 'translate', 'report_summary'] : [] } };
   });
 
-  /**
-   * Hỏi đáp thủ tục (công khai). Từ khóa khớp thì trả ngay, không tốn AI; nếu không khớp, AI chỉ chọn mã thủ tục.
-   * Nội dung trả lời luôn lấy từ kho thủ tục đã duyệt, không do AI viết.
-   */
+  // Hỏi đáp thủ tục: từ khóa trước, AI chỉ chọn mã; nội dung luôn lấy từ kho.
   app.post<{ Body: { question?: unknown; ai?: unknown; lang?: unknown } }>('/v1/assistant/procedure', { bodyLimit: 4096 }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const question = typeof request.body?.question === 'string' ? request.body.question.trim() : '';
@@ -111,7 +106,6 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
       return reply.code(400).send({ error: 'INVALID_AI_QUERY', message: 'Câu hỏi cần từ 3 đến 600 ký tự.' });
     }
     const english = request.body?.lang === 'en';
-    /** Bản tiếng Anh dịch từ kho (nội dung cố định, dịch một lần rồi nhớ). Lỗi hay hết hạn mức thì giữ tiếng Việt. */
     const localize = async (procedure: Procedure): Promise<Procedure & { language: 'vi' | 'en' }> => {
       if (!english || !model) return { ...procedure, language: 'vi' };
       let translated = procedureCache.get(procedure.id);
@@ -125,10 +119,9 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     });
     const byKeyword = matchProcedureByKeyword(question);
     if (byKeyword) return respond(byKeyword, 'keyword');
-    // ai=false: chỉ so khớp từ khóa (miễn phí), dùng khi trợ lý đã có kết quả địa bàn.
+    // ai=false: chỉ so khớp từ khóa.
     if (!model || request.body?.ai === false || containsPersonalIdNumber(question)) return respond(null, 'none');
     const result = await runAi(reply, request.ip, procedureWindow, () => pickProcedureWithAi(model, question));
-    // runAi đã trả lỗi (429/503) cho client; còn lại là kết quả { data: Procedure | null }.
     if (reply.sent) return reply;
     const picked = (result as { data: Procedure | null }).data;
     return respond(picked, picked ? 'ai' : 'none');
@@ -204,7 +197,6 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     return { data: { suggestion: suggestAssignee(incident.location.localityCode, actors, queue) } };
   });
 
-  /** Dịch tin nhắn cho người đã đăng nhập (người dân hoặc cán bộ). Bản gốc luôn được giữ nguyên ở giao diện. */
   app.post<{ Body: { text?: unknown; target?: unknown } }>('/v1/ai/translate', { preHandler: workflowDisabled, bodyLimit: 8 * 1024 }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const subject = officerIdentity(request) ?? citizenIdentity(request);
@@ -225,7 +217,6 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     });
   });
 
-  /** Nhận xét cho báo cáo thống kê. Số liệu lấy từ cơ sở dữ liệu, AI chỉ viết lại thành văn bản và có cảnh báo khi dùng số lạ. */
   app.post<{ Body: { period?: unknown; date?: unknown } }>('/v1/officer/statistics/summary', { preHandler: workflowDisabled }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const officerId = officerIdentity(request);

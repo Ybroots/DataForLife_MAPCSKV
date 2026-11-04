@@ -55,7 +55,6 @@ export async function askMapAssistant(question: string, areaCode: string | null,
 }
 
 export async function translateWithAi(text: string, target: 'en' | 'vi'): Promise<string> {
-  // Phiên đăng nhập (người dân hoặc cán bộ) đi kèm cookie; máy chủ chấp nhận phiên nào còn hiệu lực.
   const payload = await request<{ data: { translation: string } }>('/v1/ai/translate', {
     method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ text, target }),
   });

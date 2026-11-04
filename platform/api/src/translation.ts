@@ -20,7 +20,6 @@ function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-/** Dịch một đoạn ngắn (tin nhắn, thông báo). AI chỉ trả bản dịch; bản gốc luôn được giữ nguyên ở giao diện. */
 export async function translateMessage(model: JsonModel, text: string, target: TranslationTarget): Promise<string> {
   const result = await model.generate({
     instructions: `Bạn dịch văn bản sang ${languageName[target]}. ${baseRules}`,
@@ -51,7 +50,6 @@ function sameLengthStrings(value: unknown, expected: string[]): string[] | null 
   return items.every(Boolean) ? items : null;
 }
 
-/** Bản tiếng Anh của một mục trong kho thủ tục. Số mục từng danh sách phải khớp bản gốc, nếu không thì bỏ kết quả. */
 export async function translateProcedure(model: JsonModel, procedure: Procedure): Promise<LocalizedProcedure> {
   const source: LocalizedProcedure = {
     title: procedure.title, summary: procedure.summary, conditions: procedure.conditions, documents: procedure.documents,
@@ -75,7 +73,6 @@ export async function translateProcedure(model: JsonModel, procedure: Procedure)
   return { title, summary, conditions, documents, steps, where, notes };
 }
 
-/** Bộ nhớ đệm đơn giản có giới hạn: nội dung giống nhau chỉ dịch một lần. */
 export class TranslationCache<T> {
   private readonly entries = new Map<string, T>();
   constructor(private readonly limit: number) {}

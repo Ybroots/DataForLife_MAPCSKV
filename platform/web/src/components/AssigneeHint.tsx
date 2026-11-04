@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { getAssigneeSuggestion } from '../api';
 import type { AssigneeSuggestion } from '../types';
 
-/** Gợi ý người phụ trách cho hồ sơ chưa có người nhận: cùng địa bàn, đang giữ ít hồ sơ nhất. Chỉ để tham khảo. */
 export function AssigneeHint({ incidentId }: { incidentId: string }) {
   const [suggestion, setSuggestion] = useState<AssigneeSuggestion | null>(null);
 

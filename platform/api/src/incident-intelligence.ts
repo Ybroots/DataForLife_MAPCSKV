@@ -206,7 +206,6 @@ export interface ReplyDraft {
   provider: JsonModel['provider'];
 }
 
-/** Che dãy 12 số giống số định danh trước khi gửi nội dung cho mô hình. */
 function redactIds(value: string): string {
   return value.replace(/\d(?:[\s.-]?\d){11}/g, '[số giấy tờ]');
 }

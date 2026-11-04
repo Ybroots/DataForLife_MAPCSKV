@@ -8,7 +8,6 @@ interface IncidentDraftAssistantProps {
   categoryLabels: Record<Incident['category'], string>;
   onRequireLogin: () => void;
   onDraft: (draft: IncidentDraft) => void;
-  /** Ảnh người dân đã chọn trong phiếu (nếu có): AI đọc kèm lời kể. */
   photo?: File | null;
 }
 
@@ -33,7 +32,6 @@ export function speechRecognitionCtor(target: unknown = typeof window === 'undef
 
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 2000;
-/** Ảnh lớn hơn mức này không gửi cho AI (máy chủ từ chối); AI vẫn đọc lời kể. */
 const AI_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 const AI_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -92,7 +90,6 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
         <span aria-hidden="true"><Sparkles size={20} /></span>
         <div>
           <h3 id="incident-draft-title">Kể lại sự việc, AI điền giúp</h3>
-          <p>AI chỉ điền sẵn các ô bên dưới. Bạn kiểm tra lại, chọn vị trí và gửi.</p>
         </div>
       </div>
       <label className="incident-draft-input">
@@ -112,7 +109,6 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
           {busy ? 'AI đang đọc…' : 'Điền giúp tôi'}
         </button>
       </div>
-      {usablePhoto && <small className="incident-draft-photo" role="status">AI sẽ đọc cả ảnh bạn đã chọn. Ảnh chỉ dùng để điền phiếu, không nhận dạng người.</small>}
       {error && <p className="incident-draft-error" role="alert">{error}</p>}
       {result && (
         <div className="incident-draft-result" role="status">
@@ -122,7 +118,6 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
             <li><span>Thời gian</span>{result.occurredAt ?? 'Chưa nói rõ'}</li>
             <li><span>Địa điểm</span>{result.locationNote ?? 'Chưa nói rõ — hãy ghi mốc dễ nhận biết'}</li>
           </ul>
-          <small>Vị trí trên bản đồ không do AI chọn: hãy bấm vào bản đồ hoặc dùng GPS.</small>
         </div>
       )}
       {result?.emergency && (

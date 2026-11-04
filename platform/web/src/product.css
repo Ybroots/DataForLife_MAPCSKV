@@ -495,7 +495,6 @@ input, textarea, select { accent-color: var(--color-primary); }
 .incident-draft-voice.on { color: #fff; background: var(--color-danger); border-color: var(--color-danger); }
 .incident-draft-status, .incident-draft-error { margin: 0; font-size: .85rem; }
 .incident-draft-error { color: #791426; }
-.incident-draft-photo { display: block; margin: 0; font-size: .8rem; color: var(--color-muted, #5d6672); }
 .incident-draft-result { display: grid; gap: 6px; padding: 10px 12px; background: #fff; border: 1px solid #cfe3ec; border-radius: 8px; font-size: .9rem; }
 .incident-draft-result ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .incident-draft-result li { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; overflow-wrap: anywhere; }

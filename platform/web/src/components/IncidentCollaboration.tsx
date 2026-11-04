@@ -5,7 +5,6 @@ import type { Incident, IncidentAttachment, IncidentMessage } from '../types';
 import { IncidentMediaGallery } from './IncidentMediaGallery';
 import { TranslateButton } from './TranslateButton';
 
-/** Tin nhắn không có dấu tiếng Việt và đủ dài: nhiều khả năng viết bằng tiếng nước ngoài, cho phép dịch sang tiếng Việt. */
 const vietnameseMarks = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 const looksForeign = (text: string) => text.length >= 12 && /[a-z]{3}/i.test(text) && !vietnameseMarks.test(text);
 
@@ -45,14 +44,12 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
     return () => controller.abort();
   }, []);
 
-  /** AI chỉ điền nháp vào ô soạn: cán bộ đọc, sửa rồi tự bấm gửi. */
   const draftReply = async () => {
     if (message.trim().length >= 2 && !window.confirm('Thay nội dung đang soạn bằng bản nháp của AI?')) return;
     setDrafting(true); setNotice('');
     try {
       const draft = await draftIncidentReply(incident.id);
       setMessage(draft.message); setRequestMedia(draft.requestMedia);
-      setNotice('AI đã soạn nháp. Hãy đọc và sửa trước khi gửi.');
     } catch (error) { setNotice(error instanceof ApiError ? error.message : 'Chưa soạn được nháp. Bạn có thể tự viết.'); } finally { setDrafting(false); }
   };
 
