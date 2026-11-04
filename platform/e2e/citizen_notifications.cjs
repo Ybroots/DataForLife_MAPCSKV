@@ -90,7 +90,7 @@ async function main() {
       description:'Hồ sơ kiểm thử riêng: thông báo xử lý của cán bộ tới người dân.',latitude:11.944,longitude:108.441,
       contactPhone:'0912345678',accuracyM:10,attachments:[{fileName:'notification.png',mimeType:'image/png',sizeBytes:68,dataBase64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4N8AAAAASUVORK5CYII='}],
     }); created.push(report);
-    const sos=await api(context,'/v1/citizen/sos',{idempotencyKey:randomUUID(),category:'security',note:'E2E kiểm tra thông báo SOS',latitude:11.944,longitude:108.441,accuracyM:10,deviceTimestamp:new Date().toISOString()}); created.push(sos);
+    const sos=await api(context,'/v1/citizen/sos',{idempotencyKey:randomUUID(), contactPhone:'0911222333',category:'security',note:'E2E kiểm tra thông báo SOS',latitude:11.944,longitude:108.441,accuracyM:10,deviceTimestamp:new Date().toISOString()}); created.push(sos);
 
     const officerContext=await browser.newContext({viewport:{width:390,height:844},locale:'vi-VN',reducedMotion:'reduce'});
     const officer=await officerContext.newPage();

@@ -59,7 +59,7 @@ describe('officer can reject after assignment', () => {
 });
 
 describe('SOS: citizen reports safe, officer closes a false alarm', () => {
-  const sosBody = { idempotencyKey: 'gap-sos-key-0001', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
+  const sosBody = { idempotencyKey: 'gap-sos-key-0001', contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
 
   it('records the safe report without changing status, once, and officer can resolve from acknowledged', async () => {
     const a = await newApp();

@@ -99,7 +99,7 @@ describe('AI review, ratings and KPIs on PostgreSQL', () => {
 
     const sos = (await a.inject({
       method: 'POST', url: '/v1/citizen/sos', headers: citizen,
-      payload: { idempotencyKey: `intel-sos-${Date.now()}`, category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
+      payload: { idempotencyKey: `intel-sos-${Date.now()}`, contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
     })).json().data;
     expect((await a.inject({ method: 'POST', url: `/v1/citizen/sos/${sos.receiptCode}/rating`, headers: citizen, payload: { score: 5 } })).statusCode).toBe(409);
     for (const [toStatus, note] of [['acknowledged', 'Đã nhận tín hiệu SOS.'], ['responding', 'Đang đến hiện trường.'], ['resolved', 'Đã hỗ trợ xong, người dân an toàn tại chỗ.']]) {

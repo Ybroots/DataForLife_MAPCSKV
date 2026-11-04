@@ -142,6 +142,9 @@ export function registerCitizenRoutes({ app, repository, options, localWorkflowM
     if (latitude === null || longitude === null || !idempotencyKey || !category || note === undefined || contactPhone === undefined || accuracyM === undefined || !deviceTimestamp) {
       return reply.code(400).send({ error: 'INVALID_SOS', message: 'Thông tin SOS chưa đầy đủ hoặc không hợp lệ.' });
     }
+    if (contactPhone === null) {
+      return reply.code(400).send({ error: 'SOS_PHONE_REQUIRED', message: 'Cần có số điện thoại liên hệ để cán bộ gọi lại cho bạn.' });
+    }
     const input: CreateSosInput = {
       idempotencyKey,
       category: category as CreateSosInput['category'],

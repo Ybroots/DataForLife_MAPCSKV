@@ -218,7 +218,7 @@ describe('intelligence API', () => {
 
     const sos = (await app.inject({
       method: 'POST', url: '/v1/citizen/sos', headers: citizen,
-      payload: { idempotencyKey: 'sos-rating-0001', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
+      payload: { idempotencyKey: 'sos-rating-0001', contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
     })).json().data;
     const early = await app.inject({ method: 'POST', url: `/v1/citizen/sos/${sos.receiptCode}/rating`, headers: citizen, payload: { score: 5 } });
     expect(early.statusCode).toBe(409);

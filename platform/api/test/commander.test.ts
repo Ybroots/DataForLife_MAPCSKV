@@ -132,6 +132,16 @@ describe('logout revokes the session cookie', () => {
 });
 
 describe('SOS alarm data', () => {
+  it('refuses an SOS without a call-back phone number', async () => {
+    const a = await newApp();
+    const base = { idempotencyKey: 'commander-sos-nophone-1', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
+    const missing = await a.inject({ method: 'POST', url: '/v1/citizen/sos', headers: citizen, payload: base });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().error).toBe('SOS_PHONE_REQUIRED');
+    expect((await a.inject({ method: 'POST', url: '/v1/citizen/sos', headers: citizen, payload: { ...base, contactPhone: '' } })).statusCode).toBe(400);
+    expect((await a.inject({ method: 'POST', url: '/v1/citizen/sos', headers: citizen, payload: { ...base, contactPhone: '0911222333' } })).statusCode).toBe(201);
+  });
+
   it('gives officer and commander the reporter phone and area, without needing the receipt code', async () => {
     const a = await newApp();
     const created = await a.inject({

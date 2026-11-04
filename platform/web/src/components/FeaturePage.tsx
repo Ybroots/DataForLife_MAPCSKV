@@ -14,7 +14,7 @@ import { listPublicAlerts } from '../api';
 import type { PublicAlert } from '../types';
 import type { CitizenSession } from '../types';
 import { CitizenReportsPage } from './CitizenReportsPage';
-import { CitizenSosPage, EmergencyCallStrip } from './CitizenSosPage';
+import { CitizenSosPage } from './CitizenSosPage';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { CitizenAccountPage } from './CitizenAccountPage';
 import { CitizenFeatureAuthGate } from './CitizenFeatureAuthGate';
@@ -143,7 +143,7 @@ export function FeaturePage({ feature, onBack, onShowAlertsOnMap, selectedPositi
         {feature === 'sos' && (
           isAuthenticated
             ? <CitizenSosPage isAuthenticated onRequireLogin={() => onRequireLogin('sử dụng SOS')} />
-            : <><EmergencyCallStrip /><CitizenFeatureAuthGate feature="sos" onLogin={() => onRequireLogin('sử dụng SOS')} /></>
+            : <CitizenFeatureAuthGate feature="sos" onLogin={() => onRequireLogin('sử dụng SOS')} />
         )}
 
         {feature === 'account' && <CitizenAccountPage session={citizenSession} areaName={areaName} onLogin={() => onRequireLogin('xem tài khoản')} onLogout={onCitizenLogout} onNavigate={onNavigate} onStartTour={onStartTour} />}

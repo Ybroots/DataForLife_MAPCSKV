@@ -67,7 +67,7 @@ const PASS = 'Matkhau12345';
   r = await call('GET','/v1/citizen/incidents',{ jar:Bj }); rec('4e. Danh sách của B không lẫn phản ánh của A', r.status===200 && !JSON.stringify(r.data).includes(receipt), '');
 
   // ---------- 5. SOS
-  const sos = { idempotencyKey: crypto.randomUUID(), category:'security', note:'test', latitude:11.9404, longitude:108.4583, accuracyM:15, deviceTimestamp:new Date().toISOString() };
+  const sos = { idempotencyKey:crypto.randomUUID(), contactPhone:'0911222333', category:'security', note:'test', latitude:11.9404, longitude:108.4583, accuracyM:15, deviceTimestamp:new Date().toISOString() };
   r = await call('POST','/v1/citizen/sos',{ jar:A, body:sos }); rec('5a. Gửi SOS', r.status<300, r.status+' '+JSON.stringify(r.data).slice(0,120));
   const sosReceipt = r.data?.data?.receiptCode;
   r = await call('GET','/v1/citizen/sos/'+sosReceipt,{ jar:Bj }); rec('5b. IDOR SOS: B không xem được SOS của A', [403,404].includes(r.status), r.status);

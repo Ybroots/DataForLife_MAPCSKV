@@ -6,9 +6,7 @@ import {
   CheckCircle2,
   LocateFixed,
   MapPin,
-  PhoneCall,
   RefreshCw,
-  ShieldAlert,
   Siren,
   XCircle,
 } from 'lucide-react';
@@ -50,7 +48,6 @@ const statusLabels: Record<SosStatus, string> = {
 };
 
 function validPhone(value: string): boolean {
-  if (!value.trim()) return true;
   return /^\+?\d{8,15}$/.test(value.trim().replace(/[\s().-]/g, ''));
 }
 
@@ -94,24 +91,6 @@ function readSosDraft(): SosDraft | null {
     window.sessionStorage.removeItem(SOS_DRAFT_KEY);
     return null;
   }
-}
-
-export function EmergencyCallStrip() {
-  return (
-    <div className="official-emergency-strip">
-      <div><ShieldAlert size={20} aria-hidden="true" /><span><strong>Đang nguy hiểm? Gọi ngay</strong><small>SOS trong ứng dụng đang chạy thử.</small></span></div>
-      <nav className="emergency-call-actions" aria-label="Gọi số khẩn cấp chính thức">
-        <a href="tel:112" aria-label="Gọi Tổng đài khẩn cấp quốc gia 112">
-          <PhoneCall size={18} aria-hidden="true" />
-          <span><strong>Gọi 112</strong><small>Khẩn cấp quốc gia</small></span>
-        </a>
-        <a href="tel:113" aria-label="Gọi Công an 113">
-          <PhoneCall size={18} aria-hidden="true" />
-          <span><strong>Gọi 113</strong><small>Công an</small></span>
-        </a>
-      </nav>
-    </div>
-  );
 }
 
 export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPageProps) {
@@ -265,6 +244,10 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
       return false;
     }
     if (dutyBlockMessage) { setError(dutyBlockMessage); return false; }
+    if (!contactPhone.trim()) {
+      setError('Cần nhập số điện thoại để cán bộ gọi lại cho bạn.');
+      return false;
+    }
     if (!validPhone(contactPhone)) {
       setError('Số điện thoại phải có từ 8 đến 15 chữ số. Có thể dùng dấu cách hoặc dấu + ở đầu.');
       return false;
@@ -336,7 +319,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
         idempotencyKey,
         category,
         note: note || null,
-        contactPhone: contactPhone || null,
+        contactPhone: contactPhone.trim(),
         latitude: position.latitude,
         longitude: position.longitude,
         accuracyM,
@@ -401,8 +384,6 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
   return (
     <section className="citizen-workflow sos-workflow" aria-labelledby="sos-workflow-title">
       <h1 className="sr-only" id="sos-workflow-title">SOS khẩn cấp</h1>
-      <EmergencyCallStrip />
-
       {step === 'prepare' && (
         <div className="sos-emergency-screen">
           <div className="sos-primary-action">
@@ -423,7 +404,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             >
               <span className="sos-hold-ring" aria-hidden="true" />
               <span className="sos-hold-core">
-                {submitting ? <span className="loader light" /> : <PhoneCall size={33} aria-hidden="true" />}
+                {submitting ? <span className="loader light" /> : <Siren size={30} strokeWidth={2.4} aria-hidden="true" />}
                 <strong>SOS</strong>
                 <small>{submitting ? 'Đang gửi yêu cầu' : holding ? `Giữ thêm ${Math.max(1, Math.ceil((1 - holdProgress) * 3))} giây` : 'Nhấn giữ 3 giây'}</small>
               </span>
@@ -456,6 +437,12 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
             </div>
           </section>
 
+          <section className="sos-contact-panel" aria-labelledby="sos-contact-title">
+            <label id="sos-contact-title" htmlFor="sos-contact-phone">Số điện thoại để cán bộ gọi lại</label>
+            <input id="sos-contact-phone" name="sosContactPhone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={30} placeholder="Ví dụ 0912 345 678" required aria-required="true" aria-invalid={contactPhone.trim() !== '' && !validPhone(contactPhone)} />
+            <small>Cán bộ nhận SOS sẽ thấy tên tài khoản và số điện thoại này.</small>
+          </section>
+
           <details className="sos-optional-details">
             <summary><span><Siren size={19} aria-hidden="true" /><strong>Bổ sung thông tin tình huống</strong></span><small>Không bắt buộc</small></summary>
             <div>
@@ -470,9 +457,6 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
               </fieldset>
               <label>Mô tả ngắn
                 <textarea name="sosNote" autoComplete="off" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} placeholder="Dấu hiệu nhận biết, số người cần hỗ trợ, nguy cơ hiện tại…" />
-              </label>
-              <label>Số điện thoại có thể gọi lại
-                <input name="sosContactPhone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={30} placeholder="Không bắt buộc" />
               </label>
             </div>
           </details>

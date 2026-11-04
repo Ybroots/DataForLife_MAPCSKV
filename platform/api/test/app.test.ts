@@ -137,7 +137,7 @@ describe('local operational workflows', () => {
   it('routes SOS to the officer queue, blocks duplicate sends and records acknowledgment', async () => {
     app = await buildApp(new FixtureDirectoryRepository());
     const body = {
-      idempotencyKey: 'sos-test-key-0001', category: 'security', note: 'Yêu cầu hỗ trợ kiểm thử.',
+      idempotencyKey: 'sos-test-key-0001', contactPhone: '0911222333', category: 'security', note: 'Yêu cầu hỗ trợ kiểm thử.',
       latitude: 11.944, longitude: 108.441, accuracyM: 8, deviceTimestamp: new Date().toISOString(),
     };
     const first = await app.inject({ method: 'POST', url: '/v1/citizen/sos', headers: citizenHeaders, payload: body });
@@ -192,7 +192,7 @@ describe('local operational workflows', () => {
   it('rejects implausible SOS device data and malformed callback numbers', async () => {
     app = await buildApp(new FixtureDirectoryRepository());
     const base = {
-      idempotencyKey: 'sos-validation-0001', category: 'security',
+      idempotencyKey: 'sos-validation-0001', contactPhone: '0911222333', category: 'security',
       latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString(),
     };
 

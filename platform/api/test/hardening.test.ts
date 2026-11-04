@@ -56,7 +56,7 @@ describe('login throttling', () => {
 describe('per-account submission limits', () => {
   const headers = { 'x-citizen-id': 'citizen-limit-001' };
   const sos = (key: string) => ({
-    idempotencyKey: key, category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString(),
+    idempotencyKey: key, contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString(),
   });
 
   it('limits distinct SOS per window but never blocks a retry of an accepted one', async () => {

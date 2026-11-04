@@ -68,7 +68,7 @@ describe('officer can reject after assignment', () => {
 });
 
 describe('SOS: citizen reports safe, officer closes a false alarm', () => {
-  const sosBody = { idempotencyKey: 'pg-sos-key-0001', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
+  const sosBody = { idempotencyKey: 'pg-sos-key-0001', contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
 
   it('records the safe report without changing status, once, and officer can resolve from acknowledged', async () => {
     const a = await newApp();
@@ -111,7 +111,7 @@ describe('postgres only: duty gate and ownership', () => {
     const p = pool();
     try {
       await p.query("UPDATE workflow_actors SET active=false WHERE actor_type='officer'");
-      const body = { idempotencyKey: 'pg-sos-nooff-0001', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
+      const body = { idempotencyKey: 'pg-sos-nooff-0001', contactPhone: '0911222333', category: 'security', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() };
       const blocked = await a.inject({ method: 'POST', url: '/v1/citizen/sos', headers: citizen, payload: body });
       expect(blocked.statusCode).toBe(409);
       expect(blocked.json().error).toBe('NO_DUTY_OFFICER');
