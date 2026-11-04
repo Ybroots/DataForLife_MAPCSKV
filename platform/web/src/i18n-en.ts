@@ -14,7 +14,7 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
   'Bản đồ số Cảnh sát khu vực': 'Community Police Digital Map',
   'Bản đồ CSKV': 'Police Map',
   'Công an tỉnh Lâm Đồng': 'Lam Dong Provincial Police',
-  'Trợ lý bản đồ': 'Map assistant',
+  'Trợ lý ảo': 'Virtual assistant',
   'Trợ lý': 'Assistant',
   'xem thông báo xử lý hồ sơ': 'view case updates',
   'sử dụng ứng dụng người dân': 'use the citizen app',
@@ -44,7 +44,7 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
   'Đã xem gần đây': 'Recently viewed',
   'Đang tải bản đồ': 'Loading map',
   'Đang tải bản đồ…': 'Loading map…',
-  'Đang tải trợ lý bản đồ…': 'Loading map assistant…',
+  'Đang tải trợ lý ảo…': 'Loading virtual assistant…',
   'Đang tải tính năng…': 'Loading…',
   'Điều hướng chính': 'Main navigation',
   'Bản đồ': 'Map',
@@ -529,7 +529,7 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
 
   // Trợ lý
   'Chưa thể kết nối trợ lý. Hãy thử lại.': 'Cannot reach the assistant. Please try again.',
-  'Đóng trợ lý bản đồ': 'Close map assistant',
+  'Đóng trợ lý ảo': 'Close virtual assistant',
   'Đang kiểm tra kết nối…': 'Checking connection…',
   'Chưa kiểm tra được kết nối trợ lý.': 'Could not check the assistant connection.',
   'Bạn cần tìm gì trên bản đồ?': 'What are you looking for on the map?',

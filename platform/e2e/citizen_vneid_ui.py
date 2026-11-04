@@ -40,10 +40,10 @@ def main() -> None:
         page.get_by_role("button", name="Đăng nhập", exact=True).click()
         page.wait_for_selector(".app-shell")
         page.wait_for_load_state("networkidle")
-        page.wait_for_selector('button[title="Trợ lý bản đồ"]', timeout=15_000)
+        page.wait_for_selector('button[title="Trợ lý ảo"]', timeout=15_000)
 
         assert page.locator(".map-sos-button").is_visible(), "SOS phải là nút nổi riêng trên bản đồ"
-        assert page.get_by_title("Trợ lý bản đồ").is_visible(), "Chatbot phải nổi riêng trên bản đồ"
+        assert page.get_by_title("Trợ lý ảo").is_visible(), "Chatbot phải nổi riêng trên bản đồ"
         officer_markers = page.locator(".cskv-demo-marker")
         assert officer_markers.count() == 5, "Bản đồ Xuân Hương phải hiện đủ 5 điểm CSKV minh họa"
         assert all(

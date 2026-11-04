@@ -278,7 +278,7 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
         return JSON.parse(output) as unknown;
       } catch (error) {
         console.error(`[assistant] AI planner failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý bản đồ. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.', plannerFailureReason(error));
+        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý ảo. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.', plannerFailureReason(error));
       }
     },
   };

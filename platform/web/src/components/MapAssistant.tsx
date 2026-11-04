@@ -89,8 +89,8 @@ export function MapAssistant({ areaCode, areaName, onAreaSelect, onClose, onOpen
     }}>
       <header className="map-assistant-header">
         <MessageSquareText size={20} aria-hidden="true" />
-        <div><h2 id="map-assistant-title" tabIndex={-1} ref={headingRef}>Trợ lý bản đồ</h2></div>
-        <button type="button" onClick={onClose} aria-label="Đóng trợ lý bản đồ"><X size={20} aria-hidden="true" /></button>
+        <div><h2 id="map-assistant-title" tabIndex={-1} ref={headingRef}>Trợ lý ảo</h2></div>
+        <button type="button" onClick={onClose} aria-label="Đóng trợ lý ảo"><X size={20} aria-hidden="true" /></button>
       </header>
 
       <div className="map-assistant-content" ref={contentRef} aria-busy={pending}>

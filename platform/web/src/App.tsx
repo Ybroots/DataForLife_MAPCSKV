@@ -484,7 +484,7 @@ export default function App() {
           <span>Công an tỉnh Lâm Đồng</span>
         </div>
         <div className="topbar-actions">
-          <button className="map-assistant-trigger" type="button" aria-label="Trợ lý bản đồ" aria-expanded={activeFeature === 'assistant'} aria-controls={activeFeature === 'assistant' ? 'map-assistant-title' : undefined} onClick={() => navigateToFeature(activeFeature === 'assistant' ? 'directory' : 'assistant')}><MessageSquareText size={20} aria-hidden="true" /><span>Trợ lý</span></button>
+          <button className="map-assistant-trigger" type="button" aria-label="Trợ lý ảo" aria-expanded={activeFeature === 'assistant'} aria-controls={activeFeature === 'assistant' ? 'map-assistant-title' : undefined} onClick={() => navigateToFeature(activeFeature === 'assistant' ? 'directory' : 'assistant')}><MessageSquareText size={20} aria-hidden="true" /><span>Trợ lý</span></button>
           <CitizenNotifications key={citizenSession?.id ?? 'guest'} sessionId={citizenSession?.id ?? null}
             onRequireLogin={() => { setCitizenSession(null); setCitizenLoginAction('xem thông báo xử lý hồ sơ'); setCitizenLoginOpen(true); }}
             onOpenCase={(notification) => openCase(notification.kind, notification.receiptCode)} />
@@ -626,7 +626,7 @@ export default function App() {
               />
             </Suspense>
           )}
-          {activeFeature === 'assistant' && <Suspense fallback={<div className="map-assistant" role="status">Đang tải trợ lý bản đồ…</div>}>
+          {activeFeature === 'assistant' && <Suspense fallback={<div className="map-assistant" role="status">Đang tải trợ lý ảo…</div>}>
             <MapAssistant areaCode={area?.code ?? null} areaName={area?.name ?? null}
               onAreaSelect={code => { navigateToFeature('directory'); setMobileView('map'); void selectAreaCode(code, false); }}
               onClose={() => { navigateToFeature('directory'); window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.map-assistant-trigger')?.focus({ preventScroll: true })); }}

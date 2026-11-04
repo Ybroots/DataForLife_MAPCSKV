@@ -54,12 +54,12 @@ def main():
             expect(page.locator('.province-navigation select')).to_contain_text('1 xã/phường')
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Map has horizontal overflow'
 
-            page.get_by_role('button', name='Trợ lý bản đồ', exact=True).click()
+            page.get_by_role('button', name='Trợ lý ảo', exact=True).click()
             assert page.evaluate("window.qaMapCanvas === document.querySelector('.maplibregl-canvas')"), 'Opening AI must not recreate the map'
             expect(page.locator('.map-canvas')).to_have_attribute('data-overview-count', '1')
             expect(page.get_by_label('Câu hỏi của bạn', exact=True)).to_be_enabled()
-            page.get_by_role('button', name='Đóng trợ lý bản đồ').click()
-            expect(page.get_by_role('button', name='Trợ lý bản đồ', exact=True)).to_be_focused()
+            page.get_by_role('button', name='Đóng trợ lý ảo').click()
+            expect(page.get_by_role('button', name='Trợ lý ảo', exact=True)).to_be_focused()
 
             def mock_status(route):
                 route.fulfill(json={'data': {'configured': True, 'provider': 'OpenAI', 'emergencyDispatchConnected': False}})
@@ -77,7 +77,7 @@ def main():
                     route.fulfill(json={'data': canonical_answer})
             context.route('**/api/v1/assistant/query', mock_query)
 
-            page.get_by_role('button', name='Trợ lý bản đồ', exact=True).click()
+            page.get_by_role('button', name='Trợ lý ảo', exact=True).click()
             field = page.get_by_label('Câu hỏi của bạn', exact=True)
             expect(field).to_be_enabled()
             expect(page.locator('.maplibregl-canvas')).to_have_count(1)
@@ -103,7 +103,7 @@ def main():
             assert page.evaluate("window.qaMapCanvas === document.querySelector('.maplibregl-canvas')"), 'Selecting an AI result must preserve the map canvas'
 
             # Current-area context, provider failure and retry keep the user's question.
-            page.get_by_role('button', name='Trợ lý bản đồ', exact=True).click()
+            page.get_by_role('button', name='Trợ lý ảo', exact=True).click()
             field = page.get_by_label('Câu hỏi của bạn', exact=True)
             expect(field).to_be_enabled()
             mode['value'] = 'error'
@@ -118,8 +118,8 @@ def main():
             field.press('Escape')
             expect(page.locator('.map-assistant')).to_have_count(0)
 
-            page.get_by_role('button', name='Trợ lý bản đồ', exact=True).click()
-            expect(page.get_by_role('heading', name='Trợ lý bản đồ', exact=True)).to_be_visible()
+            page.get_by_role('button', name='Trợ lý ảo', exact=True).click()
+            expect(page.get_by_role('heading', name='Trợ lý ảo', exact=True)).to_be_visible()
             page.get_by_role('button', name='Mở tùy chọn hiển thị bản đồ').click()
             expect(page.locator('.map-assistant')).to_have_count(0)
             expect(page.locator('#map-tool-menu')).to_be_visible()
