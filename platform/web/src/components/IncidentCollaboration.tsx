@@ -3,6 +3,11 @@ import { MessageSquareText, Paperclip, Send, Sparkles } from 'lucide-react';
 import { addOfficerIncidentAttachment, addOfficerIncidentMessage, ApiError, draftIncidentReply, getAiStatus, listOfficerIncidentMessages } from '../api';
 import type { Incident, IncidentAttachment, IncidentMessage } from '../types';
 import { IncidentMediaGallery } from './IncidentMediaGallery';
+import { TranslateButton } from './TranslateButton';
+
+/** Tin nhắn không có dấu tiếng Việt và đủ dài: nhiều khả năng viết bằng tiếng nước ngoài, cho phép dịch sang tiếng Việt. */
+const vietnameseMarks = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+const looksForeign = (text: string) => text.length >= 12 && /[a-z]{3}/i.test(text) && !vietnameseMarks.test(text);
 
 interface Props {
   incident: Incident;
@@ -84,7 +89,7 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
       </div>
       <div className="case-thread">
         {messages.length === 0 && <p className="workflow-empty">Chưa có trao đổi với người dân.</p>}
-        {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{entry.requestMedia && <span>Đã yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
+        {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{entry.authorRole === 'citizen' && looksForeign(entry.message) && <TranslateButton text={entry.message} target="vi" resetKey={entry.id} />}{entry.requestMedia && <span>Đã yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
       </div>
       <form className="thread-compose" onSubmit={submitMessage}>
         <label className="sr-only" htmlFor="officer-message">Nội dung trao đổi</label>

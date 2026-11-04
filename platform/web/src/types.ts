@@ -24,6 +24,24 @@ export interface MapAssistantAnswer {
   meta: { provider: string; dataSource: string; retrievedAt: string; emergencyDispatchConnected: false };
 }
 
+export interface ProcedureAnswer {
+  matched: boolean;
+  via: 'keyword' | 'ai' | 'none';
+  disclaimer: string;
+  procedure: {
+    id: string;
+    title: string;
+    summary: string;
+    conditions: string[];
+    documents: string[];
+    steps: string[];
+    where: string;
+    notes: string[];
+    sources: Array<{ label: string; url: string }>;
+    reviewedAt: string;
+  } | null;
+}
+
 export interface AreaOverview {
   type: 'FeatureCollection';
   features: Array<{ type: 'Feature'; id: string; properties: AreaSummary; geometry: NonNullable<AreaLookup['boundary']> }>;
@@ -386,7 +404,21 @@ export interface CaseRef {
 export interface AiStatus {
   configured: boolean;
   provider: 'OpenAI' | 'Gemini' | null;
-  features: Array<'incident_draft' | 'incident_review' | 'reply_draft'>;
+  features: Array<'incident_draft' | 'incident_review' | 'reply_draft' | 'procedure_help' | 'translate' | 'report_summary'>;
+}
+
+export interface ReportSummary {
+  headline: string;
+  highlights: string[];
+  concerns: string[];
+  unverifiedNumbers: string[];
+  provider: 'OpenAI' | 'Gemini';
+}
+
+export interface AssigneeSuggestion {
+  id: string;
+  displayName: string;
+  openCases: number;
 }
 
 export interface IncidentReplyDraft {

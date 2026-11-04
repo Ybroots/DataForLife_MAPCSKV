@@ -48,6 +48,7 @@ import { WorkflowTimeline } from './WorkflowTimeline';
 import { IncidentCollaboration } from './IncidentCollaboration';
 import { PoliceOperations } from './PoliceOperations';
 import { SosEmergencyOverlay } from './SosEmergencyOverlay';
+import { AssigneeHint } from './AssigneeHint';
 import { IncidentInsights } from './IncidentInsights';
 import { QueueThumb } from './QueueThumb';
 import { CaseActionCard } from './CaseActionCard';
@@ -488,7 +489,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                     <dl className="ops-facts">
                       <div><dt>Gửi lúc</dt><dd>{timeFormatter.format(new Date(detail.createdAt))}</dd></div>
                       <div><dt>Điện thoại</dt><dd>{detail.contactPhone || 'Không cung cấp'}</dd></div>
-                      <div><dt>Phụ trách</dt><dd>{detail.assignedOfficer?.displayName ?? 'Chưa có'}</dd></div>
+                      <div><dt>Phụ trách</dt><dd>{detail.assignedOfficer?.displayName ?? 'Chưa có'}{detail.kind === 'incident' && !detail.assignedOfficer && <AssigneeHint incidentId={detail.id} />}</dd></div>
                       {detail.location.accuracyM && detail.location.accuracyM > 150 ? <div><dt>Vị trí</dt><dd>Chỉ gần đúng (sai số {Math.round(detail.location.accuracyM)} m)</dd></div> : null}
                     </dl>
                   </section>

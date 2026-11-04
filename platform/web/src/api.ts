@@ -33,7 +33,10 @@ import type {
   AppRating,
   DuplicateCandidate,
   IncidentAiReview,
+  AssigneeSuggestion,
+  ReportSummary,
   IncidentReplyDraft,
+  ProcedureAnswer,
   IncidentDraft,
 } from './types';
 
@@ -48,6 +51,20 @@ export async function getMapAssistantStatus(signal?: AbortSignal): Promise<MapAs
 export async function askMapAssistant(question: string, areaCode: string | null, signal?: AbortSignal): Promise<MapAssistantAnswer> {
   return (await request<{ data: MapAssistantAnswer }>('/v1/assistant/query', {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, areaCode }),
+  })).data;
+}
+
+export async function translateWithAi(text: string, target: 'en' | 'vi'): Promise<string> {
+  // Phiên đăng nhập (người dân hoặc cán bộ) đi kèm cookie; máy chủ chấp nhận phiên nào còn hiệu lực.
+  const payload = await request<{ data: { translation: string } }>('/v1/ai/translate', {
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ text, target }),
+  });
+  return payload.data.translation;
+}
+
+export async function askProcedure(question: string, useAi: boolean, lang: 'vi' | 'en', signal?: AbortSignal): Promise<ProcedureAnswer> {
+  return (await request<{ data: ProcedureAnswer }>('/v1/assistant/procedure', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, ai: useAi, lang }),
   })).data;
 }
 
@@ -548,10 +565,20 @@ export async function getAiStatus(signal?: AbortSignal): Promise<AiStatus> {
   return (await request<{ data: AiStatus }>('/v1/ai/status', { signal })).data;
 }
 
-export async function draftIncidentWithAi(text: string): Promise<IncidentDraft> {
+export async function draftIncidentWithAi(text: string, image?: { mimeType: string; dataBase64: string }): Promise<IncidentDraft> {
   return (await request<{ data: IncidentDraft }>('/v1/citizen/incident-draft', {
-    method: 'POST', headers: citizenHeaders(), body: JSON.stringify({ text }),
+    method: 'POST', headers: citizenHeaders(), body: JSON.stringify(image ? { text, image } : { text }),
   })).data;
+}
+
+export async function summarizeReportWithAi(period: StatisticsPeriod, date: string): Promise<ReportSummary> {
+  return (await request<{ data: ReportSummary }>('/v1/officer/statistics/summary', {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify({ period, date }),
+  })).data;
+}
+
+export async function getAssigneeSuggestion(id: string): Promise<AssigneeSuggestion | null> {
+  return (await request<{ data: { suggestion: AssigneeSuggestion | null } }>(`/v1/officer/incidents/${encodeURIComponent(id)}/assignee-suggestion`, { headers: officerHeaders() })).data.suggestion;
 }
 
 export async function draftIncidentReply(id: string): Promise<IncidentReplyDraft> {

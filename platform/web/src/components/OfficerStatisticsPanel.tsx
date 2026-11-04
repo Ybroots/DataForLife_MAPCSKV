@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, Printer, RefreshCw, Siren, Star } from 'lucide-react';
-import { ApiError, getOfficerStatistics, listOfficerReportCases } from '../api';
-import type { OfficerReportCase, OfficerStatistics, StatisticsPeriod } from '../types';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, Printer, RefreshCw, Siren, Sparkles, Star } from 'lucide-react';
+import { ApiError, getAiStatus, getOfficerStatistics, listOfficerReportCases, summarizeReportWithAi } from '../api';
+import type { OfficerReportCase, OfficerStatistics, ReportSummary, StatisticsPeriod } from '../types';
 import { buildReportCsv, downloadTextFile, reportFileName } from '../report-export';
 import { PrintableReport } from './PrintableReport';
 import { OfficerKpiTable } from './OfficerKpiTable';
@@ -26,6 +26,24 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
   const [reloadKey, setReloadKey] = useState(0);
   const [exporting, setExporting] = useState<'csv' | 'print' | null>(null);
   const [printCases, setPrintCases] = useState<OfficerReportCase[] | null>(null);
+  const [aiReady, setAiReady] = useState(false);
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAiStatus(controller.signal).then((status) => setAiReady(status.configured && status.features.includes('report_summary'))).catch(() => setAiReady(false));
+    return () => controller.abort();
+  }, []);
+  // Nhận xét thuộc về một kỳ và số liệu cụ thể: đổi kỳ hoặc cập nhật số liệu thì bỏ nhận xét cũ.
+  useEffect(() => { setSummary(null); }, [period, date, reloadKey]);
+
+  const writeSummary = async () => {
+    setSummarizing(true); setError('');
+    try { setSummary(await summarizeReportWithAi(period, date)); }
+    catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Chưa kết nối được AI. Bạn vẫn có thể tự viết nhận xét.'); }
+    finally { setSummarizing(false); }
+  };
 
   useEffect(() => {
     const clear = () => setPrintCases(null);
@@ -91,6 +109,21 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
         <article className={data.totals.overdue ? 'warning' : ''}><AlertTriangle /><span>Quá SLA</span><strong>{data.totals.overdue}</strong></article>
         <article><Star /><span>Hài lòng</span><strong>{data.totals.averageRating === null ? '—' : `${data.totals.averageRating}/5`}</strong><small>{data.totals.ratingCount} đánh giá</small></article>
       </div>
+      {aiReady && <section className="statistics-ai" aria-labelledby="statistics-ai-title">
+        <header>
+          <h4 id="statistics-ai-title">Nhận xét của AI</h4>
+          <button type="button" className="report-refresh" onClick={() => void writeSummary()} disabled={summarizing}>
+            {summarizing ? <RefreshCw className="spin" size={16} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />} {summarizing ? 'AI đang viết…' : summary ? 'Viết lại' : 'AI viết nhận xét'}
+          </button>
+        </header>
+        {summary ? <>
+          <p>{summary.headline}</p>
+          {summary.highlights.length > 0 && <ul>{summary.highlights.map((item) => <li key={item}>{item}</li>)}</ul>}
+          {summary.concerns.length > 0 && <><strong>Cần lưu ý</strong><ul>{summary.concerns.map((item) => <li key={item}>{item}</li>)}</ul></>}
+          {summary.unverifiedNumbers.length > 0 && <p className="inline-notice error" role="alert">Có số chưa đối chiếu được với bảng số liệu: {summary.unverifiedNumbers.join(', ')}. Hãy kiểm tra trước khi dùng.</p>}
+          <small>AI viết từ số liệu tổng hợp ở trên (không dùng nội dung phản ánh). Cán bộ kiểm tra lại trước khi đưa vào báo cáo.</small>
+        </> : <small>AI viết vài dòng nhận xét từ số liệu của kỳ này. Bạn đọc và chỉnh trước khi dùng.</small>}
+      </section>}
       <section className="statistics-chart" aria-labelledby="trend-title">
         <header><div><h4 id="trend-title">Nhịp tiếp nhận theo thời gian</h4><p>Cột đỏ: SOS · cột xanh: phản ánh</p></div><span>{new Date(data.from).toLocaleDateString('vi-VN')} – {new Date(data.to).toLocaleDateString('vi-VN')}</span></header>
         <div className="trend-bars" role="img" aria-label="Biểu đồ số phản ánh và SOS theo thời gian">

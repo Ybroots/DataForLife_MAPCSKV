@@ -1,12 +1,30 @@
 import type { FastifyReply } from 'fastify';
-import { AiUnavailableError, type JsonModel } from './ai-client.js';
-import { draftIncident, draftReply, incidentCategoryValues, IntelligenceError, reviewIncident, type IncidentCategory, type ReviewImage } from './incident-intelligence.js';
+import { AiUnavailableError, type AiImage, type JsonModel } from './ai-client.js';
+import { draftIncident, draftReply, incidentCategoryValues, suggestAssignee, IntelligenceError, reviewIncident, type IncidentCategory, type ReviewImage } from './incident-intelligence.js';
+import { containsPersonalIdNumber } from './map-assistant.js';
+import { matchProcedureByKeyword, pickProcedureWithAi, PROCEDURE_DISCLAIMER, type Procedure } from './procedures.js';
 import { AttemptWindow } from './rate-limit.js';
-import { optionalText } from './request-parsing.js';
+import { summarizeStatistics } from './report-summary.js';
+import { translateMessage, translateProcedure, TranslationCache, translationTargets, type TranslationTarget } from './translation.js';
+import { matchesDeclaredMedia, optionalText, statisticsPeriods } from './request-parsing.js';
 import type { RouteContext } from './route-context.js';
 
 const REVIEW_IMAGE_LIMIT = 3;
 const REVIEW_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const DRAFT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+/** 4 MB ảnh sau khi mã hóa base64 (x 4/3) cộng phần lời kể. */
+const DRAFT_BODY_LIMIT = 6 * 1024 * 1024;
+
+/** Một ảnh JPG/PNG/WebP, đúng chữ ký tệp, tối đa 4 MB. Trả null nếu không hợp lệ. */
+function parseDraftImage(value: unknown): AiImage | null {
+  const candidate = value !== null && typeof value === 'object' ? value as Record<string, unknown> : null;
+  const mimeType = candidate?.mimeType;
+  const data = candidate?.dataBase64;
+  if ((mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'image/webp') || typeof data !== 'string' || !/^[a-zA-Z0-9+/]+={0,2}$/.test(data)) return null;
+  const decoded = Buffer.from(data, 'base64');
+  if (decoded.length < 16 || decoded.length > DRAFT_IMAGE_MAX_BYTES || !matchesDeclaredMedia(decoded, mimeType)) return null;
+  return { mimeType, data: decoded };
+}
 
 /** Giới hạn chi phí AI cho cả tiến trình API: số lượt mỗi ngày và số lượt chạy đồng thời. */
 class AiBudget {
@@ -47,6 +65,10 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
   const clock = options.limits?.clock ?? Date.now;
   const draftWindow = new AttemptWindow(20, 60 * 60_000, clock);
   const reviewWindow = new AttemptWindow(60, 60 * 60_000, clock);
+  const procedureWindow = new AttemptWindow(12, 60 * 60_000, clock);
+  const translateWindow = new AttemptWindow(40, 60 * 60_000, clock);
+  const messageCache = new TranslationCache<string>(500);
+  const procedureCache = new TranslationCache<Awaited<ReturnType<typeof translateProcedure>>>(20);
   const budget = new AiBudget(Number.isSafeInteger(dailyLimit) && dailyLimit > 0 ? dailyLimit : 200, clock);
 
   const notConfigured = (reply: FastifyReply) => reply.code(503).send({
@@ -75,19 +97,59 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
 
   app.get('/v1/ai/status', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review', 'reply_draft'] : [] } };
+    return { data: { configured: Boolean(model), provider: model?.provider ?? null, features: model ? ['incident_draft', 'incident_review', 'reply_draft', 'procedure_help', 'translate', 'report_summary'] : [] } };
   });
 
-  app.post<{ Body: { text?: unknown } }>('/v1/citizen/incident-draft', { preHandler: workflowDisabled, bodyLimit: 16 * 1024 }, async (request, reply) => {
+  /**
+   * Hỏi đáp thủ tục (công khai). Từ khóa khớp thì trả ngay, không tốn AI; nếu không khớp, AI chỉ chọn mã thủ tục.
+   * Nội dung trả lời luôn lấy từ kho thủ tục đã duyệt, không do AI viết.
+   */
+  app.post<{ Body: { question?: unknown; ai?: unknown; lang?: unknown } }>('/v1/assistant/procedure', { bodyLimit: 4096 }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const question = typeof request.body?.question === 'string' ? request.body.question.trim() : '';
+    if (question.length < 3 || question.length > 600) {
+      return reply.code(400).send({ error: 'INVALID_AI_QUERY', message: 'Câu hỏi cần từ 3 đến 600 ký tự.' });
+    }
+    const english = request.body?.lang === 'en';
+    /** Bản tiếng Anh dịch từ kho (nội dung cố định, dịch một lần rồi nhớ). Lỗi hay hết hạn mức thì giữ tiếng Việt. */
+    const localize = async (procedure: Procedure): Promise<Procedure & { language: 'vi' | 'en' }> => {
+      if (!english || !model) return { ...procedure, language: 'vi' };
+      let translated = procedureCache.get(procedure.id);
+      if (!translated && !budget.acquire()) {
+        try { translated = await translateProcedure(model, procedure); procedureCache.set(procedure.id, translated); } catch { /* giữ tiếng Việt */ } finally { budget.release(); }
+      }
+      return translated ? { ...procedure, ...translated, language: 'en' } : { ...procedure, language: 'vi' };
+    };
+    const respond = async (procedure: Procedure | null, via: 'keyword' | 'ai' | 'none') => ({
+      data: { matched: Boolean(procedure), via, procedure: procedure ? await localize(procedure) : null, disclaimer: PROCEDURE_DISCLAIMER },
+    });
+    const byKeyword = matchProcedureByKeyword(question);
+    if (byKeyword) return respond(byKeyword, 'keyword');
+    // ai=false: chỉ so khớp từ khóa (miễn phí), dùng khi trợ lý đã có kết quả địa bàn.
+    if (!model || request.body?.ai === false || containsPersonalIdNumber(question)) return respond(null, 'none');
+    const result = await runAi(reply, request.ip, procedureWindow, () => pickProcedureWithAi(model, question));
+    // runAi đã trả lỗi (429/503) cho client; còn lại là kết quả { data: Procedure | null }.
+    if (reply.sent) return reply;
+    const picked = (result as { data: Procedure | null }).data;
+    return respond(picked, picked ? 'ai' : 'none');
+  });
+
+  app.post<{ Body: { text?: unknown; image?: unknown } }>('/v1/citizen/incident-draft', { preHandler: workflowDisabled, bodyLimit: DRAFT_BODY_LIMIT }, async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
     const citizenId = citizenIdentity(request);
     if (!citizenId) return reply.code(401).send({ error: 'CITIZEN_SESSION_REQUIRED', message: 'Vui lòng đăng nhập trước khi dùng AI hỗ trợ điền phiếu.' });
     if (!model) return notConfigured(reply);
     const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
-    if (text.length < 10 || text.length > 2000) {
-      return reply.code(400).send({ error: 'INVALID_DRAFT_TEXT', message: 'Lời mô tả cần từ 10 đến 2.000 ký tự.' });
+    const rawImage = request.body?.image;
+    let image: AiImage | undefined;
+    if (rawImage !== undefined && rawImage !== null) {
+      image = parseDraftImage(rawImage) ?? undefined;
+      if (!image) return reply.code(400).send({ error: 'INVALID_DRAFT_IMAGE', message: 'Ảnh không hợp lệ hoặc lớn hơn 4 MB. Hãy chọn ảnh JPG, PNG hoặc WebP nhỏ hơn.' });
     }
-    return runAi(reply, citizenId, draftWindow, () => draftIncident(model, text));
+    if (text.length > 2000 || (!image && text.length < 10)) {
+      return reply.code(400).send({ error: 'INVALID_DRAFT_TEXT', message: 'Lời mô tả cần từ 10 đến 2.000 ký tự (hoặc kèm một ảnh).' });
+    }
+    return runAi(reply, citizenId, draftWindow, () => draftIncident(model, text, image));
   });
 
   app.get<{ Params: { id: string } }>('/v1/officer/incidents/:id/duplicates', { preHandler: workflowDisabled }, async (request, reply) => {
@@ -129,6 +191,53 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
       const suggestion = await reviewIncident(model, incident, images);
       return repository.saveIncidentAiReview(officerId, incident.id, suggestion);
     });
+  });
+
+  app.get<{ Params: { id: string } }>('/v1/officer/incidents/:id/assignee-suggestion', { preHandler: workflowDisabled }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    const incident = await repository.getOfficerIncident(officerId, request.params.id);
+    if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
+    if (incident.assignedOfficer || ['closed', 'rejected'].includes(incident.status)) return { data: { suggestion: null } };
+    const [actors, queue] = await Promise.all([repository.listWorkflowActors(officerId), repository.listOfficerQueue(officerId)]);
+    return { data: { suggestion: suggestAssignee(incident.location.localityCode, actors, queue) } };
+  });
+
+  /** Dịch tin nhắn cho người đã đăng nhập (người dân hoặc cán bộ). Bản gốc luôn được giữ nguyên ở giao diện. */
+  app.post<{ Body: { text?: unknown; target?: unknown } }>('/v1/ai/translate', { preHandler: workflowDisabled, bodyLimit: 8 * 1024 }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const subject = officerIdentity(request) ?? citizenIdentity(request);
+    if (!subject) return reply.code(401).send({ error: 'SESSION_REQUIRED', message: 'Vui lòng đăng nhập để dùng tính năng dịch.' });
+    if (!model) return notConfigured(reply);
+    const text = typeof request.body?.text === 'string' ? request.body.text.trim() : '';
+    const target = request.body?.target;
+    if (text.length < 2 || text.length > 1500 || !translationTargets.includes(target as TranslationTarget)) {
+      return reply.code(400).send({ error: 'INVALID_TRANSLATION', message: 'Nội dung cần dịch từ 2 đến 1.500 ký tự và ngôn ngữ đích là en hoặc vi.' });
+    }
+    const key = `${target}:${text}`;
+    const cached = messageCache.get(key);
+    if (cached) return { data: { translation: cached, provider: model.provider } };
+    return runAi(reply, subject, translateWindow, async () => {
+      const translation = await translateMessage(model, text, target as TranslationTarget);
+      messageCache.set(key, translation);
+      return { translation, provider: model.provider };
+    });
+  });
+
+  /** Nhận xét cho báo cáo thống kê. Số liệu lấy từ cơ sở dữ liệu, AI chỉ viết lại thành văn bản và có cảnh báo khi dùng số lạ. */
+  app.post<{ Body: { period?: unknown; date?: unknown } }>('/v1/officer/statistics/summary', { preHandler: workflowDisabled }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const officerId = officerIdentity(request);
+    if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
+    if (!model) return notConfigured(reply);
+    const rawPeriod = request.body?.period;
+    const period = typeof rawPeriod === 'string' && statisticsPeriods.has(rawPeriod) ? rawPeriod as import('./types.js').StatisticsPeriod : 'day';
+    const rawDate = request.body?.date;
+    const anchorDate = typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && Number.isFinite(Date.parse(`${rawDate}T00:00:00Z`))
+      ? rawDate : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const stats = await repository.getOfficerStatistics(officerId, period, anchorDate);
+    return runAi(reply, officerId, reviewWindow, () => summarizeStatistics(model, stats));
   });
 
   app.post<{ Params: { id: string } }>('/v1/officer/incidents/:id/reply-draft', { preHandler: workflowDisabled }, async (request, reply) => {

@@ -24,6 +24,8 @@ import { WorkflowLocationMap } from './WorkflowLocationMap';
 import { VneIdLoginPrompt } from './VneIdLoginPrompt';
 import { createRequestId } from '../request-id';
 import { IncidentDraftAssistant } from './IncidentDraftAssistant';
+import { TranslateButton } from './TranslateButton';
+import { useLang } from '../i18n';
 import { prepareImage } from '../image-compress';
 import { showToast } from '../toast';
 import type { IncidentDraft } from '../types';
@@ -103,6 +105,7 @@ function mediaError(file: File): string | null {
 }
 
 export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequireLogin }: CitizenReportsPageProps) {
+  const lang = useLang();
   // Bản nháp đã lưu trên máy (nếu app bị tắt giữa chừng) được khôi phục khi mở lại màn này.
   const [initialDraft] = useState<ReportDraft | null>(() => loadReportDraft());
   const [draftRestored, setDraftRestored] = useState(Boolean(initialDraft));
@@ -454,7 +457,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
       {view === 'create' ? (
         <form className="operational-form" onSubmit={submit} noValidate>
           {draftRestored && <p className="draft-restored" role="status">Đã khôi phục nội dung bạn đang soạn lần trước. <button type="button" onClick={discardDraft}>Xóa bản nháp</button></p>}
-          <IncidentDraftAssistant isAuthenticated={isAuthenticated} categoryLabels={categoryLabels} onRequireLogin={onRequireLogin} onDraft={applyDraft} />
+          <IncidentDraftAssistant isAuthenticated={isAuthenticated} categoryLabels={categoryLabels} onRequireLogin={onRequireLogin} onDraft={applyDraft} photo={evidenceFile} />
           <label><span>Nhóm phản ánh <strong style={{ color: 'red', fontSize: '1.2em' }}>*</strong></span>
             <select name="category" autoComplete="off" value={category} onChange={(event) => setCategory(event.target.value as Incident['category'])}>
               {Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -586,7 +589,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
                 <h3 id="citizen-thread-title"><MessageSquareText size={18} aria-hidden="true" /> Trao đổi với cán bộ</h3>
                 <div className="case-thread" aria-live="polite">
                   
-                  {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{entry.requestMedia && <span>Yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
+                  {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{lang === 'en' && <TranslateButton text={entry.message} target="en" resetKey={entry.id} />}{entry.requestMedia && <span>Yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
                 </div>
                 <form className="thread-compose" onSubmit={sendMessage}>
                   <label className="sr-only" htmlFor="citizen-message">Nội dung trao đổi</label>

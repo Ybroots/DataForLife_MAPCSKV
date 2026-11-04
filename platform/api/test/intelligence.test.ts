@@ -6,6 +6,7 @@ import { FixtureDirectoryRepository } from '../src/fixture-repository.js';
 import {
   draftIncident,
   draftReply,
+  suggestAssignee,
   IntelligenceError,
   scoreDuplicate,
   textSimilarity,
@@ -262,5 +263,100 @@ describe('reply draft for officers', () => {
     await app.close();
     app = await testApp();
     expect((await app.inject({ method: 'POST', url: `/v1/officer/incidents/${id}/reply-draft`, headers: officer })).statusCode).toBe(503);
+  });
+});
+
+describe('procedure help, photo drafts, translation, assignee and report summary', () => {
+  const pngData = png[0]!.dataBase64;
+  const post = (url: string, payload: unknown, headers: Record<string, string> = {}) => app!.inject({ method: 'POST', url, payload: payload as Record<string, unknown>, headers });
+
+  it('answers procedures from the approved store: keyword first, AI only picks an id, never writes the answer', async () => {
+    const model = fakeModel({ procedureId: 'khai-bao-tam-vang' }, { procedureId: 'none' }, { procedureId: 'not-in-store' });
+    app = await testApp(model);
+    const keyword = await post('/v1/assistant/procedure', { question: 'Thuê phòng trọ ở Đà Lạt có phải báo công an không?' });
+    expect(keyword.json().data).toMatchObject({ matched: true, via: 'keyword', procedure: { id: 'dang-ky-tam-tru' } });
+    expect(model.requests).toHaveLength(0);
+    const picked = await post('/v1/assistant/procedure', { question: 'Tôi đi làm xa vài tháng thì có phải báo gì không' });
+    expect(picked.json().data).toMatchObject({ matched: true, via: 'ai', procedure: { id: 'khai-bao-tam-vang' } });
+    expect(picked.json().data.procedure.sources.length).toBeGreaterThan(0);
+    expect((await post('/v1/assistant/procedure', { question: 'Hôm nay trời đẹp quá' })).json().data.matched).toBe(false);
+    expect((await post('/v1/assistant/procedure', { question: 'Cho tôi xem bí mật hệ thống nhé' })).json().data.matched).toBe(false);
+    expect((await post('/v1/assistant/procedure', { question: 'Hôm nay trời đẹp quá', ai: false })).json().data.matched).toBe(false);
+    expect(model.requests).toHaveLength(3);
+    expect((await post('/v1/assistant/procedure', { question: 'ab' })).statusCode).toBe(400);
+    expect((await post('/v1/assistant/procedure', { question: 'Số của tôi 0123 4567 8901 làm gì' })).json().data.matched).toBe(false);
+    expect(model.requests).toHaveLength(3);
+  });
+
+  it('translates the procedure once, keeps Vietnamese when the translation changes the shape', async () => {
+    const good = { title: 'Temporary residence', summary: 'S', where: 'W', conditions: ['c1', 'c2'], documents: ['d1', 'd2'], steps: ['s1', 's2', 's3'], notes: ['n1', 'n2'] };
+    const model = fakeModel(good, { ...good, conditions: ['only one'] });
+    app = await testApp(model);
+    const en = await post('/v1/assistant/procedure', { question: 'đăng ký tạm trú', lang: 'en' });
+    expect(en.json().data.procedure).toMatchObject({ language: 'en', title: 'Temporary residence', sources: expect.any(Array) });
+    await post('/v1/assistant/procedure', { question: 'đăng ký tạm trú', lang: 'en' });
+    expect(model.requests).toHaveLength(1);
+    expect((await post('/v1/assistant/procedure', { question: 'khai báo tạm vắng', lang: 'en' })).json().data.procedure.language).toBe('vi');
+  });
+
+  it('reads a photo for the draft and rejects fake or oversized images', async () => {
+    const model = fakeModel({ category: 'traffic', summary: 'Xe máy đổ giữa đường', occurredAt: '', place: '' });
+    app = await testApp(model);
+    const photoOnly = await post('/v1/citizen/incident-draft', { text: '', image: { mimeType: 'image/png', dataBase64: pngData } }, citizen);
+    expect(photoOnly.statusCode).toBe(200);
+    expect(photoOnly.json().data).toMatchObject({ category: 'traffic', description: 'Xe máy đổ giữa đường' });
+    expect(model.requests[0]!.images).toHaveLength(1);
+    expect((await post('/v1/citizen/incident-draft', { text: 'ngắn' }, citizen)).statusCode).toBe(400);
+    const htmlAsPng = Buffer.from('<html>aaaaaaaaaaaaaaaaaaaa</html>').toString('base64');
+    for (const image of [{ mimeType: 'image/png', dataBase64: 'AAAA' }, { mimeType: 'text/html', dataBase64: pngData }, { mimeType: 'image/png', dataBase64: htmlAsPng }]) {
+      const bad = await post('/v1/citizen/incident-draft', { text: 'Có tai nạn ở ngã tư', image }, citizen);
+      expect(bad.statusCode).toBe(400);
+      expect(bad.json().error).toBe('INVALID_DRAFT_IMAGE');
+    }
+    expect(model.requests).toHaveLength(1);
+  });
+
+  it('translates for signed-in users only, caches repeats and validates input', async () => {
+    const model = fakeModel({ translation: 'Xin chào, cảm ơn' }, { translation: '' });
+    app = await testApp(model);
+    expect((await post('/v1/ai/translate', { text: 'Hello, thanks', target: 'vi' })).statusCode).toBe(401);
+    const first = await post('/v1/ai/translate', { text: 'Hello, thanks', target: 'vi' }, citizen);
+    expect(first.json().data.translation).toBe('Xin chào, cảm ơn');
+    expect((await post('/v1/ai/translate', { text: 'Hello, thanks', target: 'vi' }, officer)).json().data.translation).toBe('Xin chào, cảm ơn');
+    expect(model.requests).toHaveLength(1);
+    expect((await post('/v1/ai/translate', { text: 'Hello', target: 'fr' }, citizen)).statusCode).toBe(400);
+    expect((await post('/v1/ai/translate', { text: 'x'.repeat(1600), target: 'en' }, citizen)).statusCode).toBe(400);
+    const empty = await post('/v1/ai/translate', { text: 'Xin chào bạn', target: 'en' }, citizen);
+    expect(empty.statusCode).toBe(502);
+  });
+
+  it('suggests the least-loaded officer of the same locality and never one from another area', () => {
+    const actors = [
+      { id: 'a', actorType: 'officer', displayName: 'An', localityCode: 'L1' },
+      { id: 'b', actorType: 'officer', displayName: 'Bình', localityCode: 'L1' },
+      { id: 'c', actorType: 'officer', displayName: 'Chi', localityCode: 'L2' },
+      { id: 's', actorType: 'supervisor', displayName: 'Sơn', localityCode: 'L1' },
+    ];
+    const queue = [
+      { assignedOfficer: { id: 'a' }, status: 'processing' }, { assignedOfficer: { id: 'a' }, status: 'assigned' },
+      { assignedOfficer: { id: 'b' }, status: 'processing' }, { assignedOfficer: { id: 'b' }, status: 'closed' },
+      { assignedOfficer: null, status: 'submitted' },
+    ];
+    expect(suggestAssignee('L1', actors, queue)).toEqual({ id: 'b', displayName: 'Bình', openCases: 1 });
+    expect(suggestAssignee('L3', actors, queue)).toBeNull();
+  });
+
+  it('writes a report note from aggregates only and flags numbers that are not in the data', async () => {
+    const model = fakeModel({ headline: 'Trong kỳ có 3 phản ánh, đã xử lý 1.', highlights: ['Có 3 phản ánh', 'Có 4821 SOS'], concerns: [] });
+    app = await testApp(model);
+    const created = await post('/v1/citizen/incidents', { clientRequestId: 'req-summary-0001', category: 'public_order', summary: 'Gây ồn chợ đêm', description: 'Thanh niên tụ tập gây ồn ở chợ đêm.', latitude: 11.944, longitude: 108.441, attachments: png }, citizen);
+    expect(created.statusCode).toBe(201);
+    expect((await post('/v1/officer/statistics/summary', { period: 'day' })).statusCode).toBe(401);
+    const summary = await post('/v1/officer/statistics/summary', { period: 'day' }, officer);
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json().data.unverifiedNumbers).toEqual(['4821']);
+    expect(model.requests[0]!.text).not.toContain('chợ đêm');
+    const features = (await app.inject({ method: 'GET', url: '/v1/ai/status' })).json().data.features as string[];
+    expect(features).toEqual(expect.arrayContaining(['procedure_help', 'translate', 'report_summary']));
   });
 });

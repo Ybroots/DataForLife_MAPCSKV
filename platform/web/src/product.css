@@ -495,6 +495,7 @@ input, textarea, select { accent-color: var(--color-primary); }
 .incident-draft-voice.on { color: #fff; background: var(--color-danger); border-color: var(--color-danger); }
 .incident-draft-status, .incident-draft-error { margin: 0; font-size: .85rem; }
 .incident-draft-error { color: #791426; }
+.incident-draft-photo { display: block; margin: 0; font-size: .8rem; color: var(--color-muted, #5d6672); }
 .incident-draft-result { display: grid; gap: 6px; padding: 10px 12px; background: #fff; border: 1px solid #cfe3ec; border-radius: 8px; font-size: .9rem; }
 .incident-draft-result ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .incident-draft-result li { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; overflow-wrap: anywhere; }
@@ -1039,3 +1040,23 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
   html[data-native="android"] .command-metrics strong { font-size: 15px; }
   html[data-native="android"] .queue-scopes button { min-width: 76px; }
 }
+
+/* Hỏi đáp thủ tục trong trợ lý bản đồ */
+.map-assistant-procedure { margin-top: 10px; padding: 12px 14px; border-left: 3px solid var(--color-primary); background: #f6f8fb; border-radius: 0 10px 10px 0; }
+.map-assistant-procedure h4 { margin: 0 0 4px; font-size: 1rem; }
+.map-assistant-procedure h5 { margin: 10px 0 2px; font-size: .82rem; letter-spacing: .02em; text-transform: uppercase; color: var(--color-muted, #5d6672); }
+.map-assistant-procedure ul, .map-assistant-procedure ol { margin: 2px 0 0; padding-left: 20px; }
+.map-assistant-procedure li { margin: 2px 0; line-height: 1.4; }
+.map-assistant-procedure p { margin: 4px 0; }
+.map-assistant-procedure .map-assistant-procedure-note { font-size: .82rem; color: var(--color-muted, #5d6672); }
+.assignee-hint { font-size: .8rem; color: var(--color-muted, #5d6672); }
+.translate-inline { margin-top: 4px; }
+.translate-button { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; font: inherit; font-size: .8rem; color: var(--color-primary); background: none; border: 0; cursor: pointer; }
+.translate-button:disabled { opacity: .6; cursor: default; }
+.translate-result { margin: 4px 0 0; padding: 6px 10px; font-size: .9rem; background: #eef3f9; border-radius: 8px; }
+.translate-result small, .translate-error { color: var(--color-muted, #5d6672); font-size: .75rem; }
+.statistics-ai { margin: 14px 0; padding: 12px 14px; background: #f6f8fb; border-left: 3px solid var(--color-primary); border-radius: 0 10px 10px 0; }
+.statistics-ai header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.statistics-ai h4 { margin: 0; }
+.statistics-ai ul { margin: 4px 0 8px; padding-left: 20px; }
+.statistics-ai small { color: var(--color-muted, #5d6672); }

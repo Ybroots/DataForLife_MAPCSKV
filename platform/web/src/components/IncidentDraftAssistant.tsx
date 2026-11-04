@@ -8,6 +8,8 @@ interface IncidentDraftAssistantProps {
   categoryLabels: Record<Incident['category'], string>;
   onRequireLogin: () => void;
   onDraft: (draft: IncidentDraft) => void;
+  /** Ảnh người dân đã chọn trong phiếu (nếu có): AI đọc kèm lời kể. */
+  photo?: File | null;
 }
 
 interface SpeechRecognitionResultLike { isFinal: boolean; 0: { transcript: string } }
@@ -31,12 +33,24 @@ export function speechRecognitionCtor(target: unknown = typeof window === 'undef
 
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 2000;
+/** Ảnh lớn hơn mức này không gửi cho AI (máy chủ từ chối); AI vẫn đọc lời kể. */
+const AI_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const AI_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function readBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Không đọc được ảnh.'));
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.readAsDataURL(file);
+  });
+}
 
 /**
  * "Kể lại sự việc": người dân gõ lời kể, AI điền sẵn nhóm, tiêu đề, mô tả (kèm thời điểm) và mô tả vị trí.
  * Không tự gửi: người dân xem lại từng ô, tự chọn vị trí trên bản đồ, đính kèm ảnh rồi mới bấm gửi.
  */
-export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequireLogin, onDraft }: IncidentDraftAssistantProps) {
+export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequireLogin, onDraft, photo }: IncidentDraftAssistantProps) {
   const [available, setAvailable] = useState(false);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,13 +66,15 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
   }, []);
 
   if (!available) return null;
+  const usablePhoto = photo && AI_IMAGE_TYPES.has(photo.type) && photo.size <= AI_IMAGE_MAX_BYTES ? photo : null;
 
   const draft = async () => {
     if (!isAuthenticated) { onRequireLogin(); return; }
     setBusy(true);
     setError('');
     try {
-      const value = await draftIncidentWithAi(text.trim());
+      const image = usablePhoto ? { mimeType: usablePhoto.type, dataBase64: await readBase64(usablePhoto) } : undefined;
+      const value = await draftIncidentWithAi(text.trim(), image);
       setResult(value);
       onDraft(value);
     } catch (caught) {
@@ -91,11 +107,12 @@ export function IncidentDraftAssistant({ isAuthenticated, categoryLabels, onRequ
         />
       </label>
       <div className="incident-draft-actions">
-        <button type="button" className="incident-draft-submit" onClick={() => void draft()} disabled={busy || length < MIN_LENGTH}>
+        <button type="button" className="incident-draft-submit" onClick={() => void draft()} disabled={busy || (length < MIN_LENGTH && !usablePhoto)}>
           {busy ? <span className="loader" /> : <Sparkles size={17} aria-hidden="true" />}
           {busy ? 'AI đang đọc…' : 'Điền giúp tôi'}
         </button>
       </div>
+      {usablePhoto && <small className="incident-draft-photo" role="status">AI sẽ đọc cả ảnh bạn đã chọn. Ảnh chỉ dùng để điền phiếu, không nhận dạng người.</small>}
       {error && <p className="incident-draft-error" role="alert">{error}</p>}
       {result && (
         <div className="incident-draft-result" role="status">
