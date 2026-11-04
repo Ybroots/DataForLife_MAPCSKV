@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { FixtureDirectoryRepository } from '../src/fixture-repository.js';
-import { answerMapQuestion, createAssistantPlanner, createKeywordPlanner, MapAssistantError, type AssistantPlanner, type AssistantPlan } from '../src/map-assistant.js';
+import { answerMapQuestion, createAssistantPlanner, createKeywordPlanner, MapAssistantError, plannerFailureReason, type AssistantPlanner, type AssistantPlan } from '../src/map-assistant.js';
 
 let app: FastifyInstance | undefined;
 afterEach(async () => { await app?.close(); app = undefined; vi.restoreAllMocks(); });
@@ -175,6 +175,33 @@ describe('map assistant limits', () => {
       expect((await app.inject({ method: 'POST', url: '/v1/assistant/query', payload })).statusCode).toBe(400);
     }
     expect(model.plan).not.toHaveBeenCalled();
+  });
+
+  it('tells why the AI was skipped, with a short code only, so a fallback can be diagnosed from the API', async () => {
+    const reasons: Array<[unknown, string]> = [
+      [new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'down', 'Provider HTTP 429'), 'Provider HTTP 429'],
+      [new MapAssistantError(502, 'AI_INVALID_RESULT', 'bad', 'invalid-plan:areaCodes-unknown'), 'invalid-plan:areaCodes-unknown'],
+      [new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'down'), 'AI_PROVIDER_UNAVAILABLE'],
+    ];
+    for (const [error, expected] of reasons) {
+      const failing: AssistantPlanner = { provider: 'Gemini', plan: vi.fn().mockRejectedValue(error) };
+      app = await buildApp(new FixtureDirectoryRepository(), { corsOrigin: 'http://localhost', assistantPlanner: failing });
+      const data = (await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Tìm phường Xuân Hương' } })).json().data;
+      expect(data.meta).toMatchObject({ provider: 'keyword', fallbackReason: expected });
+      await app.close();
+    }
+    app = await buildApp(new FixtureDirectoryRepository(), { corsOrigin: 'http://localhost', assistantPlanner: planner() });
+    const ok = (await app.inject({ method: 'POST', url: '/v1/assistant/query', payload: { question: 'Tìm phường Xuân Hương' } })).json().data;
+    expect(ok.meta.fallbackReason).toBeUndefined();
+  });
+
+  it('classifies provider failures without leaking their content', () => {
+    const timeout = new Error('x'); timeout.name = 'TimeoutError';
+    expect(plannerFailureReason(timeout)).toBe('timeout');
+    expect(plannerFailureReason(new Error('Provider HTTP 400'))).toBe('Provider HTTP 400');
+    expect(plannerFailureReason(new Error('Incomplete result (MAX_TOKENS)'))).toBe('Incomplete result (MAX_TOKENS)');
+    expect(plannerFailureReason(new SyntaxError('Unexpected token <secret prompt>'))).toBe('invalid-json');
+    expect(plannerFailureReason(new Error('connect ECONNREFUSED 10.1.2.3 with key abc'))).toBe('network-or-unknown');
   });
 
   it('enforces per-IP and global daily cost limits', async () => {

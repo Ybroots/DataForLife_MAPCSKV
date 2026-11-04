@@ -20,11 +20,12 @@ export interface MapAssistantAnswer {
     alerts: Array<Pick<PublicAlertResponse, 'id' | 'title' | 'summary' | 'endsAt'>>;
   }>;
   hotlines: HotlineResponse[];
-  meta: { provider: string; dataSource: string; retrievedAt: string; emergencyDispatchConnected: false };
+  /** fallbackReason chỉ có khi AI lỗi và câu trả lời đến từ tra cứu theo tên: mã lý do ngắn, không chứa nội dung. */
+  meta: { provider: string; dataSource: string; retrievedAt: string; emergencyDispatchConnected: false; fallbackReason?: string };
 }
 
 export class MapAssistantError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) { super(message); }
+  constructor(readonly status: number, readonly code: string, message: string, readonly reason?: string) { super(message); }
 }
 
 const intents = ['area', 'directory', 'alerts', 'hotlines', 'help', 'emergency', 'unsupported'] as const;
@@ -86,19 +87,22 @@ export function validatePlan(value: unknown, areas: AreaSummary[], hotlines: Hot
   const object = record(value);
   const areaCodes = new Set(areas.map(area => area.code));
   const hotlineIds = new Set(hotlines.map(item => item.id));
-  if (!object || !intents.includes(object.intent as AssistantIntent)
-    || typeof object.needsClarification !== 'boolean'
-    || !Array.isArray(object.areaCodes) || object.areaCodes.length > 3
-    || !object.areaCodes.every(code => typeof code === 'string' && areaCodes.has(code))
-    || !Array.isArray(object.hotlineIds) || object.hotlineIds.length > 8
-    || !object.hotlineIds.every(id => typeof id === 'string' && hotlineIds.has(id))) {
-    throw new MapAssistantError(502, 'AI_INVALID_RESULT', 'AI chưa xác định được yêu cầu hợp lệ. Hãy thử ghi rõ tên xã/phường.');
+  const problem = !object ? 'not-object'
+    : !intents.includes(object.intent as AssistantIntent) ? 'intent'
+      : typeof object.needsClarification !== 'boolean' ? 'needsClarification'
+        : !Array.isArray(object.areaCodes) || object.areaCodes.length > 3 ? 'areaCodes-shape'
+          : !object.areaCodes.every(code => typeof code === 'string' && areaCodes.has(code)) ? 'areaCodes-unknown'
+            : !Array.isArray(object.hotlineIds) || object.hotlineIds.length > 8 ? 'hotlineIds-shape'
+              : !object.hotlineIds.every(id => typeof id === 'string' && hotlineIds.has(id)) ? 'hotlineIds-unknown'
+                : null;
+  if (problem || !object) {
+    throw new MapAssistantError(502, 'AI_INVALID_RESULT', 'AI chưa xác định được yêu cầu hợp lệ. Hãy thử ghi rõ tên xã/phường.', `invalid-plan:${problem}`);
   }
   return {
     intent: object.intent as AssistantIntent,
     areaCodes: [...new Set(object.areaCodes as string[])],
     hotlineIds: [...new Set(object.hotlineIds as string[])],
-    needsClarification: object.needsClarification,
+    needsClarification: object.needsClarification as boolean,
   };
 }
 
@@ -212,7 +216,19 @@ export function createKeywordPlanner(): AssistantPlanner {
 }
 
 // Gemini 3.x tốn vài trăm token suy nghĩ; 800 làm cụt kết quả.
-const PLANNER_MAX_OUTPUT_TOKENS = 2048;
+const PLANNER_MAX_OUTPUT_TOKENS = 8192;
+const PLANNER_TIMEOUT_MS = 20_000;
+
+/** Mã lý do ngắn cho lỗi gọi AI (không chứa lời nhắc, kết quả hay khóa) để chẩn đoán qua phản hồi API. */
+export function plannerFailureReason(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') return 'timeout';
+    if (/^Provider HTTP \d{3}$/.test(error.message) || /^Incomplete result/.test(error.message)) return error.message;
+    if (error instanceof SyntaxError) return 'invalid-json';
+    if (error.message === 'Invalid result') return 'invalid-result';
+  }
+  return 'network-or-unknown';
+}
 
 /** No implicit provider or model selection: an unconfigured integration stays unavailable. */
 export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof fetch = fetch): AssistantPlanner | undefined {
@@ -237,7 +253,7 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
       };
       try {
         const response = await fetcher(endpoint, {
-          method: 'POST', signal: AbortSignal.timeout(15_000),
+          method: 'POST', signal: AbortSignal.timeout(PLANNER_TIMEOUT_MS),
           headers: { 'Content-Type': 'application/json', ...(openai ? { Authorization: `Bearer ${apiKey}` } : { 'x-goog-api-key': apiKey }) },
           body: JSON.stringify(body),
         });
@@ -262,7 +278,7 @@ export function createAssistantPlanner(env: NodeJS.ProcessEnv, fetcher: typeof f
         return JSON.parse(output) as unknown;
       } catch (error) {
         console.error(`[assistant] AI planner failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý AI. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.');
+        throw new MapAssistantError(503, 'AI_PROVIDER_UNAVAILABLE', 'Chưa thể kết nối trợ lý AI. Bạn vẫn có thể tra cứu bằng ô tìm xã/phường trên bản đồ.', plannerFailureReason(error));
       }
     },
   };

@@ -53,7 +53,9 @@ export function registerMapAssistant(app: FastifyInstance, repository: Directory
       } catch (error) {
         // AI down or unusable: answer by name lookup instead of a dead end. The answer says it did not use AI.
         if (error instanceof MapAssistantError && (error.code === 'AI_PROVIDER_UNAVAILABLE' || error.code === 'AI_INVALID_RESULT')) {
-          return { data: await answerMapQuestion(repository, keyword, question.trim(), area) };
+          const data = await answerMapQuestion(repository, keyword, question.trim(), area);
+          data.meta.fallbackReason = error.reason ?? error.code;
+          return { data };
         }
         throw error;
       }
