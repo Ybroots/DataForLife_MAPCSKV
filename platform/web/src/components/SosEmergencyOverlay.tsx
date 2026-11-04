@@ -1,5 +1,5 @@
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { BellOff, Eye, MapPin, Siren, UserRoundCheck, Volume2 } from 'lucide-react';
+import { BellOff, Eye, MapPin, Phone, Siren, UserRound, UserRoundCheck, Volume2 } from 'lucide-react';
 import type { OfficerQueueItem } from '../types';
 import { elapsedLabel } from '../officer-alerts';
 
@@ -10,15 +10,25 @@ interface SosEmergencyOverlayProps {
   soundEnabled: boolean;
   acceptingId: string | null;
   error: string;
+  /** Chỉ huy chỉ được xem hồ sơ, không nhận xử lý. */
+  readOnly?: boolean;
   onAccept: (item: OfficerQueueItem) => void;
   onView: (item: OfficerQueueItem) => void;
   onMute: () => void;
   onUnlockSound: () => void;
 }
 
+const UNIT_PREFIX = /^(phường|xã|thị trấn|đặc khu)\s/iu;
+
+/** Đơn vị hành chính kèm khu vực phụ trách, ví dụ “Phường Xuân Hương - Đà Lạt · Khu vực Phường 1 cũ”. */
+function placeLabel(item: OfficerQueueItem): string {
+  const locality = UNIT_PREFIX.test(item.localityName) ? item.localityName : `Phường ${item.localityName}`;
+  return item.serviceAreaName ? `${locality} · ${item.serviceAreaName}` : locality;
+}
+
 /** Full-screen red alarm shown to the duty officer while an SOS waits for acknowledgement. */
 export function SosEmergencyOverlay({
-  items, sirenOn, soundBlocked, soundEnabled, acceptingId, error, onAccept, onView, onMute, onUnlockSound,
+  items, sirenOn, soundBlocked, soundEnabled, acceptingId, error, readOnly = false, onAccept, onView, onMute, onUnlockSound,
 }: SosEmergencyOverlayProps) {
   const [now, setNow] = useState(() => Date.now());
   const panelRef = useRef<HTMLDivElement>(null);
@@ -42,7 +52,7 @@ export function SosEmergencyOverlay({
   if (!first) return null;
   const others = items.slice(1);
   const busy = acceptingId !== null;
-  const place = first.serviceAreaName ? `${first.serviceAreaName} · ${first.localityName}` : first.localityName;
+  const place = placeLabel(first);
 
   // Keep keyboard focus inside the alarm; Escape only silences it.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -77,26 +87,29 @@ export function SosEmergencyOverlay({
     >
       <div className="sos-emergency-panel" ref={panelRef}>
         <span className="sos-emergency-icon" aria-hidden="true"><Siren size={56} strokeWidth={2.2} /></span>
-        <p className="sos-emergency-kicker">Người dân vừa bấm SOS</p>
+        <p className="sos-emergency-kicker">Người dân cần sự hỗ trợ khẩn cấp</p>
         <h2 id="sos-emergency-title">SOS KHẨN CẤP</h2>
         <div id="sos-emergency-detail" className="sos-emergency-detail">
-          <strong>{first.receiptCode}</strong>
+          <strong><UserRound size={22} aria-hidden="true" /> {first.reporterName ?? 'Người dân'}</strong>
+          {first.reporterPhone && <span><Phone size={18} aria-hidden="true" /> <a href={`tel:${first.reporterPhone}`}>{first.reporterPhone}</a></span>}
           <span><MapPin size={18} aria-hidden="true" /> {place}</span>
           <span>Gửi {elapsedLabel(first.createdAt, now)} · Chưa cán bộ nào nhận</span>
         </div>
         {others.length > 0 && (
           <p className="sos-emergency-others">
-            Còn {others.length} SOS khác đang chờ: {others.slice(0, 3).map((item) => item.receiptCode).join(', ')}{others.length > 3 ? '…' : ''}
+            Còn {others.length} yêu cầu khẩn cấp khác đang chờ
           </p>
         )}
         {error && <p className="sos-emergency-error" role="alert">{error}</p>}
-        <div className="sos-emergency-actions">
-          <button ref={acceptRef} type="button" className="sos-emergency-accept" disabled={busy} onClick={() => onAccept(first)}>
-            <UserRoundCheck size={22} aria-hidden="true" />
-            {acceptingId === first.id ? 'Đang nhận…' : 'Nhận xử lý ngay'}
-          </button>
-          <button type="button" className="sos-emergency-view" disabled={busy} onClick={() => onView(first)}>
-            <Eye size={20} aria-hidden="true" /> Xem hồ sơ trước
+        <div className={readOnly ? 'sos-emergency-actions single' : 'sos-emergency-actions'}>
+          {!readOnly && (
+            <button ref={acceptRef} type="button" className="sos-emergency-accept" disabled={busy} onClick={() => onAccept(first)}>
+              <UserRoundCheck size={22} aria-hidden="true" />
+              {acceptingId === first.id ? 'Đang nhận…' : 'Nhận xử lý ngay'}
+            </button>
+          )}
+          <button ref={readOnly ? acceptRef : undefined} type="button" className={readOnly ? 'sos-emergency-accept' : 'sos-emergency-view'} disabled={busy} onClick={() => onView(first)}>
+            <Eye size={20} aria-hidden="true" /> {readOnly ? 'Xem hồ sơ' : 'Xem hồ sơ trước'}
           </button>
         </div>
         <div className="sos-emergency-sound">
@@ -108,9 +121,6 @@ export function SosEmergencyOverlay({
           )}
           {!soundEnabled && <span>Còi đang tắt trên máy này (nút “Còi tắt” ở đầu trang).</span>}
         </div>
-        <p className="sos-emergency-hint">
-          “Nhận xử lý ngay” giao SOS cho bạn và báo cho người dân biết đã có cán bộ nhận. Nếu chỉ xem trước, cảnh báo sẽ hiện lại sau 2 phút khi chưa ai nhận.
-        </p>
       </div>
     </div>
   );

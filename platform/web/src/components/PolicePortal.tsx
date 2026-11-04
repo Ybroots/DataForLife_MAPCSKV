@@ -411,7 +411,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
           <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={18} aria-hidden="true" /><span>{commander ? 'Khu vực' : 'Nghiệp vụ'}</span></button>
         </nav>
         <div className="topbar-right-actions">
-          {!commander && <button
+          <button
             type="button"
             className={alerts.enabled ? 'topbar-sound on' : 'topbar-sound'}
             aria-pressed={alerts.enabled}
@@ -421,7 +421,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
           >
             {alerts.enabled ? <Bell size={19} aria-hidden="true" /> : <BellOff size={19} aria-hidden="true" />}
             <span>{alerts.enabled ? 'Còi bật' : 'Còi tắt'}</span>
-          </button>}
+          </button>
           <button className="topbar-icon-btn logout" type="button" onClick={onSignOut} aria-label="Đăng xuất" title="Đăng xuất">
             <LogOut size={18} aria-hidden="true" />
           </button>
@@ -584,7 +584,8 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         <button type="button" className={mobilePane === 'detail' ? 'active' : ''} onClick={() => setMobilePane('detail')} disabled={!detail}><FileWarning size={21} aria-hidden="true" />Hồ sơ</button>
         <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={21} aria-hidden="true" />{commander ? 'Khu vực' : 'Nghiệp vụ'}</button>
       </nav>
-      {!commander && <SosEmergencyOverlay
+      <SosEmergencyOverlay
+        readOnly={commander}
         items={alerts.overlayItems}
         sirenOn={alerts.sirenOn}
         soundBlocked={alerts.soundBlocked}
@@ -595,7 +596,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         onView={viewSosFromAlarm}
         onMute={alerts.mute}
         onUnlockSound={alerts.unlockSound}
-      />}
+      />
     </div>
   );
 }

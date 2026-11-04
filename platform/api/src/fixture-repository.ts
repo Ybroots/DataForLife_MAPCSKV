@@ -524,8 +524,8 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         kind: 'sos', id: item.id, receiptCode: item.receiptCode, category: item.category,
         title: item.note || 'Yêu cầu hỗ trợ khẩn cấp', status: item.status, priority: 'critical',
         localityCode: item.location.localityCode, localityName: item.location.localityName,
-        serviceAreaName: item.location.serviceAreaName, assignedOfficer: item.assignedOfficer,
-        createdAt: item.createdAt, updatedAt: item.updatedAt,
+        serviceAreaName: item.location.serviceAreaName, reporterName: null, reporterPhone: item.contactPhone,
+        assignedOfficer: item.assignedOfficer, createdAt: item.createdAt, updatedAt: item.updatedAt,
       }));
     const incidents: OfficerQueueItemResponse[] = [...this.incidents.values()]
       .filter((item) => !['closed', 'rejected'].includes(item.status))

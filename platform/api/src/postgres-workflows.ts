@@ -560,6 +560,8 @@ export class PostgresWorkflowStore {
       service_area_name: string | null;
       assigned_officer_id: string | null;
       assigned_officer_name: string | null;
+      reporter_name: string | null;
+      reporter_phone: string | null;
       created_at: Date | string;
       updated_at: Date | string;
     }>(
@@ -569,11 +571,14 @@ export class PostgresWorkflowStore {
                 s.status, 'critical'::text AS priority, l.code AS locality_code,
                 l.name AS locality_name, sa.name AS service_area_name,
                 a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
-                s.created_at, s.updated_at
+                s.created_at, s.updated_at,
+                c.display_name AS reporter_name,
+                COALESCE(s.contact_phone, CASE WHEN c.username ~ '^0[0-9]{9,10}$' THEN c.username END) AS reporter_phone
          FROM sos_events s
          JOIN localities l ON l.id = s.locality_id
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
+         LEFT JOIN citizen_accounts c ON c.id = s.citizen_external_id
          WHERE s.locality_id = $1 AND s.status NOT IN ('closed', 'cancelled_by_citizen')
            AND ($3::uuid IS NULL OR s.service_area_id = $3::uuid)
          UNION ALL
@@ -581,7 +586,8 @@ export class PostgresWorkflowStore {
                 i.summary AS title, i.status, i.priority, l.code AS locality_code,
                 l.name AS locality_name, sa.name AS service_area_name,
                 a.id AS assigned_officer_id, a.display_name AS assigned_officer_name,
-                i.created_at, i.updated_at
+                i.created_at, i.updated_at,
+                NULL::text AS reporter_name, NULL::text AS reporter_phone
          FROM incident_reports i
          JOIN localities l ON l.id = i.locality_id
          LEFT JOIN service_areas sa ON sa.id = i.service_area_id
@@ -611,6 +617,7 @@ export class PostgresWorkflowStore {
       localityCode: row.locality_code,
       localityName: row.locality_name,
       serviceAreaName: row.service_area_name,
+      ...(row.kind === 'sos' ? { reporterName: row.reporter_name, reporterPhone: row.reporter_phone } : {}),
       assignedOfficer: row.assigned_officer_id && row.assigned_officer_name
         ? { id: row.assigned_officer_id, displayName: row.assigned_officer_name }
         : null,

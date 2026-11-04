@@ -335,6 +335,9 @@ export interface OfficerQueueItem {
   localityCode: string;
   localityName: string;
   serviceAreaName: string | null;
+  /** Chỉ có ở SOS: người bấm SOS. */
+  reporterName?: string | null;
+  reporterPhone?: string | null;
   assignedOfficer: AssignedOfficer | null;
   createdAt: string;
   updatedAt: string;

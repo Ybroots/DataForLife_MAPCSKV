@@ -130,3 +130,20 @@ describe('logout revokes the session cookie', () => {
     expect((await app.inject({ method: 'GET', url: '/v1/citizen/incidents', headers: { cookie } })).statusCode).toBe(401);
   });
 });
+
+describe('SOS alarm data', () => {
+  it('gives officer and commander the reporter phone and area, without needing the receipt code', async () => {
+    const a = await newApp();
+    const created = await a.inject({
+      method: 'POST', url: '/v1/citizen/sos', headers: citizen,
+      payload: { idempotencyKey: 'commander-sos-key-001', category: 'security', contactPhone: '0911555001', latitude: 11.944, longitude: 108.441, deviceTimestamp: new Date().toISOString() },
+    });
+    expect(created.statusCode).toBe(201);
+    for (const headers of [officer, commander]) {
+      const queue = await a.inject({ method: 'GET', url: '/v1/officer/queue?kind=sos', headers });
+      expect(queue.statusCode).toBe(200);
+      const item = queue.json().data.find((row: { id: string }) => row.id === created.json().data.id);
+      expect(item).toMatchObject({ kind: 'sos', reporterPhone: '0911555001', localityName: expect.any(String) });
+    }
+  });
+});

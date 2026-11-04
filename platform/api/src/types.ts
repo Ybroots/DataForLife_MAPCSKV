@@ -306,6 +306,9 @@ export interface OfficerQueueItemResponse {
   localityCode: string;
   localityName: string;
   serviceAreaName: string | null;
+  /** Chỉ có ở SOS: người bấm SOS (tên tài khoản, số điện thoại liên hệ). */
+  reporterName?: string | null;
+  reporterPhone?: string | null;
   assignedOfficer: AssignedOfficerResponse | null;
   createdAt: string;
   updatedAt: string;
