@@ -1,6 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { registerOfficerPushDevice, registerPushDevice, removePushDevice } from './api';
 
+/** Vite thay bằng true/false lúc build (xem vite.config.ts). Khai báo lại ở đây để bộ test không phụ thuộc vite-env.d.ts. */
+declare const __OFFICER_APP__: boolean;
+
 /**
  * Thông báo ngoài màn hình điện thoại (thanh trạng thái) cho ứng dụng Android.
  *
