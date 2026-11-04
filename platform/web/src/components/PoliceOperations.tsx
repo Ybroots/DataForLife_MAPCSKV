@@ -19,7 +19,7 @@ type Tab = 'areas' | 'reports' | 'mapdata' | 'alerts' | 'roadmap';
 const alertRiskLabels: Record<PublicAlert['riskLevel'], string> = { info: 'Thông tin', medium: 'Mức vừa', high: 'Mức cao' };
 
 function errorText(error: unknown): string {
-  return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
+  return error instanceof ApiError ? error.message : 'Không kết nối được máy chủ. Vui lòng thử lại.';
 }
 
 /** commander: chỉ huy xem khu vực và báo cáo, không có nghiệp vụ ghi (cảnh báo, tuần tra, cuối ca, bản đồ, tài khoản dân). */
@@ -107,13 +107,13 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
   return (
     <section className="police-operations-pane" aria-label="Nghiệp vụ địa bàn">
       <header className="operations-heading"><div><h2>Nghiệp vụ địa bàn</h2></div></header>
-      <div className="operations-tabs" role="tablist" aria-label="Nhóm nghiệp vụ">
+      <div className="operations-tabs" role="tablist" aria-label="Nhóm chức năng">
         {commander && <button role="tab" aria-selected={tab === 'areas'} className={tab === 'areas' ? 'active' : ''} onClick={() => setTab('areas')}><UserRoundCheck size={18} /> Khu vực</button>}
         <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}><BarChart3 size={18} /> Báo cáo</button>
         {!commander && <>
           <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>
           <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
-          <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Tích hợp</button>
+          <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Sắp có</button>
         </>}
       </div>
 
@@ -154,7 +154,7 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
           </Suspense>
           <div className="ops-submit-row">
             <button className="ops-submit" disabled={busy}><BellRing size={17} /> {editingAlert ? 'Lưu thay đổi' : 'Phát hành cảnh báo'}</button>
-            {editingAlert && <button type="button" className="ops-cancel" disabled={busy} onClick={stopEdit}><X size={16} aria-hidden="true" /> Huỷ sửa</button>}
+            {editingAlert && <button type="button" className="ops-cancel" disabled={busy} onClick={stopEdit}><X size={16} aria-hidden="true" /> Hủy sửa</button>}
           </div>
         </form>
       </div>}

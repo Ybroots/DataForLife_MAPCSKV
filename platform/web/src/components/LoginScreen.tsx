@@ -136,7 +136,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
                   <div className="role-card-icon"><ShieldCheck size={30} aria-hidden="true" /></div>
                   <div className="role-card-body">
                     <strong>Cán bộ Công an</strong>
-                    <span>Cổng nghiệp vụ địa bàn CSKV</span>
+                    <span>Cổng cán bộ địa bàn CSKV</span>
                   </div>
                   <div className="role-card-arrow"><ArrowRight size={20} aria-hidden="true" /></div>
                 </button>}
@@ -274,7 +274,7 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
             <div className="officer-login-header">
               <div className="officer-login-icon"><ShieldCheck size={28} aria-hidden="true" /></div>
               <div>
-                <p>Cổng nghiệp vụ địa bàn</p>
+                <p>Cổng cán bộ địa bàn</p>
                 <h2>Đăng nhập CSKV</h2>
               </div>
             </div>

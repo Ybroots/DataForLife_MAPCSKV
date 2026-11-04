@@ -247,7 +247,7 @@ export class PostgresWorkflowStore {
         to: 'submitted',
         actorId: citizenId,
         actorRole: 'citizen',
-        note: 'Người dân đã gửi phản ánh và nhận mã tiếp nhận.',
+        note: 'Người dân đã gửi phản ánh.',
       });
       await client.query('COMMIT');
     } catch (error) {

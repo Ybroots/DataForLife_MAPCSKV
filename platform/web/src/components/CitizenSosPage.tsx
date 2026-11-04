@@ -335,7 +335,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
         deviceTimestamp: new Date().toISOString(),
       });
       setEvents((current) => [payload.data, ...current.filter((item) => item.id !== payload.data.id)]);
-      showToast({ kind: 'success', topic: 'sos', title: 'Đã gửi yêu cầu SOS', message: `Mã tiếp nhận: ${payload.data.receiptCode}` });
+      showToast({ kind: 'success', topic: 'sos', title: 'Đã gửi yêu cầu SOS', message: 'Cán bộ khu vực gần nhất sẽ liên hệ với bạn.' });
       selectReceipt(payload.data.receiptCode);
       changeStep('receipt');
     } catch (caught) {
@@ -478,7 +478,7 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
         <article className="sos-receipt-card">
           <div className="receipt-check"><CheckCircle2 size={30} aria-hidden="true" /></div>
           <span>Đã tạo yêu cầu hỗ trợ</span>
-          <h2>{activeEvent.receiptCode}</h2>
+          <h2>Yêu cầu SOS của bạn</h2>
           <p className={`status-chip ${activeEvent.status}`}>{statusLabels[activeEvent.status]}</p>
           <div className="receipt-location"><MapPin size={18} aria-hidden="true" /><span>{activeEvent.location.serviceAreaName ?? activeEvent.location.localityName}</span></div>
 

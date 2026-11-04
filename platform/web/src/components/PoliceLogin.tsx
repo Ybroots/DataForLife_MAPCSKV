@@ -41,7 +41,7 @@ function PoliceLoginCard({ onSuccess, onCancel, showClose = true }: PoliceLoginC
       <header className="police-login-card-header">
         <span className="police-login-emblem"><ShieldCheck size={24} aria-hidden="true" /></span>
         <div>
-          <p>Cổng nghiệp vụ địa bàn</p>
+          <p>Cổng cán bộ địa bàn</p>
           <h1 id="police-login-title">Đăng nhập CSKV</h1>
         </div>
         {showClose && (

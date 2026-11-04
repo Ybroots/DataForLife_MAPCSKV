@@ -191,7 +191,7 @@ export function CitizenNotifications({ sessionId, onRequireLogin, onOpenCase }: 
                   <strong>{item.title}</strong><span>{item.caseTitle}</span>
                   {item.message && <span className="citizen-notification-message">{item.message}</span>}
                   {item.kind === 'incident' && ['resolved', 'closed'].includes(item.status ?? '') && <span>Bạn có thể xem kết quả và gửi đánh giá.</span>}
-                  <small>{item.receiptCode}</small><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</time>
+                  <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</time>
                 </span><ChevronRight size={18} aria-hidden="true" />
               </button>
             </li>)}</ol>

@@ -19,7 +19,7 @@ export class ScreenErrorBoundary extends Component<PropsWithChildren, { failed: 
         <section className="feature-page" role="alert" aria-labelledby="screen-error-title">
           <h1 id="screen-error-title">Chưa thể mở tính năng</h1>
           <p>Đã xảy ra lỗi khi tải giao diện. Bạn có thể tải lại trang hoặc trở về bản đồ.</p>
-          <p>Nếu vừa gửi yêu cầu, hãy kiểm tra mã tiếp nhận trước khi gửi lại.</p>
+          <p>Nếu vừa gửi yêu cầu, hãy xem lại danh sách của bạn trước khi gửi lại.</p>
           <div className="screen-error-actions">
             <button className="back-button" type="button" onClick={() => window.location.reload()}>Tải lại trang</button>
             <a className="back-button" href="./">Về bản đồ</a>

@@ -16,7 +16,7 @@ export const featureDescriptions: Record<FeatureId, string> = {
   alerts: 'Thông tin cảnh báo an ninh, giao thông từ cổng CSKV cho vị trí hiện tại.',
   stats: 'Số đếm hoạt động của ứng dụng: địa bàn, cán bộ, người dùng, phản ánh đã xử lý.',
   reports: 'Luồng gửi phản ánh có ghi nhận vị trí và hình ảnh hiện trường.',
-  sos: 'Luồng khẩn cấp có bước kiểm tra cuối, mã tiếp nhận và đồng bộ trạng thái từ cổng CSKV.',
+  sos: 'Luồng khẩn cấp có bước kiểm tra cuối và đồng bộ trạng thái từ cổng CSKV.',
   feedback: 'Chỉ cho phép đánh giá sau khi mã vụ việc được xác nhận hoàn thành.',
   assistant: 'Tìm địa bàn, danh bạ và cảnh báo công khai bằng câu hỏi tự nhiên.',
   account: 'Quản lý phiên đăng nhập, phản ánh và các tùy chọn hỗ trợ người dân.',

@@ -8,8 +8,8 @@ import { notificationTitle } from './citizen-notifications.js';
  *
  * - Cảnh báo khu vực: gửi tới các thiết bị đã chọn theo dõi địa bàn đó. Nội dung cảnh báo là thông tin công khai.
  * - Cập nhật hồ sơ phản ánh/SOS: chỉ gửi tới thiết bị gắn với đúng tài khoản người dân. Nội dung hiện trên màn hình
- *   khóa chỉ gồm tiêu đề trạng thái và mã hồ sơ, không có mô tả vụ việc hay tin nhắn của cán bộ.
- * - Cán bộ: SOS và phản ánh mới tại địa bàn mình phụ trách. Màn hình khóa chỉ hiện mã hồ sơ và nhóm sự việc.
+ *   khóa chỉ gồm tiêu đề trạng thái, không có mô tả vụ việc hay tin nhắn của cán bộ.
+ * - Cán bộ: SOS và phản ánh mới tại địa bàn mình phụ trách. Màn hình khóa chỉ hiện địa bàn và nhóm sự việc.
  * - Máy chủ chỉ lưu mã thiết bị FCM, mã tài khoản (nếu đã đăng nhập) và mã địa bàn theo dõi. Không lưu vị trí GPS.
  */
 
@@ -220,13 +220,13 @@ const INCIDENT_CATEGORY_LABELS: Record<string, string> = {
 /** reminder: số thứ tự lần nhắc (1, 2) khi SOS vẫn chưa có người nhận; không có nghĩa là thông báo đầu tiên. */
 export interface OfficerPushRow { id: string; kind: 'sos' | 'incident'; receiptCode: string; category: string; localityName: string; reminder?: number }
 
-/** Màn hình khóa chỉ có địa bàn, mã hồ sơ và nhóm sự việc, không có mô tả hay vị trí. */
+/** Màn hình khóa chỉ có địa bàn và nhóm sự việc, không có mô tả hay vị trí. */
 export function officerMessage(row: OfficerPushRow): PushMessage {
   const sos = row.kind === 'sos';
   const labels = sos ? SOS_CATEGORY_LABELS : INCIDENT_CATEGORY_LABELS;
   return {
     title: `${sos ? (row.reminder ? 'SOS chưa có người nhận' : 'SOS khẩn cấp') : 'Phản ánh mới'} · ${row.localityName}`,
-    body: `${row.receiptCode} · ${labels[row.category] ?? 'Khác'}`,
+    body: `${labels[row.category] ?? 'Khác'} · Chạm để mở hồ sơ`,
     channel: sos ? 'sos' : 'officer',
     urgent: sos,
     // Mỗi lần nhắc có tag riêng để không thay thế thông báo trước và điện thoại kêu lại.
@@ -237,9 +237,9 @@ export function officerMessage(row: OfficerPushRow): PushMessage {
 
 export function citizenMessage(row: CitizenPushRow): PushMessage {
   return {
-    // Màn hình khóa chỉ thấy trạng thái chung và mã hồ sơ, không thấy mô tả vụ việc hay lời nhắn của cán bộ.
+    // Màn hình khóa chỉ thấy trạng thái chung, không thấy mô tả vụ việc hay lời nhắn của cán bộ.
     title: notificationTitle(row.kind, row.status, row.eventType),
-    body: `Mã hồ sơ ${row.receiptCode}`,
+    body: 'Chạm để xem chi tiết.',
     channel: 'cases',
     urgent: row.kind === 'sos',
     tag: `case-${row.id}`,

@@ -5,7 +5,7 @@ export const periodTitles: Record<StatisticsPeriod, string> = { day: 'ngày', mo
 export const reportStatusLabels: Record<string, string> = {
   submitted: 'Chờ tiếp nhận', received: 'Đã tiếp nhận', assigned: 'Đã phân công', verifying: 'Đang xác minh',
   processing: 'Đang xử lý', resolved: 'Đã có kết quả', closed: 'Đã đóng', rejected: 'Không thuộc phạm vi',
-  triggered: 'Vừa kích hoạt', dispatched: 'Chờ xác nhận', acknowledged: 'Đã xác nhận', responding: 'Đang triển khai xử lý',
+  triggered: 'Mới phát tín hiệu', dispatched: 'Chờ cán bộ nhận', acknowledged: 'Đã xác nhận', responding: 'Đang triển khai xử lý',
   escalated: 'Đã chuyển tuyến', cancelled_by_citizen: 'Người dân đã hủy',
 };
 

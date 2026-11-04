@@ -350,7 +350,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
         toStatus: 'submitted',
         actorId: citizenId,
         actorRole: 'citizen',
-        note: 'Người dân đã gửi phản ánh và nhận mã tiếp nhận.',
+        note: 'Người dân đã gửi phản ánh.',
         publicMessage: true,
         createdAt: now,
       }],

@@ -73,7 +73,7 @@ const PoliceDutyMap = lazy(async () => {
 const statusLabels: Record<string, string> = {
   submitted: 'Chờ tiếp nhận', received: 'Đã tiếp nhận', assigned: 'Đã phân công', verifying: 'Đang xác minh',
   processing: 'Đang xử lý', resolved: 'Đã có kết quả', closed: 'Đã đóng', rejected: 'Không thuộc phạm vi',
-  triggered: 'Vừa kích hoạt', dispatched: 'Chờ xác nhận', acknowledged: 'Đã xác nhận', responding: 'Đang triển khai xử lý',
+  triggered: 'Mới phát tín hiệu', dispatched: 'Chờ cán bộ nhận', acknowledged: 'Đã xác nhận', responding: 'Đang triển khai xử lý',
   escalated: 'Đã chuyển tuyến', cancelled_by_citizen: 'Người dân đã hủy',
 };
 
@@ -95,7 +95,7 @@ const priorityRanks: Record<OfficerQueueItem['priority'], number> = {
 const timeFormatter = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 
 function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : 'Không thể kết nối cổng nghiệp vụ.';
+  return error instanceof ApiError ? error.message : 'Không kết nối được máy chủ. Vui lòng thử lại.';
 }
 
 function workTitle(detail: WorkDetail): string {
@@ -323,7 +323,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       setMobilePane('detail');
       await loadQueue(true);
     } catch (caught) {
-      setSosAlertError(`${errorMessage(caught)} Hàng đợi đã được tải lại.`);
+      setSosAlertError(`${errorMessage(caught)} Danh sách đã được tải lại.`);
       await loadQueue(true);
     } finally {
       setSosAcceptingId(null);
@@ -401,13 +401,13 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
 
   return (
     <div className="police-portal" data-mobile-pane={mobilePane}>
-      <a className="skip-link" href="#police-main">Đến hàng đợi xử lý</a>
+      <a className="skip-link" href="#police-main">Đến danh sách cần xử lý</a>
       <header className="police-topbar">
-        <a className="police-brand" href="./" aria-label="Cổng nghiệp vụ CSKV" onClick={(e) => { e.preventDefault(); onSignOut(); }}>
+        <a className="police-brand" href="./" aria-label="Cổng cán bộ CSKV" onClick={(e) => { e.preventDefault(); onSignOut(); }}>
           <img src={directoryLogoUrl} alt="" width="38" height="38" />
-          <span><strong>Cổng nghiệp vụ CSKV</strong><small>{commander ? 'Chỉ huy · ' : ''}{currentActor?.displayName ?? 'CSKV trực địa bàn'}</small></span>
+          <span><strong>Cổng cán bộ CSKV</strong><small>{commander ? 'Chỉ huy · ' : ''}{currentActor?.displayName ?? 'CSKV trực địa bàn'}</small></span>
         </a>
-        <nav className="police-topnav" aria-label="Chức năng cổng cán bộ">
+        <nav className="police-topnav" aria-label="Chức năng chính">
           <button type="button" className={mobilePane === 'queue' || mobilePane === 'detail' ? 'active' : ''} onClick={() => { setScope('attention'); setMobilePane('queue'); }}>
             <ClipboardList size={18} aria-hidden="true" /><span>Hàng đợi</span>{attentionCount > 0 && <em>{attentionCount}</em>}
           </button>
@@ -434,7 +434,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
 
       <main className="police-main" id="police-main">
         <div className="police-workspace">
-          <aside className="police-queue-pane" aria-label="Hàng đợi địa bàn">
+          <aside className="police-queue-pane" aria-label="Danh sách phản ánh và SOS của địa bàn">
             {currentActor && (commander || currentActor.serviceArea) && (
               <div className="police-profile-card">
                 <strong>{currentActor.displayName}</strong>
@@ -583,7 +583,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         </div>
       </main>
 
-      <nav className="police-mobile-nav" aria-label="Điều hướng workspace">
+      <nav className="police-mobile-nav" aria-label="Điều hướng cổng cán bộ">
         <button type="button" className={mobilePane === 'queue' ? 'active' : ''} onClick={() => setMobilePane('queue')}><ClipboardList size={21} aria-hidden="true" />Hàng đợi</button>
         <button type="button" className={mobilePane === 'map' ? 'active' : ''} onClick={() => setMobilePane('map')}><MapPinned size={21} aria-hidden="true" />Bản đồ</button>
         <button type="button" className={mobilePane === 'detail' ? 'active' : ''} onClick={() => setMobilePane('detail')} disabled={!detail}><FileWarning size={21} aria-hidden="true" />Hồ sơ</button>

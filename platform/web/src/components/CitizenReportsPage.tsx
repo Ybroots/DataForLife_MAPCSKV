@@ -3,7 +3,6 @@ import { readDevicePosition, supportsDeviceLocation } from '../device-location';
 import {
   Camera,
   CheckCircle2,
-  Copy,
   FilePlus2,
   History,
   Images,
@@ -137,7 +136,6 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
   const [supplementFile, setSupplementFile] = useState<File | null>(null);
   const [threadBusy, setThreadBusy] = useState(false);
   const [sentReceipt, setSentReceipt] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
@@ -219,7 +217,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
         if (cancelled) return;
         for (const item of payload.data) {
           const before = statusSnapshot.current.get(item.id);
-          if (before && before !== item.status) showToast({ kind: 'info', topic: 'report', title: `Hồ sơ ${item.receiptCode} vừa được cập nhật`, message: statusLabels[item.status] });
+          if (before && before !== item.status) showToast({ kind: 'info', topic: 'report', title: `Phản ánh “${item.summary}” vừa được cập nhật`, message: statusLabels[item.status] });
         }
         setIncidents((current) => {
           const extra = current.filter((item) => !payload.data.some((fresh) => fresh.id === item.id));
@@ -301,10 +299,6 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     window.setTimeout(() => target.focus({ preventScroll: true }), 250);
   };
 
-  const copyReceipt = async (code: string) => {
-    try { await navigator.clipboard.writeText(code); setCopied(true); showToast({ kind: 'info', topic: 'report', title: 'Đã sao chép mã hồ sơ' }); window.setTimeout(() => setCopied(false), 2500); } catch { setError('Không sao chép được. Bạn hãy chép mã bằng tay.'); }
-  };
-
   const locate = () => {
     setError('');
     if (!supportsDeviceLocation()) {
@@ -373,9 +367,8 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
         }] : [],
       });
       setNotice('');
-      showToast({ kind: 'success', topic: 'report', title: 'Đã gửi phản ánh', message: `Mã hồ sơ: ${payload.data.receiptCode}` });
+      showToast({ kind: 'success', topic: 'report', title: 'Đã gửi phản ánh', message: 'Cán bộ khu vực sẽ tiếp nhận và cập nhật tiến độ cho bạn.' });
       setSentReceipt(payload.data.receiptCode);
-      setCopied(false);
       setIncidents((current) => [payload.data, ...current.filter((item) => item.id !== payload.data.id)]);
       selectReceipt(payload.data.receiptCode);
       setClientRequestId(createRequestId());
@@ -534,10 +527,8 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
               <CheckCircle2 size={28} aria-hidden="true" />
               <div>
                 <h3>Đã gửi phản ánh thành công</h3>
-                <p>Mã hồ sơ của bạn: <code>{sentReceipt}</code></p>
                 <p>Cán bộ khu vực sẽ tiếp nhận và cập nhật ngay tại mục này. Bạn cũng sẽ nhận thông báo khi có tiến triển.</p>
                 <div className="sent-actions">
-                  <button type="button" onClick={() => void copyReceipt(sentReceipt)}><Copy size={16} aria-hidden="true" /> {copied ? 'Đã sao chép' : 'Sao chép mã'}</button>
                   <button type="button" onClick={() => setSentReceipt(null)}>Đóng</button>
                 </div>
               </div>
@@ -556,7 +547,7 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
           {selectedIncident && (
             <article className="case-detail-card">
               <div className="case-detail-head">
-                <div><span className={`status-chip ${selectedIncident.status}`}>{statusLabels[selectedIncident.status]}</span><h2>{selectedIncident.summary}</h2><code>{selectedIncident.receiptCode}</code></div>
+                <div><span className={`status-chip ${selectedIncident.status}`}>{statusLabels[selectedIncident.status]}</span><h2>{selectedIncident.summary}</h2><small>Gửi lúc {dayFormatter.format(new Date(selectedIncident.createdAt))}</small></div>
                 <CheckCircle2 size={27} aria-hidden="true" />
               </div>
               <p className="next-step"><strong>Tiếp theo:</strong> {nextStepText[selectedIncident.status]}</p>

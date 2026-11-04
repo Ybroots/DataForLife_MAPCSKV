@@ -468,7 +468,7 @@ export default function App() {
   if (!__CITIZEN_ONLY__ && appView === 'officer') {
     if (policeSessionChecking) return <main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang kiểm tra phiên đăng nhập…</div></main>;
     return policeSession
-      ? <Suspense fallback={<main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang tải cổng nghiệp vụ…</div></main>}><PolicePortal sessionActor={policeSession} onSignOut={() => { void handlePoliceLogout(); setAppView('landing'); }} /></Suspense>
+      ? <Suspense fallback={<main className="police-login-screen"><div className="queue-loading"><span className="loader" /> Đang tải cổng cán bộ…</div></main>}><PolicePortal sessionActor={policeSession} onSignOut={() => { void handlePoliceLogout(); setAppView('landing'); }} /></Suspense>
       : <PoliceLoginScreen onSuccess={handlePoliceLoginSuccess} onBack={__OFFICER_APP__ ? undefined : () => setAppView('landing')} />;
   }
 

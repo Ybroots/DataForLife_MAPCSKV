@@ -20,7 +20,7 @@ Máy chủ vẫn là nơi quyết định chuyển trạng thái nào hợp lệ
 
 | Trạng thái | Việc chính | Việc khác |
 | --- | --- | --- |
-| Chờ xác nhận | **Nhận SOS ngay** (gửi sẵn lời nhắn "đã nhận tín hiệu, đang liên hệ") | Chuyển đơn vị khác phối hợp; Người dân đã hủy |
+| Chờ cán bộ nhận | **Nhận SOS ngay** (gửi sẵn lời nhắn "đã nhận tín hiệu, đang liên hệ") | Chuyển đơn vị khác phối hợp; Người dân đã hủy |
 | Đã xác nhận | **Đang đến hiện trường** | Đã xử lý xong; Chuyển đơn vị khác |
 | Đang triển khai | **Đã xử lý xong** (ghi kết quả, ít nhất 20 ký tự) | Chuyển đơn vị khác |
 | Đã chuyển tuyến | **Nhận lại SOS** | Đang đến hiện trường |

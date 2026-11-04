@@ -136,7 +136,7 @@ describe('message content', () => {
   it('keeps case details off the lock screen', () => {
     const update = citizenMessage({ id: 'incident:7', kind: 'incident', receiptCode: 'PA-2026-0007', status: 'processing', eventType: 'status' });
     expect(update.title).toBe('Phản ánh đang được xử lý');
-    expect(update.body).toBe('Mã hồ sơ PA-2026-0007');
+    expect(update.body).toBe('Chạm để xem chi tiết.');
     expect(update.channel).toBe('cases');
     expect(update.urgent).toBe(false);
     expect(update.data).toEqual({ type: 'citizen', kind: 'incident', receiptCode: 'PA-2026-0007' });
@@ -147,13 +147,13 @@ describe('message content', () => {
 });
 
 describe('officer push', () => {
-  it('shows only locality, receipt code and category on the lock screen, and rings loudly for SOS', () => {
+  it('shows only locality and category on the lock screen, and rings loudly for SOS', () => {
     const sos = officerMessage({ id: 's1', kind: 'sos', receiptCode: 'SOS-2026-0001', category: 'medical', localityName: 'Xuân Hương' });
-    expect(sos).toMatchObject({ title: 'SOS khẩn cấp · Xuân Hương', body: 'SOS-2026-0001 · Y tế', channel: 'sos', urgent: true });
+    expect(sos).toMatchObject({ title: 'SOS khẩn cấp · Xuân Hương', body: 'Y tế · Chạm để mở hồ sơ', channel: 'sos', urgent: true });
     expect(sos.data).toEqual({ type: 'officer', kind: 'sos', id: 's1', receiptCode: 'SOS-2026-0001' });
     const incident = officerMessage({ id: 'i1', kind: 'incident', receiptCode: 'PA-2026-0009', category: 'traffic', localityName: 'Xuân Hương' });
-    expect(incident).toMatchObject({ title: 'Phản ánh mới · Xuân Hương', body: 'PA-2026-0009 · Giao thông', channel: 'officer', urgent: false });
-    expect(officerMessage({ id: 'i2', kind: 'incident', receiptCode: 'PA-1', category: 'lạ', localityName: 'X' }).body).toBe('PA-1 · Khác');
+    expect(incident).toMatchObject({ title: 'Phản ánh mới · Xuân Hương', body: 'Giao thông · Chạm để mở hồ sơ', channel: 'officer', urgent: false });
+    expect(officerMessage({ id: 'i2', kind: 'incident', receiptCode: 'PA-1', category: 'lạ', localityName: 'X' }).body).toBe('Khác · Chạm để mở hồ sơ');
     const remind = officerMessage({ id: 's1', kind: 'sos', receiptCode: 'SOS-2026-0001', category: 'medical', localityName: 'Xuân Hương', reminder: 2 });
     expect(remind).toMatchObject({ title: 'SOS chưa có người nhận · Xuân Hương', urgent: true, channel: 'sos', tag: 'officer-sos-s1-r2' });
     expect(remind.data.id).toBe('s1');

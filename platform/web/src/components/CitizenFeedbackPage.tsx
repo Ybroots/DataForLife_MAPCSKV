@@ -37,6 +37,10 @@ function RatingOptions({ name, legend, defaultScore }: { name: string; legend: s
 }
 
 /** Đánh giá hai chiều: chất lượng xử lý phản ánh/SOS đã hoàn tất và đánh giá chung về ứng dụng. */
+function caseTime(value: string): string {
+  return new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
 export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: CitizenFeedbackPageProps) {
   const [cases, setCases] = useState<RatableCase[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,11 +61,11 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
       setCases([
         ...sos.filter((item) => done(item.status)).map((item) => ({
           key: `sos:${item.receiptCode}`, kind: 'sos' as const, receiptCode: item.receiptCode,
-          label: `SOS ${item.receiptCode}`, rated: Boolean(item.satisfactionRating),
+          label: `SOS lúc ${caseTime(item.createdAt)}`, rated: Boolean(item.satisfactionRating),
         })),
         ...incidents.filter((item) => done(item.status)).map((item) => ({
           key: `incident:${item.receiptCode}`, kind: 'incident' as const, receiptCode: item.receiptCode,
-          label: `${item.receiptCode} · ${item.summary}`, rated: Boolean(item.satisfactionRating),
+          label: `${item.summary} · ${caseTime(item.createdAt)}`, rated: Boolean(item.satisfactionRating),
         })),
       ]);
       setAppRating(rating);
