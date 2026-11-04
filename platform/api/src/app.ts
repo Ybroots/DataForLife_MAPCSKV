@@ -65,7 +65,7 @@ export async function buildApp(
   registerCommanderRoutes(context);
   registerIntelligenceRoutes(context, options.aiModel, options.aiDailyLimit);
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof WorkflowError) {
       const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' || error.code === 'NO_DUTY_OFFICER' ? 409 : 400;
       return reply.code(status).send({ error: error.code, message: error.message });
@@ -86,7 +86,8 @@ export async function buildApp(
     const pgCode = (error as { code?: unknown }).code;
     if (pgCode === '22P02') return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy dữ liệu.' });
     if (pgCode === '22021' || pgCode === '22P05') return reply.code(400).send({ error: 'BAD_REQUEST', message: 'Yêu cầu chứa ký tự không hợp lệ.' });
-    app.log.error(error);
+    // Logger của Fastify đang tắt nên ghi thẳng ra journal: chỉ tuyến, mã lỗi và thông điệp (không ghi nội dung yêu cầu).
+    console.error('[api] 500', request.method, request.routeOptions?.url ?? '', (error as { code?: unknown }).code ?? '', (error as Error).message);
     reply.code(500).send({
       error: 'INTERNAL_ERROR',
       message: 'Hệ thống chưa thể xử lý yêu cầu. Vui lòng thử lại.',

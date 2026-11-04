@@ -31,3 +31,7 @@ Sau khi triển khai (migration 021 được `deploy-update.sh` áp dụng tự 
 npm run accounts:provision-officers -- --credentials-output=/đường/dẫn/tuyệt/đối/ngoài/repo
 ```
 Tệp mật khẩu sinh ra phải lưu ngoài repo; đổi mật khẩu sau lần đăng nhập đầu. Nếu tài khoản được tạo **sau** migration, chạy lại deploy để tên/khu vực được gắn vào.
+
+## Giao hồ sơ về đúng khu vực (migration 024)
+
+Hồ sơ phản ánh và SOS được giao vào khu vực chứa điểm gửi khi khu vực đó đã xác minh ranh giới **hoặc đã có cán bộ phụ trách** (migration 021). Ranh giới Xuân Hương vẫn là dữ liệu trình diễn nên điều kiện thứ hai là điều kiện đang dùng; khu vực chưa có cán bộ thì hồ sơ không có khu vực và chỉ chỉ huy hoặc cán bộ chưa gắn khu vực nhìn thấy. Migration 024 gán khu vực cho các hồ sơ và SOS đã gửi trước đó theo vị trí (điểm nằm đúng trên ranh giới hai khu vực được giữ nguyên).

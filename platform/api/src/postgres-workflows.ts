@@ -916,8 +916,11 @@ export class PostgresWorkflowStore {
            SELECT x.id, x.code, x.name, x.display_order
            FROM service_areas x
            WHERE x.locality_id = l.id
-             AND x.is_demo = false
-             AND x.provenance_status IN ('manually_verified', 'official')
+             -- Khu vực đã được xác minh ranh giới, hoặc đã có cán bộ phụ trách được phân công (migration 021):
+             -- khi đó hồ sơ và SOS trong khu vực được giao đúng cho cán bộ đó dù ranh giới vẫn là dữ liệu trình diễn.
+             AND ((x.is_demo = false AND x.provenance_status IN ('manually_verified', 'official'))
+                  OR EXISTS (SELECT 1 FROM workflow_actors a
+                             WHERE a.service_area_id = x.id AND a.actor_type = 'officer' AND a.active = true))
              AND ST_Covers(x.geom, ST_SetSRID(ST_Point($2, $1), 4326))
          )
          SELECT id, code, name FROM service_area_matches
