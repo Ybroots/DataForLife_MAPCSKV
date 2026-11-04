@@ -138,6 +138,8 @@ interface PolicePortalProps {
 
 export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const currentActorId = sessionActor.id;
+  // Chỉ huy (supervisor) chỉ xem: không nhận việc, không phân công, không gửi tin; xem các khu vực và đánh giá cán bộ.
+  const commander = sessionActor.actorType === 'supervisor';
   const detailRequestId = useRef(0);
   const [queue, setQueue] = useState<OfficerQueueItem[]>([]);
   const [actors, setActors] = useState<WorkflowActor[]>([]);
@@ -152,7 +154,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   const [justArchived, setJustArchived] = useState<{ key: string; code: string } | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(() => new URL(window.location.href).searchParams.get('case'));
   const [detail, setDetail] = useState<WorkDetail | null>(null);
-  const [mobilePane, setMobilePane] = useState<MobilePane>(() => policeParam('pane', ['queue', 'map', 'detail', 'operations'], 'queue'));
+  const [mobilePane, setMobilePane] = useState<MobilePane>(() => policeParam('pane', ['queue', 'map', 'detail', 'operations'], commander ? 'operations' : 'queue'));
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -399,17 +401,17 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       <header className="police-topbar">
         <a className="police-brand" href="./" aria-label="Cổng nghiệp vụ CSKV" onClick={(e) => { e.preventDefault(); onSignOut(); }}>
           <img src={directoryLogoUrl} alt="" width="38" height="38" />
-          <span><strong>Cổng nghiệp vụ CSKV</strong><small>{currentActor?.displayName ?? 'CSKV trực địa bàn'}</small></span>
+          <span><strong>Cổng nghiệp vụ CSKV</strong><small>{commander ? 'Chỉ huy · ' : ''}{currentActor?.displayName ?? 'CSKV trực địa bàn'}</small></span>
         </a>
         <nav className="police-topnav" aria-label="Chức năng cổng cán bộ">
           <button type="button" className={mobilePane === 'queue' || mobilePane === 'detail' ? 'active' : ''} onClick={() => { setScope('attention'); setMobilePane('queue'); }}>
             <ClipboardList size={18} aria-hidden="true" /><span>Hàng đợi</span>{attentionCount > 0 && <em>{attentionCount}</em>}
           </button>
           <button type="button" className={mobilePane === 'map' ? 'active' : ''} onClick={() => setMobilePane('map')}><MapPinned size={18} aria-hidden="true" /><span>Bản đồ</span></button>
-          <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={18} aria-hidden="true" /><span>Nghiệp vụ</span></button>
+          <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={18} aria-hidden="true" /><span>{commander ? 'Khu vực' : 'Nghiệp vụ'}</span></button>
         </nav>
         <div className="topbar-right-actions">
-          <button
+          {!commander && <button
             type="button"
             className={alerts.enabled ? 'topbar-sound on' : 'topbar-sound'}
             aria-pressed={alerts.enabled}
@@ -419,7 +421,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
           >
             {alerts.enabled ? <Bell size={19} aria-hidden="true" /> : <BellOff size={19} aria-hidden="true" />}
             <span>{alerts.enabled ? 'Còi bật' : 'Còi tắt'}</span>
-          </button>
+          </button>}
           <button className="topbar-icon-btn logout" type="button" onClick={onSignOut} aria-label="Đăng xuất" title="Đăng xuất">
             <LogOut size={18} aria-hidden="true" />
           </button>
@@ -430,6 +432,13 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
       <main className="police-main" id="police-main">
         <div className="police-workspace">
           <aside className="police-queue-pane" aria-label="Hàng đợi địa bàn">
+            {currentActor && (commander || currentActor.serviceArea) && (
+              <div className="police-profile-card">
+                <strong>{currentActor.displayName}</strong>
+                {commander ? <span>Chỉ huy · xem toàn bộ hồ sơ của phường</span> : <span>{currentActor.serviceArea?.name}{currentActor.beatNote ? ` · ${currentActor.beatNote}` : ''}</span>}
+                {currentActor.phone && <a href={`tel:${currentActor.phone}`}>{currentActor.phone}</a>}
+              </div>
+            )}
             <div className="queue-search-row">
               <label className="queue-search">
                 <span className="sr-only">Tìm trong hàng đợi</span>
@@ -439,7 +448,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
               <button className="queue-refresh" type="button" onClick={() => void loadQueue()} disabled={loading} aria-label="Tải lại hàng đợi"><RefreshCw size={18} aria-hidden="true" /></button>
             </div>
             <div className="queue-scopes" role="group" aria-label="Phạm vi hàng đợi">
-              {(['attention', 'mine', 'all', 'archive'] as const).map((value) => (
+              {(['attention', 'mine', 'all', 'archive'] as const).filter((value) => !(commander && value === 'mine')).map((value) => (
                 <button type="button" key={value} className={scope === value ? 'active' : ''} aria-pressed={scope === value} onClick={() => setScope(value)}>{scopeLabels[value]}</button>
               ))}
             </div>
@@ -500,13 +509,15 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                   <a href={`https://www.google.com/maps/search/?api=1&query=${detail.location.latitude},${detail.location.longitude}`} target="_blank" rel="noreferrer"><Navigation size={20} aria-hidden="true" /><span>Mở vị trí</span></a>
                 </div>
 
-                <CaseActionCard
-                  kind={detail.kind}
-                  status={detail.status}
-                  caseKey={`${detail.kind}:${detail.id}`}
-                  busy={transitioning}
-                  onRun={runCaseAction}
-                />
+                {commander
+                  ? <p className="readonly-note">Chỉ huy chỉ xem hồ sơ. Việc tiếp nhận và xử lý do cán bộ khu vực đảm nhiệm.</p>
+                  : <CaseActionCard
+                    kind={detail.kind}
+                    status={detail.status}
+                    caseKey={`${detail.kind}:${detail.id}`}
+                    busy={transitioning}
+                    onRun={runCaseAction}
+                  />}
 
                 <div className="case-stack">
                   <section className="ops-card case-overview-card">
@@ -515,7 +526,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                     <dl className="ops-facts">
                       <div><dt>Gửi lúc</dt><dd>{timeFormatter.format(new Date(detail.createdAt))}</dd></div>
                       <div><dt>Điện thoại</dt><dd>{detail.contactPhone || 'Không cung cấp'}</dd></div>
-                      <div><dt>Phụ trách</dt><dd>{detail.assignedOfficer?.displayName ?? 'Chưa có'}{detail.kind === 'incident' && !detail.assignedOfficer && <AssigneeHint incidentId={detail.id} />}</dd></div>
+                      <div><dt>Phụ trách</dt><dd>{detail.assignedOfficer?.displayName ?? 'Chưa có'}{detail.kind === 'incident' && !detail.assignedOfficer && !commander && !currentActor.serviceArea && <AssigneeHint incidentId={detail.id} />}</dd></div>
                       {detail.location.accuracyM && detail.location.accuracyM > 150 ? <div><dt>Vị trí</dt><dd>Chỉ gần đúng (sai số {Math.round(detail.location.accuracyM)} m)</dd></div> : null}
                     </dl>
                   </section>
@@ -530,7 +541,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                     </section>
                   )}
 
-                  {detail.kind === 'incident' && (
+                  {detail.kind === 'incident' && !commander && (
                     <IncidentInsights
                       incident={detail}
                       categoryLabels={categoryLabels}
@@ -539,7 +550,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                     />
                   )}
 
-                  {detail.kind === 'incident' && <IncidentCollaboration incident={detail} onAttachmentAdded={(attachment) => setDetail((current) => current?.kind === 'incident' ? { ...current, attachments: [...current.attachments, attachment] } : current)} />}
+                  {detail.kind === 'incident' && <IncidentCollaboration incident={detail} readOnly={commander} onAttachmentAdded={(attachment) => setDetail((current) => current?.kind === 'incident' ? { ...current, attachments: [...current.attachments, attachment] } : current)} />}
 
                   <details className="ops-card case-history">
                     <summary>Lịch sử xử lý ({detail.history.length})</summary>
@@ -563,7 +574,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
             </Suspense>
           </section>
 
-          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} unitName={currentActor?.displayName} commander={commander} />
         </div>
       </main>
 
@@ -571,9 +582,9 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         <button type="button" className={mobilePane === 'queue' ? 'active' : ''} onClick={() => setMobilePane('queue')}><ClipboardList size={21} aria-hidden="true" />Hàng đợi</button>
         <button type="button" className={mobilePane === 'map' ? 'active' : ''} onClick={() => setMobilePane('map')}><MapPinned size={21} aria-hidden="true" />Bản đồ</button>
         <button type="button" className={mobilePane === 'detail' ? 'active' : ''} onClick={() => setMobilePane('detail')} disabled={!detail}><FileWarning size={21} aria-hidden="true" />Hồ sơ</button>
-        <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={21} aria-hidden="true" />Nghiệp vụ</button>
+        <button type="button" className={mobilePane === 'operations' ? 'active' : ''} onClick={() => setMobilePane('operations')}><RadioTower size={21} aria-hidden="true" />{commander ? 'Khu vực' : 'Nghiệp vụ'}</button>
       </nav>
-      <SosEmergencyOverlay
+      {!commander && <SosEmergencyOverlay
         items={alerts.overlayItems}
         sirenOn={alerts.sirenOn}
         soundBlocked={alerts.soundBlocked}
@@ -584,7 +595,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
         onView={viewSosFromAlarm}
         onMute={alerts.mute}
         onUnlockSound={alerts.unlockSound}
-      />
+      />}
     </div>
   );
 }

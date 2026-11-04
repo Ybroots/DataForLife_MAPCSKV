@@ -43,6 +43,23 @@ const sosTransitions: Record<SosStatus, readonly SosStatus[]> = {
   cancelled_by_citizen: [],
 };
 
+/** Chỉ huy (supervisor) xem toàn bộ nhưng không xử lý hồ sơ; việc tiếp nhận do cán bộ khu vực đảm nhiệm. */
+export const COMMANDER_READ_ONLY_MESSAGE = 'Chỉ huy chỉ được xem; việc tiếp nhận và xử lý hồ sơ do cán bộ khu vực đảm nhiệm.';
+
+/**
+ * Khu vực mà tài khoản bị giới hạn. Chỉ cán bộ (officer) được gắn khu vực mới bị giới hạn; chỉ huy và cán bộ chưa
+ * gắn khu vực thấy toàn địa bàn (trả về null).
+ */
+export function areaScopeOf(actorType: string, serviceAreaId: string | null | undefined): string | null {
+  return actorType === 'officer' && serviceAreaId ? serviceAreaId : null;
+}
+
+export function assertCaseInArea(scope: string | null, caseAreaId: string | null | undefined, label: 'hồ sơ' | 'SOS'): void {
+  if (scope && caseAreaId !== scope) {
+    throw new WorkflowError('FORBIDDEN', `${label === 'SOS' ? 'SOS' : 'Hồ sơ'} nằm ngoài khu vực anh/chị phụ trách.`);
+  }
+}
+
 export class WorkflowError extends Error {
   constructor(
     readonly code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_TRANSITION' | 'INVALID_INPUT' | 'NO_DUTY_OFFICER',

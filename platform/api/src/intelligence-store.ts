@@ -15,13 +15,15 @@ import type {
   IncidentSuggestion,
   OfficerKpiResponse,
   SatisfactionRatingResponse,
+  AreaOfficerOverviewResponse,
 } from './types.js';
-import { WorkflowError } from './workflow.js';
+import { areaScopeOf, COMMANDER_READ_ONLY_MESSAGE, WorkflowError } from './workflow.js';
 
 interface ActorRow extends QueryResultRow {
   id: string;
   actor_type: 'officer' | 'supervisor';
   locality_id: string;
+  service_area_id: string | null;
 }
 
 interface CaseRow extends QueryResultRow {
@@ -65,9 +67,10 @@ export class IntelligenceStore {
   constructor(private readonly pool: Pool) {}
 
   async findDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]> {
-    const actor = await this.requireActor(this.pool, actorId);
-    const target = await this.loadCase(this.pool, incidentId, actor.locality_id);
-    return rankDuplicates(toCase(target), await this.candidates(this.pool, incidentId));
+    const actor = await this.requireActor(this.pool, actorId, true);
+    const area = areaScopeOf(actor.actor_type, actor.service_area_id);
+    const target = await this.loadCase(this.pool, incidentId, actor.locality_id, area);
+    return rankDuplicates(toCase(target), await this.candidates(this.pool, incidentId, area));
   }
 
   async setDuplicateOf(actorId: string, incidentId: string, primaryId: string | null): Promise<void> {
@@ -75,14 +78,15 @@ export class IntelligenceStore {
     try {
       await client.query('BEGIN');
       const actor = await this.requireActor(client, actorId);
-      const target = await this.loadCase(client, incidentId, actor.locality_id, true);
+      const area = areaScopeOf(actor.actor_type, actor.service_area_id);
+      const target = await this.loadCase(client, incidentId, actor.locality_id, area, true);
       if (primaryId === null) {
         if (!target.duplicate_of_id) throw new WorkflowError('INVALID_INPUT', 'Phản ánh này chưa được gộp vào hồ sơ nào.');
         await client.query(`UPDATE incident_reports SET duplicate_of_id=NULL, duplicate_linked_at=NULL, updated_at=now() WHERE id=$1`, [incidentId]);
         await this.audit(client, incidentId, 'duplicate_unlinked', actor.id, actor.actor_type, { duplicateOf: target.duplicate_of_id }, { duplicateOf: null });
       } else {
         if (primaryId === incidentId) throw new WorkflowError('INVALID_INPUT', 'Không thể gộp phản ánh vào chính nó.');
-        const primary = await this.loadCase(client, primaryId, actor.locality_id, true);
+        const primary = await this.loadCase(client, primaryId, actor.locality_id, area, true);
         if (primary.duplicate_of_id) {
           throw new WorkflowError('INVALID_INPUT', `Hồ sơ ${primary.receipt_code} đã được gộp vào ${primary.duplicate_of_receipt ?? 'hồ sơ khác'}. Hãy gộp vào hồ sơ chính đó.`);
         }
@@ -107,7 +111,7 @@ export class IntelligenceStore {
   }
 
   async refreshSuggestion(incidentId: string): Promise<void> {
-    const ranked = rankDuplicates(toCase(await this.loadCase(this.pool, incidentId, null)), await this.candidates(this.pool, incidentId));
+    const ranked = rankDuplicates(toCase(await this.loadCase(this.pool, incidentId, null, null)), await this.candidates(this.pool, incidentId, null));
     const best = ranked.find((item) => item.level === 'likely');
     // Gợi ý luôn trỏ về hồ sơ chính để các phản ánh trùng gom về một mối.
     const target = best ? best.duplicateOf ?? { id: best.id, receiptCode: best.receiptCode } : null;
@@ -183,7 +187,7 @@ export class IntelligenceStore {
 
   async saveAiReview(actorId: string, incidentId: string, suggestion: IncidentSuggestion): Promise<IncidentAiReviewResponse> {
     const actor = await this.requireActor(this.pool, actorId);
-    const target = await this.loadCase(this.pool, incidentId, actor.locality_id);
+    const target = await this.loadCase(this.pool, incidentId, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id));
     const result = await this.pool.query(
       `INSERT INTO incident_ai_reviews
          (id, incident_id, requested_by, provider, model, original_category, suggested_category, confidence, reason, image_findings)
@@ -196,8 +200,8 @@ export class IntelligenceStore {
   }
 
   async latestAiReview(actorId: string, incidentId: string): Promise<IncidentAiReviewResponse | null> {
-    const actor = await this.requireActor(this.pool, actorId);
-    await this.loadCase(this.pool, incidentId, actor.locality_id);
+    const actor = await this.requireActor(this.pool, actorId, true);
+    await this.loadCase(this.pool, incidentId, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id));
     const result = await this.pool.query(
       `SELECT * FROM incident_ai_reviews WHERE incident_id=$1 ORDER BY created_at DESC LIMIT 1`, [incidentId],
     );
@@ -209,7 +213,7 @@ export class IntelligenceStore {
     try {
       await client.query('BEGIN');
       const actor = await this.requireActor(client, actorId);
-      const target = await this.loadCase(client, incidentId, actor.locality_id, true);
+      const target = await this.loadCase(client, incidentId, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id), true);
       if (['closed', 'rejected'].includes(target.status)) throw new WorkflowError('INVALID_TRANSITION', 'Hồ sơ đã đóng, không đổi lĩnh vực được nữa.');
       if (reviewId) {
         const review = await client.query<{ suggested_category: string; original_category: string; decision: string | null }>(
@@ -288,21 +292,21 @@ export class IntelligenceStore {
 
   /** Bộ chỉ số mục 9.2 cho địa bàn của cán bộ trong khoảng [from, to). */
   async kpis(actorId: string, from: string, to: string): Promise<OfficerKpiResponse> {
-    const actor = await this.requireActor(this.pool, actorId);
+    const actor = await this.requireActor(this.pool, actorId, true);
     const result = await this.pool.query(
       `WITH inc AS (
          SELECT i.id, i.created_at, i.duplicate_of_id FROM incident_reports i
-         WHERE i.locality_id=$1 AND i.created_at>=$2 AND i.created_at<$3
+         WHERE i.locality_id=$1 AND ($5::uuid IS NULL OR i.service_area_id=$5::uuid) AND i.created_at>=$2 AND i.created_at<$3
        ), first_response AS (
          SELECT inc.id, min(h.created_at) AS first_at FROM inc
          JOIN incident_status_history h ON h.incident_id=inc.id AND h.actor_role IN ('officer','supervisor')
          GROUP BY inc.id
        ), sos AS (
          SELECT s.id, s.created_at, s.acknowledged_at FROM sos_events s
-         WHERE s.locality_id=$1 AND s.created_at>=$2 AND s.created_at<$3 AND s.status <> 'cancelled_by_citizen'
+         WHERE s.locality_id=$1 AND ($5::uuid IS NULL OR s.service_area_id=$5::uuid) AND s.created_at>=$2 AND s.created_at<$3 AND s.status <> 'cancelled_by_citizen'
        ), reviews AS (
          SELECT r.decision FROM incident_ai_reviews r JOIN incident_reports i ON i.id=r.incident_id
-         WHERE i.locality_id=$1 AND r.created_at>=$2 AND r.created_at<$3
+         WHERE i.locality_id=$1 AND ($5::uuid IS NULL OR i.service_area_id=$5::uuid) AND r.created_at>=$2 AND r.created_at<$3
        )
        SELECT
          (SELECT count(*) FROM citizen_accounts)::int AS citizen_accounts,
@@ -319,16 +323,16 @@ export class IntelligenceStore {
          (SELECT count(*) FROM reviews WHERE decision IS NOT NULL)::int AS ai_decided,
          (SELECT count(*) FROM reviews WHERE decision='accepted')::int AS ai_accepted,
          (SELECT round(avg(r.score)::numeric,1) FROM satisfaction_ratings r JOIN incident_reports i ON i.id=r.incident_id
-            WHERE i.locality_id=$1 AND r.created_at>=$2 AND r.created_at<$3) AS incident_rating,
+            WHERE i.locality_id=$1 AND ($5::uuid IS NULL OR i.service_area_id=$5::uuid) AND r.created_at>=$2 AND r.created_at<$3) AS incident_rating,
          (SELECT count(*) FROM satisfaction_ratings r JOIN incident_reports i ON i.id=r.incident_id
-            WHERE i.locality_id=$1 AND r.created_at>=$2 AND r.created_at<$3)::int AS incident_rating_count,
+            WHERE i.locality_id=$1 AND ($5::uuid IS NULL OR i.service_area_id=$5::uuid) AND r.created_at>=$2 AND r.created_at<$3)::int AS incident_rating_count,
          (SELECT round(avg(r.score)::numeric,1) FROM sos_ratings r JOIN sos_events s ON s.id=r.sos_event_id
-            WHERE s.locality_id=$1 AND r.created_at>=$2 AND r.created_at<$3) AS sos_rating,
+            WHERE s.locality_id=$1 AND ($5::uuid IS NULL OR s.service_area_id=$5::uuid) AND r.created_at>=$2 AND r.created_at<$3) AS sos_rating,
          (SELECT count(*) FROM sos_ratings r JOIN sos_events s ON s.id=r.sos_event_id
-            WHERE s.locality_id=$1 AND r.created_at>=$2 AND r.created_at<$3)::int AS sos_rating_count,
+            WHERE s.locality_id=$1 AND ($5::uuid IS NULL OR s.service_area_id=$5::uuid) AND r.created_at>=$2 AND r.created_at<$3)::int AS sos_rating_count,
          (SELECT round(avg(score)::numeric,1) FROM app_ratings) AS app_rating,
          (SELECT count(*) FROM app_ratings)::int AS app_rating_count`,
-      [actor.locality_id, from, to, await this.localityCode(actor.locality_id)],
+      [actor.locality_id, from, to, await this.localityCode(actor.locality_id), areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     const row = result.rows[0];
     const total = row.incident_count + row.sos_count;
@@ -354,12 +358,61 @@ export class IntelligenceStore {
     };
   }
 
+  /**
+   * Chỉ huy xem từng khu vực của phường: cán bộ phụ trách, số hồ sơ trong kỳ và điểm hài lòng của người dân.
+   * Điểm tính theo cán bộ đang phụ trách hồ sơ (assigned_officer_id), nên chỉ những hồ sơ có người phụ trách mới được tính.
+   */
+  async listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]> {
+    const actor = await this.requireActor(this.pool, actorId, true);
+    if (actor.actor_type !== 'supervisor') {
+      throw new WorkflowError('FORBIDDEN', 'Chỉ chỉ huy mới xem được đánh giá theo cán bộ khu vực.');
+    }
+    const result = await this.pool.query(
+      `SELECT sa.code AS area_code, sa.name AS area_name,
+              a.id AS officer_id, a.display_name, a.phone, a.beat_note,
+              (SELECT count(*) FROM incident_reports i WHERE i.service_area_id = sa.id
+                 AND i.created_at >= $2 AND i.created_at < $3)::int AS incidents_received,
+              (SELECT count(*) FROM incident_reports i WHERE i.service_area_id = sa.id
+                 AND i.status NOT IN ('closed','rejected'))::int AS incidents_open,
+              (SELECT count(*) FROM incident_reports i WHERE i.service_area_id = sa.id
+                 AND i.status IN ('resolved','closed') AND i.updated_at >= $2 AND i.updated_at < $3)::int AS incidents_resolved,
+              (SELECT count(*) FROM sos_events s WHERE s.service_area_id = sa.id AND s.status <> 'cancelled_by_citizen'
+                 AND s.created_at >= $2 AND s.created_at < $3)::int AS sos_received,
+              (SELECT round(avg(r.score)::numeric, 1) FROM satisfaction_ratings r JOIN incident_reports i ON i.id = r.incident_id
+                 WHERE i.assigned_officer_id = a.id AND r.created_at >= $2 AND r.created_at < $3) AS incident_rating,
+              (SELECT count(*) FROM satisfaction_ratings r JOIN incident_reports i ON i.id = r.incident_id
+                 WHERE i.assigned_officer_id = a.id AND r.created_at >= $2 AND r.created_at < $3)::int AS incident_rating_count,
+              (SELECT count(*) FROM satisfaction_ratings r JOIN incident_reports i ON i.id = r.incident_id
+                 WHERE i.assigned_officer_id = a.id AND r.score <= 2 AND r.created_at >= $2 AND r.created_at < $3)::int AS incident_low,
+              (SELECT round(avg(r.score)::numeric, 1) FROM sos_ratings r JOIN sos_events s ON s.id = r.sos_event_id
+                 WHERE s.assigned_officer_id = a.id AND r.created_at >= $2 AND r.created_at < $3) AS sos_rating,
+              (SELECT count(*) FROM sos_ratings r JOIN sos_events s ON s.id = r.sos_event_id
+                 WHERE s.assigned_officer_id = a.id AND r.created_at >= $2 AND r.created_at < $3)::int AS sos_rating_count,
+              (SELECT count(*) FROM sos_ratings r JOIN sos_events s ON s.id = r.sos_event_id
+                 WHERE s.assigned_officer_id = a.id AND r.score <= 2 AND r.created_at >= $2 AND r.created_at < $3)::int AS sos_low
+       FROM service_areas sa
+       LEFT JOIN workflow_actors a ON a.service_area_id = sa.id AND a.actor_type = 'officer' AND a.active = true
+       WHERE sa.locality_id = $1
+       ORDER BY sa.display_order, sa.name, a.display_name`,
+      [actor.locality_id, from, to],
+    );
+    return result.rows.map((row) => ({
+      serviceArea: { code: row.area_code, name: row.area_name },
+      officer: row.officer_id ? { id: row.officer_id, displayName: row.display_name, phone: row.phone, beatNote: row.beat_note } : null,
+      from, to,
+      incidents: { received: row.incidents_received, open: row.incidents_open, resolved: row.incidents_resolved },
+      sosReceived: row.sos_received,
+      incidentRating: { average: numberOrNull(row.incident_rating), count: row.incident_rating_count, lowScoreCount: row.incident_low },
+      sosRating: { average: numberOrNull(row.sos_rating), count: row.sos_rating_count, lowScoreCount: row.sos_low },
+    }));
+  }
+
   private async localityCode(localityId: string): Promise<string> {
     const result = await this.pool.query<{ code: string }>(`SELECT code FROM localities WHERE id=$1`, [localityId]);
     return result.rows[0]?.code ?? '';
   }
 
-  private async candidates(client: Pool | PoolClient, incidentId: string): Promise<Array<{ item: DuplicateCaseInput; distanceM: number }>> {
+  private async candidates(client: Pool | PoolClient, incidentId: string, areaId: string | null): Promise<Array<{ item: DuplicateCaseInput; distanceM: number }>> {
     const result = await client.query<CaseRow>(
       `SELECT ${caseColumns}, ST_Distance(i.geom::geography, t.geom::geography) AS distance_m
        FROM incident_reports t
@@ -368,30 +421,34 @@ export class IntelligenceStore {
        WHERE t.id = $1 AND i.status <> 'rejected'
          AND i.created_at BETWEEN t.created_at - make_interval(hours => $2) AND t.created_at + make_interval(hours => $2)
          AND ST_DWithin(i.geom::geography, t.geom::geography, $3)
+         AND ($4::uuid IS NULL OR i.service_area_id = $4::uuid)
        ORDER BY distance_m LIMIT 50`,
-      [incidentId, DUPLICATE_WINDOW_HOURS, DUPLICATE_RADIUS_M],
+      [incidentId, DUPLICATE_WINDOW_HOURS, DUPLICATE_RADIUS_M, areaId],
     );
     return result.rows.map((row) => ({ item: toCase(row), distanceM: Number(row.distance_m) }));
   }
 
-  private async loadCase(client: Pool | PoolClient, incidentId: string, localityId: string | null, lock = false): Promise<CaseRow> {
+  private async loadCase(client: Pool | PoolClient, incidentId: string, localityId: string | null, areaId: string | null, lock = false): Promise<CaseRow> {
     if (!/^[0-9a-f-]{36}$/i.test(incidentId)) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
     const result = await client.query<CaseRow>(
       `SELECT ${caseColumns} FROM incident_reports i LEFT JOIN incident_reports p ON p.id = i.duplicate_of_id
-       WHERE i.id=$1 AND ($2::uuid IS NULL OR i.locality_id=$2)${lock ? ' FOR UPDATE OF i' : ''}`,
-      [incidentId, localityId],
+       WHERE i.id=$1 AND ($2::uuid IS NULL OR i.locality_id=$2) AND ($3::uuid IS NULL OR i.service_area_id=$3::uuid)${lock ? ' FOR UPDATE OF i' : ''}`,
+      [incidentId, localityId, areaId],
     );
     if (!result.rows[0]) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
     return result.rows[0];
   }
 
-  private async requireActor(client: Pool | PoolClient, actorId: string): Promise<ActorRow> {
+  /** Chỉ huy (supervisor) chỉ được vào các thao tác xem (allowSupervisor = true); mọi thao tác ghi đòi hỏi cán bộ. */
+  private async requireActor(client: Pool | PoolClient, actorId: string, allowSupervisor = false): Promise<ActorRow> {
     const result = await client.query<ActorRow>(
-      `SELECT id, actor_type, locality_id::text FROM workflow_actors
+      `SELECT id, actor_type, locality_id::text, service_area_id::text FROM workflow_actors
        WHERE id=$1 AND active=true AND actor_type IN ('officer','supervisor') AND locality_id IS NOT NULL`, [actorId],
     );
-    if (!result.rows[0]) throw new WorkflowError('FORBIDDEN', 'Tài khoản không có quyền truy cập địa bàn.');
-    return result.rows[0];
+    const row = result.rows[0];
+    if (!row) throw new WorkflowError('FORBIDDEN', 'Tài khoản không có quyền truy cập địa bàn.');
+    if (row.actor_type === 'supervisor' && !allowSupervisor) throw new WorkflowError('FORBIDDEN', COMMANDER_READ_ONLY_MESSAGE);
+    return row;
   }
 
   private async audit(client: PoolClient, incidentId: string, action: string, actorId: string, actorRole: string, before: object, after: object): Promise<void> {

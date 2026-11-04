@@ -1,10 +1,11 @@
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { readDevicePosition, supportsDeviceLocation, type DevicePosition } from '../device-location';
-import { BarChart3, BellRing, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck } from 'lucide-react';
+import { BarChart3, BellRing, Camera, CheckCircle2, ClipboardCheck, Database, KeyRound, LocateFixed, MapPinned, Play, Pause, RadioTower, Route, ShieldCheck, UserRoundCheck } from 'lucide-react';
 import { ApiError, confirmShiftReport, createPatrolSession, createPublicAlert, getShiftSummary, listPatrolSessions, updatePatrolSession } from '../api';
 import type { PatrolSession, PublicAlert, ShiftSummary } from '../types';
 
 import { OfficerStatisticsPanel } from './OfficerStatisticsPanel';
+import { CommanderAreaPanel } from './CommanderAreaPanel';
 import { OfficerMapDataManager } from './OfficerMapDataManager';
 import { OfficerCitizenReset } from './OfficerCitizenReset';
 import { PASSWORD_RECOVERY_ENABLED } from '../password-recovery';
@@ -15,14 +16,15 @@ const AlertLocationPicker = lazy(async () => {
   return { default: module.AlertLocationPicker };
 });
 
-type Tab = 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'accounts' | 'roadmap';
+type Tab = 'areas' | 'reports' | 'mapdata' | 'alerts' | 'patrol' | 'shift' | 'accounts' | 'roadmap';
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Không thể kết nối nghiệp vụ.';
 }
 
-export function PoliceOperations({ localityCode, unitName }: { localityCode: string | null; unitName?: string }) {
-  const [tab, setTab] = useState<Tab>('reports');
+/** commander: chỉ huy xem khu vực và báo cáo, không có nghiệp vụ ghi (cảnh báo, tuần tra, cuối ca, bản đồ, tài khoản dân). */
+export function PoliceOperations({ localityCode, unitName, commander = false }: { localityCode: string | null; unitName?: string; commander?: boolean }) {
+  const [tab, setTab] = useState<Tab>(commander ? 'areas' : 'reports');
   const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
   const [pickerKey, setPickerKey] = useState(0);
   const [patrols, setPatrols] = useState<PatrolSession[]>([]);
@@ -31,11 +33,12 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
   const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async () => {
+    if (commander) return;
     try {
       const [patrolData, shiftData] = await Promise.all([listPatrolSessions(), getShiftSummary()]);
       setPatrols(patrolData); setSummary(shiftData);
     } catch (error) { setNotice(errorText(error)); }
-  }, []);
+  }, [commander]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -93,15 +96,19 @@ export function PoliceOperations({ localityCode, unitName }: { localityCode: str
     <section className="police-operations-pane" aria-label="Nghiệp vụ địa bàn">
       <header className="operations-heading"><div><h2>Nghiệp vụ địa bàn</h2></div></header>
       <div className="operations-tabs" role="tablist" aria-label="Nhóm nghiệp vụ">
+        {commander && <button role="tab" aria-selected={tab === 'areas'} className={tab === 'areas' ? 'active' : ''} onClick={() => setTab('areas')}><UserRoundCheck size={18} /> Khu vực</button>}
         <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}><BarChart3 size={18} /> Báo cáo</button>
-        <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>
-        <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
-        <button role="tab" aria-selected={tab === 'patrol'} className={tab === 'patrol' ? 'active' : ''} onClick={() => setTab('patrol')}><Route size={18} /> Tuần tra</button>
-        <button role="tab" aria-selected={tab === 'shift'} className={tab === 'shift' ? 'active' : ''} onClick={() => setTab('shift')}><ClipboardCheck size={18} /> Cuối ca</button>
-        {PASSWORD_RECOVERY_ENABLED && <button role="tab" aria-selected={tab === 'accounts'} className={tab === 'accounts' ? 'active' : ''} onClick={() => setTab('accounts')}><KeyRound size={18} /> Tài khoản dân</button>}
-        <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Tích hợp</button>
+        {!commander && <>
+          <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>
+          <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
+          <button role="tab" aria-selected={tab === 'patrol'} className={tab === 'patrol' ? 'active' : ''} onClick={() => setTab('patrol')}><Route size={18} /> Tuần tra</button>
+          <button role="tab" aria-selected={tab === 'shift'} className={tab === 'shift' ? 'active' : ''} onClick={() => setTab('shift')}><ClipboardCheck size={18} /> Cuối ca</button>
+          {PASSWORD_RECOVERY_ENABLED && <button role="tab" aria-selected={tab === 'accounts'} className={tab === 'accounts' ? 'active' : ''} onClick={() => setTab('accounts')}><KeyRound size={18} /> Tài khoản dân</button>}
+          <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Tích hợp</button>
+        </>}
       </div>
 
+      {tab === 'areas' && commander && <CommanderAreaPanel />}
       {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} />}
       {tab === 'mapdata' && <OfficerMapDataManager />}
       {tab === 'accounts' && PASSWORD_RECOVERY_ENABLED && <OfficerCitizenReset />}

@@ -11,6 +11,8 @@ const looksForeign = (text: string) => text.length >= 12 && /[a-z]{3}/i.test(tex
 interface Props {
   incident: Incident;
   onAttachmentAdded: (attachment: IncidentAttachment) => void;
+  /** Chỉ huy chỉ xem trao đổi và minh chứng, không gửi tin hay tải tệp. */
+  readOnly?: boolean;
 }
 
 const mediaTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']);
@@ -24,7 +26,7 @@ function encode(file: File): Promise<string> {
   });
 }
 
-export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
+export function IncidentCollaboration({ incident, onAttachmentAdded, readOnly = false }: Props) {
   const [messages, setMessages] = useState<IncidentMessage[]>([]);
   const [message, setMessage] = useState('');
   const [requestMedia, setRequestMedia] = useState(false);
@@ -40,6 +42,7 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
+    if (readOnly) return () => controller.abort();
     getAiStatus(controller.signal).then((status) => setAiReady(status.configured && status.features.includes('reply_draft'))).catch(() => setAiReady(false));
     return () => controller.abort();
   }, []);
@@ -80,21 +83,21 @@ export function IncidentCollaboration({ incident, onAttachmentAdded }: Props) {
       <IncidentMediaGallery scope="officer" incidentKey={incident.id} attachments={incident.attachments} />
       <details className="case-thread-details">
       <summary><MessageSquareText size={18} aria-hidden="true" /> Trao đổi với người dân{messages.length > 0 ? ` (${messages.length})` : ''}</summary>
-      <div className="supplement-row officer-upload">
+      {!readOnly && <div className="supplement-row officer-upload">
         <input aria-label="Chọn ảnh hoặc video nghiệp vụ" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         <button className="secondary-action" type="button" disabled={!file || busy} onClick={() => void upload()}><Paperclip size={16} /> Lưu minh chứng</button>
-      </div>
+      </div>}
       <div className="case-thread">
         {messages.length === 0 && <p className="workflow-empty">Chưa có trao đổi với người dân.</p>}
         {messages.map((entry) => <article key={entry.id} className={`thread-message ${entry.authorRole}`}><strong>{entry.authorLabel}</strong><p>{entry.message}</p>{entry.authorRole === 'citizen' && looksForeign(entry.message) && <TranslateButton text={entry.message} target="vi" resetKey={entry.id} />}{entry.requestMedia && <span>Đã yêu cầu bổ sung ảnh/video</span>}<time>{new Date(entry.createdAt).toLocaleString('vi-VN')}</time></article>)}
       </div>
-      <form className="thread-compose" onSubmit={submitMessage}>
+      {!readOnly && <form className="thread-compose" onSubmit={submitMessage}>
         <label className="sr-only" htmlFor="officer-message">Nội dung trao đổi</label>
         <textarea id="officer-message" value={message} onChange={(event) => setMessage(event.target.value)} rows={2} maxLength={2000} placeholder="Yêu cầu bổ sung hoặc thông báo tiến độ…" required />
         <label className="compact-check"><input type="checkbox" checked={requestMedia} onChange={(event) => setRequestMedia(event.target.checked)} /> Yêu cầu ảnh/video</label>
         {aiReady && <button className="secondary-action" type="button" disabled={busy || drafting} onClick={() => void draftReply()}><Sparkles size={16} aria-hidden="true" /> {drafting ? 'AI đang soạn…' : 'AI soạn nháp'}</button>}
         <button className="ops-submit" type="submit" disabled={busy || drafting || message.trim().length < 2}><Send size={17} /> Gửi người dân</button>
-      </form>
+      </form>}
       {notice && <p className="inline-notice" role="status">{notice}</p>}
       </details>
     </section>

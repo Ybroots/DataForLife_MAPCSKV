@@ -33,11 +33,15 @@ try {
   const localityId = locality.rows[0]?.id;
   if (!localityId) throw new Error('Không tìm thấy địa bàn mã 24781 để gán tài khoản cán bộ.');
 
-  for (let index = 1; index <= 5; index += 1) {
-    const suffix = String(index).padStart(2, '0');
-    const username = `canbo${suffix}`;
-    const actorId = `officer-cskv-${suffix}`;
-    const displayName = `Cán bộ CSKV ${suffix}`;
+  // 5 tài khoản cán bộ khu vực (gắn khu vực ở migration 021) và 1 tài khoản chỉ huy (chỉ xem, không gắn khu vực).
+  const accounts = [
+    ...Array.from({ length: 5 }, (_, index) => {
+      const suffix = String(index + 1).padStart(2, '0');
+      return { username: `canbo${suffix}`, actorId: `officer-cskv-${suffix}`, displayName: `Cán bộ CSKV ${suffix}`, actorType: 'officer' };
+    }),
+    { username: 'chihuy01', actorId: 'supervisor-cskv-01', displayName: 'Chỉ huy Công an phường Xuân Hương', actorType: 'supervisor' },
+  ];
+  for (const { username, actorId, displayName, actorType } of accounts) {
     const exists = await client.query('SELECT 1 FROM officer_accounts WHERE username_normalized = $1', [username]);
     if (exists.rowCount) continue;
 
@@ -45,10 +49,9 @@ try {
     const passwordHash = await hashPassword(password);
     await client.query(
       `INSERT INTO workflow_actors (id, actor_type, display_name, locality_id, active, metadata)
-       VALUES ($1, 'officer', $2, $3, true, $4::jsonb)
-       ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name,
-         locality_id = EXCLUDED.locality_id, active = true, updated_at = now()`,
-      [actorId, displayName, localityId, JSON.stringify({ accountSource: 'local_account', shift: 'day' })],
+       VALUES ($1, $5, $2, $3, true, $4::jsonb)
+       ON CONFLICT (id) DO UPDATE SET locality_id = EXCLUDED.locality_id, active = true, updated_at = now()`,
+      [actorId, displayName, localityId, JSON.stringify({ accountSource: 'local_account', shift: 'day' }), actorType],
     );
     await client.query(
       `INSERT INTO officer_accounts (actor_id, username, username_normalized, password_hash)

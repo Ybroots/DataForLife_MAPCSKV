@@ -42,6 +42,7 @@ import type {
   SosResponse,
   StationResponse,
   WorkflowActorResponse,
+  AreaOfficerOverviewResponse,
   CitizenAccountRecord,
   CitizenAccountEventType,
   CitizenEmailCodePurpose,
@@ -580,6 +581,10 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     return this.workflows.listWorkflowActors(actorId);
   }
 
+  listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]> {
+    return this.intelligence.listAreaOfficerOverview(actorId, from, to);
+  }
+
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {
     return this.workflows.listOfficerNotifications(actorId);
   }
@@ -674,10 +679,12 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
         role_title: string | null;
         phone: string;
         entry_type: DirectoryEntryResponse['entryType'];
+        service_area_name: string | null;
       }>(
-        `SELECT d.id::text, d.display_name, d.rank, d.role_title, d.phone, d.entry_type
+        `SELECT d.id::text, d.display_name, d.rank, d.role_title, d.phone, d.entry_type, sa.name AS service_area_name
          FROM directory_entries d
          JOIN localities l ON l.id = d.locality_id
+         LEFT JOIN service_areas sa ON sa.id = d.service_area_id
          WHERE l.code = $1 AND d.visibility = 'public'
          ORDER BY CASE WHEN d.entry_type = 'unit_contact' THEN 0 ELSE 1 END, d.display_name, d.id`,
         [row.code],
@@ -759,6 +766,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
         roleTitle: entry.role_title,
         phone: entry.phone,
         entryType: entry.entry_type,
+        serviceAreaName: entry.service_area_name,
       })),
     };
   }

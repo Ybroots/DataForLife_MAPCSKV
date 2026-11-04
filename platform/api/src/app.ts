@@ -6,6 +6,7 @@ import { MemoryPushStore } from './push.js';
 import { registerAuthRoutes } from './auth-routes.js';
 import { registerCitizenRoutes } from './citizen-routes.js';
 import { registerOfficerCaseRoutes } from './officer-case-routes.js';
+import { registerCommanderRoutes } from './commander-routes.js';
 import { registerOfficerOperationsRoutes } from './officer-operations-routes.js';
 import { registerPublicRoutes } from './public-routes.js';
 import { registerIntelligenceRoutes } from './intelligence-routes.js';
@@ -61,6 +62,7 @@ export async function buildApp(
   });
   registerOfficerCaseRoutes(context);
   registerOfficerOperationsRoutes(context);
+  registerCommanderRoutes(context);
   registerIntelligenceRoutes(context, options.aiModel, options.aiDailyLimit);
 
   app.setErrorHandler((error, _request, reply) => {

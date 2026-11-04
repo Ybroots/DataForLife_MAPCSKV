@@ -83,6 +83,7 @@ export function DirectoryPanel({ area, isFixture, hotlines }: DirectoryPanelProp
                     {(entry.rank || entry.roleTitle) && (
                       <p>{[entry.rank, entry.roleTitle].filter(Boolean).join(' · ')}</p>
                     )}
+                    {entry.serviceAreaName && <p className="contact-area">{entry.serviceAreaName}</p>}
                   </div>
                   <a className="call-button" href={telHref(entry.phone)} aria-label={`Gọi ${entry.displayName}`}>
                     <Phone size={18} aria-hidden="true" />

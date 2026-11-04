@@ -34,6 +34,7 @@ import type {
   StatisticsPeriod,
   SosResponse,
   WorkflowActorResponse,
+  AreaOfficerOverviewResponse,
   CitizenAccountRecord,
   CitizenAccountEventType,
   CitizenEmailCodePurpose,
@@ -41,7 +42,7 @@ import type {
   OfficerAccountRecord,
 } from './types.js';
 import { loadPilotAreaSources, PilotArea } from './fixture-pilot-areas.js';
-import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
+import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, COMMANDER_READ_ONLY_MESSAGE, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
 
 const demoArea: AreaLookupResponse = {
   code: 'DEMO-DA-LAT',
@@ -140,7 +141,8 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   private readonly officerAccounts = new Map<string, OfficerAccountRecord>();
 
   private readonly actors: WorkflowActorResponse[] = [
-    { id: 'officer-demo-xuan-huong', actorType: 'officer', displayName: 'CSKV trực địa bàn Xuân Hương', localityCode: 'DEMO-DA-LAT' },
+    { id: 'officer-demo-xuan-huong', actorType: 'officer', displayName: 'CSKV trực địa bàn Xuân Hương', localityCode: 'DEMO-DA-LAT', serviceArea: null, phone: null, beatNote: null },
+    { id: 'supervisor-demo-xuan-huong', actorType: 'supervisor', displayName: 'Chỉ huy trực Xuân Hương', localityCode: 'DEMO-DA-LAT', serviceArea: null, phone: null, beatNote: null },
   ];
 
   async findCitizenAccountByUsername(username: string): Promise<CitizenAccountRecord | null> {
@@ -515,7 +517,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const sos: OfficerQueueItemResponse[] = [...this.sosEvents.values()]
       .filter((item) => !['closed', 'cancelled_by_citizen'].includes(item.status))
       .map((item) => ({
@@ -550,7 +552,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const item = this.incidents.get(id);
     if (!item) return null;
     const clone = structuredClone(item);
@@ -559,13 +561,13 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async getOfficerSos(actorId: string, id: string): Promise<SosResponse | null> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const item = this.sosEvents.get(id);
     return item ? structuredClone(item) : null;
   }
 
   async listOfficerIncidentMessages(actorId: string, id: string): Promise<IncidentMessageResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     if (!this.incidents.has(id)) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
     return structuredClone(this.messages.get(id) ?? []);
   }
@@ -584,7 +586,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async getOfficerIncidentAttachment(actorId: string, id: string, attachmentId: string): Promise<{ mimeType: string; content: Buffer } | null> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const item = this.incidents.get(id);
     if (!item?.attachments.some((entry) => entry.id === attachmentId)) return null;
     return this.attachmentContent.get(attachmentId) ?? null;
@@ -598,7 +600,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listPatrolSessions(actorId: string): Promise<PatrolSessionResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     return structuredClone([...this.patrols.values()]);
   }
 
@@ -626,7 +628,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async getShiftSummary(actorId: string): Promise<ShiftSummaryResponse> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     return this.fixtureShiftSummary();
   }
 
@@ -636,7 +638,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const needle = query.q?.toLocaleLowerCase('vi-VN');
     const dateOf = (value: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value));
     const rows: OfficerQueueItemResponse[] = [
@@ -661,7 +663,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listReportCases(actorId: string, _period: StatisticsPeriod, _anchorDate: string): Promise<OfficerReportCaseResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const minutes = (from: string, to: string | null) => to ? Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 60_000)) : null;
     const finished = (status: string, updatedAt: string) => ['resolved', 'closed'].includes(status) ? updatedAt : null;
     return [
@@ -681,7 +683,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async getOfficerStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     const incidents = [...this.incidents.values()];
     const sos = [...this.sosEvents.values()];
     const resolved = [...incidents, ...sos].filter((item) => ['resolved', 'closed'].includes(item.status)).length;
@@ -695,7 +697,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listOperationalMapPoints(actorId: string): Promise<OperationalMapPointResponse[]> {
-    this.requireActor(actorId); return structuredClone([...this.mapPoints.values()]);
+    this.requireActor(actorId, true); return structuredClone([...this.mapPoints.values()]);
   }
 
   async createOperationalMapPoint(actorId: string, input: OperationalMapPointInput): Promise<OperationalMapPointResponse> {
@@ -766,12 +768,18 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     return structuredClone(this.actors);
   }
 
+  async listAreaOfficerOverview(actorId: string, _from: string, _to: string): Promise<AreaOfficerOverviewResponse[]> {
+    const actor = this.requireActor(actorId, true);
+    if (actor.actorType !== 'supervisor') throw new WorkflowError('FORBIDDEN', 'Chỉ chỉ huy mới xem được đánh giá theo cán bộ khu vực.');
+    return [];
+  }
+
   async listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     return [];
   }
 
@@ -832,7 +840,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]> {
-    this.requireActor(actorId);
+    this.requireActor(actorId, true);
     return this.rankFor(incidentId);
   }
 
@@ -1056,9 +1064,11 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     }
   }
 
-  private requireActor(actorId: string): WorkflowActorResponse {
+  /** Chỉ huy (supervisor) chỉ được vào các thao tác xem (allowSupervisor = true); mọi thao tác ghi đòi hỏi cán bộ. */
+  private requireActor(actorId: string, allowSupervisor = false): WorkflowActorResponse {
     const actor = this.actors.find((candidate) => candidate.id === actorId);
     if (!actor) throw new WorkflowError('FORBIDDEN', 'Tài khoản cán bộ local không hợp lệ.');
+    if (actor.actorType === 'supervisor' && !allowSupervisor) throw new WorkflowError('FORBIDDEN', COMMANDER_READ_ONLY_MESSAGE);
     return actor;
   }
 

@@ -14,7 +14,7 @@ import type {
   OperationalMapPointResponse,
   StatisticsPeriod,
 } from './types.js';
-import { WorkflowError } from './workflow.js';
+import { areaScopeOf, COMMANDER_READ_ONLY_MESSAGE, WorkflowError } from './workflow.js';
 
 interface ActorRow extends QueryResultRow {
   id: string;
@@ -22,6 +22,7 @@ interface ActorRow extends QueryResultRow {
   display_name: string;
   locality_id: string;
   locality_code: string;
+  service_area_id: string | null;
 }
 
 function iso(value: Date | string): string {
@@ -99,14 +100,14 @@ export class OperationalExtensionsStore {
   }
 
   async listOfficerMessages(actorId: string, incidentId: string): Promise<IncidentMessageResponse[]> {
-    const actor = await this.requireActor(actorId);
-    await this.assertOfficerIncident(actor.locality_id, incidentId);
+    const actor = await this.requireActor(actorId, true);
+    await this.assertOfficerIncident(actor, incidentId);
     return this.listMessages(incidentId);
   }
 
   async addOfficerMessage(actorId: string, incidentId: string, message: string, requestMedia: boolean): Promise<IncidentMessageResponse> {
     const actor = await this.requireActor(actorId);
-    await this.assertOfficerIncident(actor.locality_id, incidentId);
+    await this.assertOfficerIncident(actor, incidentId);
     const result = await this.pool.query(
       `INSERT INTO incident_messages (incident_id, author_id, author_role, message, request_media)
        VALUES ($1,$2,$3,$4,$5)
@@ -123,7 +124,7 @@ export class OperationalExtensionsStore {
 
   async addOfficerAttachment(actorId: string, incidentId: string, input: IncidentAttachmentInput): Promise<IncidentAttachmentResponse> {
     const actor = await this.requireActor(actorId);
-    await this.assertOfficerIncident(actor.locality_id, incidentId);
+    await this.assertOfficerIncident(actor, incidentId);
     return this.insertAttachment(incidentId, input, actor.actor_type, 'evidence');
   }
 
@@ -133,8 +134,8 @@ export class OperationalExtensionsStore {
   }
 
   async getOfficerAttachment(actorId: string, incidentId: string, attachmentId: string): Promise<{ mimeType: string; content: Buffer } | null> {
-    const actor = await this.requireActor(actorId);
-    await this.assertOfficerIncident(actor.locality_id, incidentId);
+    const actor = await this.requireActor(actorId, true);
+    await this.assertOfficerIncident(actor, incidentId);
     return this.getAttachment(incidentId, attachmentId);
   }
 
@@ -159,7 +160,7 @@ export class OperationalExtensionsStore {
   }
 
   async listPatrols(actorId: string): Promise<PatrolSessionResponse[]> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const result = await this.pool.query(
       `SELECT p.id::text,p.title,p.route_note,p.officer_id,a.display_name AS officer_name,p.status,
               p.scheduled_at,p.started_at,p.ended_at,
@@ -216,17 +217,17 @@ export class OperationalExtensionsStore {
   }
 
   async getShiftSummary(actorId: string): Promise<ShiftSummaryResponse> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const result = await this.pool.query(
       `SELECT (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::text AS date,
-        (SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS incidents_received,
-        (SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND status IN ('resolved','closed') AND updated_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS incidents_resolved,
-        (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND created_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS sos_received,
-        (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND status IN ('resolved','closed') AND updated_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS sos_resolved,
+        (SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND created_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS incidents_received,
+        (SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND status IN ('resolved','closed') AND updated_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS incidents_resolved,
+        (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND created_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS sos_received,
+        (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND status IN ('resolved','closed') AND updated_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS sos_resolved,
         (SELECT count(*) FROM patrol_sessions WHERE locality_id=$1 AND status='completed' AND ended_at >= date_trunc('day',now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS patrols_completed,
-        ((SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND status IN ('submitted','received') AND created_at < now()-interval '15 minutes') +
-         (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND status IN ('triggered','dispatched','acknowledged') AND created_at < now()-interval '5 minutes'))::int AS overdue_open`,
-      [actor.locality_id],
+        ((SELECT count(*) FROM incident_reports WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND status IN ('submitted','received') AND created_at < now()-interval '15 minutes') +
+         (SELECT count(*) FROM sos_events WHERE locality_id=$1 AND ($2::uuid IS NULL OR service_area_id=$2::uuid) AND status IN ('triggered','dispatched','acknowledged') AND created_at < now()-interval '5 minutes'))::int AS overdue_open`,
+      [actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     const row = result.rows[0];
     return {
@@ -250,7 +251,7 @@ export class OperationalExtensionsStore {
   }
 
   async getStatistics(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerStatisticsResponse> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const unit = period === 'day' ? 'hour' : period === 'month' ? 'day' : 'month';
     const interval = period === 'day' ? '1 hour' : period === 'month' ? '1 day' : '1 month';
     const startExpression = period === 'day'
@@ -269,10 +270,10 @@ export class OperationalExtensionsStore {
                 ((${endExpression}) AT TIME ZONE 'Asia/Ho_Chi_Minh') AS to_at
        ), events AS (
          SELECT 'incident'::text AS kind, category, status, created_at, updated_at
-         FROM incident_reports, bounds WHERE locality_id=$1 AND created_at>=from_at AND created_at<to_at
+         FROM incident_reports, bounds WHERE locality_id=$1 AND ($4::uuid IS NULL OR service_area_id=$4::uuid) AND created_at>=from_at AND created_at<to_at
          UNION ALL
          SELECT 'sos'::text, category, status, created_at, updated_at
-         FROM sos_events, bounds WHERE locality_id=$1 AND created_at>=from_at AND created_at<to_at
+         FROM sos_events, bounds WHERE locality_id=$1 AND ($4::uuid IS NULL OR service_area_id=$4::uuid) AND created_at>=from_at AND created_at<to_at
        ), buckets AS (
          SELECT generate_series((SELECT from_at FROM bounds), (SELECT to_at FROM bounds) - interval '${interval}', interval '${interval}') AS bucket
        ), trend AS (
@@ -293,9 +294,9 @@ export class OperationalExtensionsStore {
             AND created_at < now() - CASE WHEN kind='sos' THEN interval '5 minutes' ELSE interval '15 minutes' END)::int AS overdue,
          (SELECT round(avg(extract(epoch FROM (updated_at-created_at))/60))::int FROM events WHERE status IN ('resolved','closed')) AS average_resolution_minutes,
          (SELECT round(avg(r.score)::numeric,1) FROM satisfaction_ratings r JOIN incident_reports i ON i.id=r.incident_id, bounds
-            WHERE i.locality_id=$1 AND r.created_at>=from_at AND r.created_at<to_at) AS average_rating,
+            WHERE i.locality_id=$1 AND ($4::uuid IS NULL OR i.service_area_id=$4::uuid) AND r.created_at>=from_at AND r.created_at<to_at) AS average_rating,
          (SELECT count(*) FROM satisfaction_ratings r JOIN incident_reports i ON i.id=r.incident_id, bounds
-            WHERE i.locality_id=$1 AND r.created_at>=from_at AND r.created_at<to_at)::int AS rating_count,
+            WHERE i.locality_id=$1 AND ($4::uuid IS NULL OR i.service_area_id=$4::uuid) AND r.created_at>=from_at AND r.created_at<to_at)::int AS rating_count,
          (SELECT json_agg(json_build_object('label',
              CASE WHEN $3='hour' THEN to_char(bucket AT TIME ZONE 'Asia/Ho_Chi_Minh','HH24:00')
                   WHEN $3='day' THEN to_char(bucket AT TIME ZONE 'Asia/Ho_Chi_Minh','DD/MM')
@@ -303,7 +304,7 @@ export class OperationalExtensionsStore {
              'incidents',incidents,'sos',sos,'resolved',resolved) ORDER BY bucket) FROM trend) AS trend,
          (SELECT COALESCE(json_agg(json_build_object('category',category,'count',count) ORDER BY count DESC),'[]'::json)
             FROM (SELECT category,count(*)::int AS count FROM events GROUP BY category) c) AS categories`,
-      [actor.locality_id, anchorDate, unit],
+      [actor.locality_id, anchorDate, unit, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     const row = result.rows[0];
     return {
@@ -319,7 +320,7 @@ export class OperationalExtensionsStore {
 
   /** Danh sách hồ sơ chi tiết trong kỳ báo cáo, để xuất CSV/Excel hoặc in. */
   async listReportCases(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<OfficerReportCaseResponse[]> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const unit = period === 'day' ? 'day' : period === 'month' ? 'month' : 'year';
     const result = await this.pool.query(
       `WITH bounds AS (
@@ -333,18 +334,18 @@ export class OperationalExtensionsStore {
          FROM incident_reports i
          LEFT JOIN service_areas sa ON sa.id = i.service_area_id
          LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id, bounds
-         WHERE i.locality_id = $1 AND i.created_at >= from_at AND i.created_at < to_at
+         WHERE i.locality_id = $1 AND ($3::uuid IS NULL OR i.service_area_id = $3::uuid) AND i.created_at >= from_at AND i.created_at < to_at
          UNION ALL
          SELECT 'sos'::text, s.receipt_code, s.category, COALESCE(s.note, 'Yêu cầu hỗ trợ khẩn cấp'), s.status, 'critical'::text,
                 sa.name, a.display_name, s.created_at, s.resolved_at, s.closed_at, NULL::int
          FROM sos_events s
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id, bounds
-         WHERE s.locality_id = $1 AND s.created_at >= from_at AND s.created_at < to_at
+         WHERE s.locality_id = $1 AND ($3::uuid IS NULL OR s.service_area_id = $3::uuid) AND s.created_at >= from_at AND s.created_at < to_at
        ) cases
        ORDER BY created_at DESC
        LIMIT 5000`,
-      [actor.locality_id, anchorDate],
+      [actor.locality_id, anchorDate, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     return result.rows.map((row) => {
       const finished = row.resolved_at ?? row.closed_at;
@@ -360,7 +361,7 @@ export class OperationalExtensionsStore {
   }
 
   async listMapPoints(actorId: string): Promise<OperationalMapPointResponse[]> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const result = await this.pool.query(
       `SELECT p.id::text,l.code AS locality_code,p.name,p.point_type,p.description,p.contact_phone,p.status,p.visibility,
               ST_Y(p.geom) AS latitude,ST_X(p.geom) AS longitude,p.created_at,p.updated_at
@@ -409,14 +410,17 @@ export class OperationalExtensionsStore {
     if (!result.rowCount) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy điểm bản đồ trong địa bàn.');
   }
 
-  private async requireActor(actorId: string): Promise<ActorRow> {
+  /** Chỉ huy (supervisor) chỉ được vào các thao tác xem (allowSupervisor = true); mọi thao tác ghi đòi hỏi cán bộ. */
+  private async requireActor(actorId: string, allowSupervisor = false): Promise<ActorRow> {
     const result = await this.pool.query<ActorRow>(
-      `SELECT a.id,a.actor_type,a.display_name,a.locality_id::text,l.code AS locality_code
+      `SELECT a.id,a.actor_type,a.display_name,a.locality_id::text,l.code AS locality_code,a.service_area_id::text
        FROM workflow_actors a JOIN localities l ON l.id=a.locality_id
-       WHERE a.id=$1 AND a.active=true AND a.actor_type='officer'`, [actorId],
+       WHERE a.id=$1 AND a.active=true AND a.actor_type IN ('officer','supervisor')`, [actorId],
     );
-    if (!result.rows[0]) throw new WorkflowError('FORBIDDEN', 'Tài khoản không có quyền truy cập địa bàn.');
-    return result.rows[0];
+    const row = result.rows[0];
+    if (!row) throw new WorkflowError('FORBIDDEN', 'Tài khoản không có quyền truy cập địa bàn.');
+    if (row.actor_type === 'supervisor' && !allowSupervisor) throw new WorkflowError('FORBIDDEN', COMMANDER_READ_ONLY_MESSAGE);
+    return row;
   }
 
   private async citizenIncidentId(citizenId: string, receiptCode: string): Promise<string> {
@@ -427,8 +431,11 @@ export class OperationalExtensionsStore {
     return result.rows[0].id;
   }
 
-  private async assertOfficerIncident(localityId: string, incidentId: string): Promise<void> {
-    const result = await this.pool.query(`SELECT 1 FROM incident_reports WHERE id=$1 AND locality_id=$2`, [incidentId, localityId]);
+  private async assertOfficerIncident(actor: ActorRow, incidentId: string): Promise<void> {
+    const result = await this.pool.query(
+      `SELECT 1 FROM incident_reports WHERE id=$1 AND locality_id=$2 AND ($3::uuid IS NULL OR service_area_id=$3::uuid)`,
+      [incidentId, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id)],
+    );
     if (!result.rows[0]) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh trong địa bàn.');
   }
 

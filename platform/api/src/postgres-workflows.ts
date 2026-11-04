@@ -13,8 +13,11 @@ import type {
   WorkflowLocationResponse,
 } from './types.js';
 import {
+  areaScopeOf,
+  assertCaseInArea,
   assertCaseOwnership,
   assertIncidentTransition,
+  COMMANDER_READ_ONLY_MESSAGE,
   assertSosTransition,
   WorkflowError,
   type IncidentStatus,
@@ -27,6 +30,11 @@ interface ActorRow extends QueryResultRow {
   display_name: string;
   locality_id: string | null;
   locality_code: string | null;
+  service_area_id: string | null;
+  service_area_code: string | null;
+  service_area_name: string | null;
+  phone: string | null;
+  beat_note: string | null;
 }
 
 interface ResolvedLocationRow extends QueryResultRow {
@@ -488,7 +496,8 @@ export class PostgresWorkflowStore {
 
   /** Hồ sơ đã đóng/từ chối/hủy: không còn trong hàng đợi nhưng vẫn xem lại được toàn bộ lịch sử xử lý. */
   async listOfficerArchive(actorId: string, query: OfficerArchiveQuery): Promise<OfficerQueueItemResponse[]> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
+    const area = areaScopeOf(actor.actor_type, actor.service_area_id);
     const pattern = query.q ? `%${query.q.replace(/[\\%_]/g, (character) => `\\${character}`)}%` : null;
     const result = await this.pool.query(
       `SELECT * FROM (
@@ -503,6 +512,7 @@ export class PostgresWorkflowStore {
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
          WHERE s.locality_id = $1 AND s.status IN ('closed', 'cancelled_by_citizen')
+           AND ($6::uuid IS NULL OR s.service_area_id = $6::uuid)
          UNION ALL
          SELECT 'incident'::text AS kind, i.id::text, i.receipt_code, i.category,
                 i.summary AS title, i.status, i.priority, l.code AS locality_code,
@@ -514,6 +524,7 @@ export class PostgresWorkflowStore {
          LEFT JOIN service_areas sa ON sa.id = i.service_area_id
          LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id
          WHERE i.locality_id = $1 AND i.status IN ('closed', 'rejected')
+           AND ($6::uuid IS NULL OR i.service_area_id = $6::uuid)
        ) archive
        WHERE ($2::text IS NULL OR kind = $2)
          AND ($3::text IS NULL OR receipt_code ILIKE $3 OR title ILIKE $3)
@@ -521,7 +532,7 @@ export class PostgresWorkflowStore {
          AND ($5::date IS NULL OR (ended_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= $5::date)
        ORDER BY ended_at DESC
        LIMIT 200`,
-      [actor.locality_id, query.kind ?? null, pattern, query.from ?? null, query.to ?? null],
+      [actor.locality_id, query.kind ?? null, pattern, query.from ?? null, query.to ?? null, area],
     );
     return result.rows.map((row) => ({
       kind: row.kind, id: row.id, receiptCode: row.receipt_code, category: row.category, title: row.title,
@@ -534,7 +545,8 @@ export class PostgresWorkflowStore {
   }
 
   async listOfficerQueue(actorId: string, kind?: 'incident' | 'sos'): Promise<OfficerQueueItemResponse[]> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
+    const area = areaScopeOf(actor.actor_type, actor.service_area_id);
     const result = await this.pool.query<{
       kind: 'incident' | 'sos';
       id: string;
@@ -563,6 +575,7 @@ export class PostgresWorkflowStore {
          LEFT JOIN service_areas sa ON sa.id = s.service_area_id
          LEFT JOIN workflow_actors a ON a.id = s.assigned_officer_id
          WHERE s.locality_id = $1 AND s.status NOT IN ('closed', 'cancelled_by_citizen')
+           AND ($3::uuid IS NULL OR s.service_area_id = $3::uuid)
          UNION ALL
          SELECT 'incident'::text AS kind, i.id::text, i.receipt_code, i.category,
                 i.summary AS title, i.status, i.priority, l.code AS locality_code,
@@ -574,6 +587,7 @@ export class PostgresWorkflowStore {
          LEFT JOIN service_areas sa ON sa.id = i.service_area_id
          LEFT JOIN workflow_actors a ON a.id = i.assigned_officer_id
          WHERE i.locality_id = $1 AND i.status NOT IN ('closed', 'rejected')
+           AND ($3::uuid IS NULL OR i.service_area_id = $3::uuid)
        ) queue
        WHERE ($2::text IS NULL OR kind = $2)
        ORDER BY CASE WHEN kind = 'sos' THEN 0 ELSE 1 END,
@@ -584,7 +598,7 @@ export class PostgresWorkflowStore {
                 CASE priority WHEN 'critical' THEN 0 WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
                 created_at ASC
        LIMIT 200`,
-      [actor.locality_id, kind ?? null],
+      [actor.locality_id, kind ?? null, area],
     );
     return result.rows.map((row) => ({
       kind: row.kind,
@@ -606,19 +620,19 @@ export class PostgresWorkflowStore {
   }
 
   async getOfficerIncident(actorId: string, id: string): Promise<IncidentResponse | null> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
     const allowed = await this.pool.query<{ id: string }>(
-      `SELECT id::text FROM incident_reports WHERE id = $1 AND locality_id = $2`,
-      [id, actor.locality_id],
+      `SELECT id::text FROM incident_reports WHERE id = $1 AND locality_id = $2 AND ($3::uuid IS NULL OR service_area_id = $3::uuid)`,
+      [id, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     return allowed.rows[0] ? this.hydrateIncident(this.pool, id) : null;
   }
 
   async getOfficerSos(actorId: string, id: string): Promise<SosResponse | null> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
     const allowed = await this.pool.query<{ id: string }>(
-      `SELECT id::text FROM sos_events WHERE id = $1 AND locality_id = $2`,
-      [id, actor.locality_id],
+      `SELECT id::text FROM sos_events WHERE id = $1 AND locality_id = $2 AND ($3::uuid IS NULL OR service_area_id = $3::uuid)`,
+      [id, actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     return allowed.rows[0] ? this.hydrateSos(this.pool, id) : null;
   }
@@ -635,13 +649,14 @@ export class PostgresWorkflowStore {
     try {
       await client.query('BEGIN');
       const actor = await this.requireOfficer(client, actorId);
-      const current = await client.query<{ status: IncidentStatus; locality_id: string; assigned_officer_id: string | null }>(
-        `SELECT status, locality_id::text, assigned_officer_id FROM incident_reports WHERE id = $1 FOR UPDATE`,
+      const current = await client.query<{ status: IncidentStatus; locality_id: string; service_area_id: string | null; assigned_officer_id: string | null }>(
+        `SELECT status, locality_id::text, service_area_id::text, assigned_officer_id FROM incident_reports WHERE id = $1 FOR UPDATE`,
         [id],
       );
       const row = current.rows[0];
       if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy phản ánh.');
       if (row.locality_id !== actor.locality_id) throw new WorkflowError('FORBIDDEN', 'Phản ánh nằm ngoài phạm vi địa bàn.');
+      assertCaseInArea(areaScopeOf(actor.actor_type, actor.service_area_id), row.service_area_id, 'hồ sơ');
       assertIncidentTransition(row.status, toStatus);
       assertCaseOwnership(actor.id, row.assigned_officer_id, assignedOfficerId, 'hồ sơ');
 
@@ -695,13 +710,14 @@ export class PostgresWorkflowStore {
     try {
       await client.query('BEGIN');
       const actor = await this.requireOfficer(client, actorId);
-      const current = await client.query<{ status: SosStatus; locality_id: string; assigned_officer_id: string | null }>(
-        `SELECT status, locality_id::text, assigned_officer_id FROM sos_events WHERE id = $1 FOR UPDATE`,
+      const current = await client.query<{ status: SosStatus; locality_id: string; service_area_id: string | null; assigned_officer_id: string | null }>(
+        `SELECT status, locality_id::text, service_area_id::text, assigned_officer_id FROM sos_events WHERE id = $1 FOR UPDATE`,
         [id],
       );
       const row = current.rows[0];
       if (!row) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy yêu cầu SOS.');
       if (row.locality_id !== actor.locality_id) throw new WorkflowError('FORBIDDEN', 'SOS nằm ngoài phạm vi địa bàn.');
+      assertCaseInArea(areaScopeOf(actor.actor_type, actor.service_area_id), row.service_area_id, 'SOS');
       assertSosTransition(row.status, toStatus);
       assertCaseOwnership(actor.id, row.assigned_officer_id, assignedOfficerId, 'SOS');
 
@@ -744,25 +760,35 @@ export class PostgresWorkflowStore {
   }
 
   async listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
+    const area = areaScopeOf(actor.actor_type, actor.service_area_id);
+    // Cán bộ khu vực chỉ thấy đồng nghiệp cùng khu vực; chỉ huy và cán bộ chưa gắn khu vực thấy toàn địa bàn.
+    // Tài khoản đang đăng nhập luôn có mặt trong danh sách để giao diện lấy được hồ sơ của chính mình.
     const result = await this.pool.query<ActorRow>(
-      `SELECT a.id, a.actor_type, a.display_name, a.locality_id::text, l.code AS locality_code
+      `SELECT a.id, a.actor_type, a.display_name, a.locality_id::text, l.code AS locality_code,
+              a.service_area_id::text, sa.code AS service_area_code, sa.name AS service_area_name,
+              a.phone, a.beat_note
        FROM workflow_actors a
        LEFT JOIN localities l ON l.id = a.locality_id
-       WHERE a.active = true AND a.actor_type = 'officer' AND a.locality_id = $1
-       ORDER BY a.display_name`,
-      [actor.locality_id],
+       LEFT JOIN service_areas sa ON sa.id = a.service_area_id
+       WHERE a.active = true AND a.locality_id = $1
+         AND (a.id = $2 OR (a.actor_type = 'officer' AND ($3::uuid IS NULL OR a.service_area_id = $3::uuid)))
+       ORDER BY sa.display_order NULLS LAST, a.display_name`,
+      [actor.locality_id, actor.id, area],
     );
     return result.rows.map((row) => ({
       id: row.id,
       actorType: row.actor_type,
       displayName: row.display_name,
       localityCode: row.locality_code,
+      serviceArea: row.service_area_code && row.service_area_name ? { code: row.service_area_code, name: row.service_area_name } : null,
+      phone: row.phone,
+      beatNote: row.beat_note,
     }));
   }
 
   async listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {
-    const actor = await this.requireOfficer(this.pool, actorId);
+    const actor = await this.requireOfficer(this.pool, actorId, true);
     const result = await this.pool.query<{
       id: string;
       aggregate_type: 'incident' | 'sos';
@@ -772,12 +798,15 @@ export class PostgresWorkflowStore {
       created_at: Date | string;
       read_at: Date | string | null;
     }>(
-      `SELECT id::text, aggregate_type, aggregate_id::text, event_type, message, created_at, read_at
-       FROM workflow_notifications
-       WHERE locality_id = $1
-       ORDER BY created_at DESC, id DESC
+      `SELECT n.id::text, n.aggregate_type, n.aggregate_id::text, n.event_type, n.message, n.created_at, n.read_at
+       FROM workflow_notifications n
+       WHERE n.locality_id = $1
+         AND ($2::uuid IS NULL
+              OR EXISTS (SELECT 1 FROM incident_reports i WHERE i.id::text = n.aggregate_id::text AND i.service_area_id = $2::uuid)
+              OR EXISTS (SELECT 1 FROM sos_events s WHERE s.id::text = n.aggregate_id::text AND s.service_area_id = $2::uuid))
+       ORDER BY n.created_at DESC, n.id DESC
        LIMIT 50`,
-      [actor.locality_id],
+      [actor.locality_id, areaScopeOf(actor.actor_type, actor.service_area_id)],
     );
     return result.rows.map((row) => ({
       id: row.id,
@@ -898,16 +927,19 @@ export class PostgresWorkflowStore {
     return row;
   }
 
-  private async requireOfficer(client: Pool | PoolClient, actorId: string): Promise<ActorRow> {
+  /** Chỉ huy (supervisor) chỉ được vào các thao tác xem (allowSupervisor = true); mọi thao tác ghi đòi hỏi cán bộ. */
+  private async requireOfficer(client: Pool | PoolClient, actorId: string, allowSupervisor = false): Promise<ActorRow> {
     const result = await client.query<ActorRow>(
-      `SELECT a.id, a.actor_type, a.display_name, a.locality_id::text, l.code AS locality_code
+      `SELECT a.id, a.actor_type, a.display_name, a.locality_id::text, l.code AS locality_code,
+              a.service_area_id::text, NULL::text AS service_area_code, NULL::text AS service_area_name, a.phone, a.beat_note
        FROM workflow_actors a
        LEFT JOIN localities l ON l.id = a.locality_id
-       WHERE a.id = $1 AND a.active = true AND a.actor_type = 'officer'`,
+       WHERE a.id = $1 AND a.active = true AND a.actor_type IN ('officer', 'supervisor')`,
       [actorId],
     );
     const row = result.rows[0];
     if (!row) throw new WorkflowError('FORBIDDEN', 'Tài khoản cán bộ local không hợp lệ.');
+    if (row.actor_type === 'supervisor' && !allowSupervisor) throw new WorkflowError('FORBIDDEN', COMMANDER_READ_ONLY_MESSAGE);
     if (!row.locality_id) throw new WorkflowError('FORBIDDEN', 'Tài khoản chưa được gán địa bàn.');
     return row;
   }

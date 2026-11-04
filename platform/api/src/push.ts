@@ -299,6 +299,7 @@ export class PostgresPushStore implements PushStore {
          FROM sos_events s
          JOIN localities l ON l.id = s.locality_id
          JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+           AND (a.service_area_id IS NULL OR a.service_area_id = s.service_area_id)
          JOIN push_devices d ON d.officer_id = a.id
          WHERE s.status IN ('triggered', 'dispatched', 'escalated')
            AND s.created_at > now() - interval '2 minutes' AND s.created_at >= d.created_at
@@ -312,6 +313,7 @@ export class PostgresPushStore implements PushStore {
          CROSS JOIN (VALUES (1, interval '2 minutes', interval '5 minutes'), (2, interval '5 minutes', interval '30 minutes')) AS rm(n, after, until)
          JOIN localities l ON l.id = s.locality_id
          JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+           AND (a.service_area_id IS NULL OR a.service_area_id = s.service_area_id)
          JOIN push_devices d ON d.officer_id = a.id
          WHERE s.status IN ('triggered', 'dispatched', 'escalated')
            AND s.created_at + rm.after <= now() AND s.created_at + rm.until > now()
@@ -325,6 +327,7 @@ export class PostgresPushStore implements PushStore {
          FROM incident_reports r
          JOIN localities l ON l.id = r.locality_id
          JOIN workflow_actors a ON a.locality_id = r.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
+           AND (a.service_area_id IS NULL OR a.service_area_id = r.service_area_id)
          JOIN push_devices d ON d.officer_id = a.id
          WHERE r.status = 'submitted'
            AND r.created_at > now() - ${DELIVERY_WINDOW} AND r.created_at >= d.created_at

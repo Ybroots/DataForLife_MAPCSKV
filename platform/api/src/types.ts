@@ -25,6 +25,8 @@ export interface DirectoryEntryResponse {
   roleTitle: string | null;
   phone: string;
   entryType: 'officer' | 'unit_contact';
+  /** Tên khu vực mà cán bộ phụ trách (chỉ có với cảnh sát khu vực đã gắn khu vực). */
+  serviceAreaName?: string | null;
 }
 
 export interface HotlineResponse {
@@ -352,6 +354,23 @@ export interface WorkflowActorResponse {
   actorType: 'officer' | 'supervisor';
   displayName: string;
   localityCode: string | null;
+  /** Khu vực cán bộ phụ trách; null với chỉ huy và cán bộ chưa gắn khu vực. */
+  serviceArea: { code: string; name: string } | null;
+  phone: string | null;
+  /** Địa bàn phụ trách theo quyết định phân công (tổ dân phố). */
+  beatNote: string | null;
+}
+
+/** Một khu vực và cán bộ CSKV phụ trách, kèm đánh giá của người dân trong kỳ (chỉ huy xem). */
+export interface AreaOfficerOverviewResponse {
+  serviceArea: { code: string; name: string };
+  officer: { id: string; displayName: string; phone: string | null; beatNote: string | null } | null;
+  from: string;
+  to: string;
+  incidents: { received: number; open: number; resolved: number };
+  sosReceived: number;
+  incidentRating: { average: number | null; count: number; lowScoreCount: number };
+  sosRating: { average: number | null; count: number; lowScoreCount: number };
 }
 
 export interface CitizenAccountRecord {
@@ -591,6 +610,7 @@ export interface DirectoryRepository {
     publicMessage?: boolean,
   ): Promise<SosResponse>;
   listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]>;
+  listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]>;
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]>;
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage>;
   findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]>;

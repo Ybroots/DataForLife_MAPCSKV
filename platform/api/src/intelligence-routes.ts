@@ -8,6 +8,7 @@ import { summarizeStatistics } from './report-summary.js';
 import { translateMessage, translateProcedure, TranslationCache, translationTargets, type TranslationTarget } from './translation.js';
 import { matchesDeclaredMedia, optionalText, statisticsPeriods } from './request-parsing.js';
 import type { RouteContext } from './route-context.js';
+import { COMMANDER_READ_ONLY_MESSAGE } from './workflow.js';
 
 const REVIEW_IMAGE_LIMIT = 3;
 const REVIEW_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
@@ -60,6 +61,9 @@ function parseScore(value: unknown): number | null {
  */
 export function registerIntelligenceRoutes(context: RouteContext, model: JsonModel | undefined, dailyLimit = 200): void {
   const { app, repository, options, localWorkflowMeta, officerIdentity, citizenIdentity, workflowDisabled } = context;
+  /** Chỉ huy chỉ xem: các thao tác nhờ AI soạn hoặc phân tích hồ sơ thuộc việc xử lý nên bị chặn trước khi tốn lượt AI. */
+  const isCommander = async (officerId: string): Promise<boolean> =>
+    (await repository.listWorkflowActors(officerId)).find((actor) => actor.id === officerId)?.actorType === 'supervisor';
   const clock = options.limits?.clock ?? Date.now;
   const draftWindow = new AttemptWindow(20, 60 * 60_000, clock);
   const reviewWindow = new AttemptWindow(60, 60 * 60_000, clock);
@@ -171,6 +175,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     const officerId = officerIdentity(request);
     if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
     if (!model) return notConfigured(reply);
+    if (await isCommander(officerId)) return reply.code(403).send({ error: 'FORBIDDEN', message: COMMANDER_READ_ONLY_MESSAGE });
     const incident = await repository.getOfficerIncident(officerId, request.params.id);
     if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
     const images: ReviewImage[] = [];
@@ -192,7 +197,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
     const incident = await repository.getOfficerIncident(officerId, request.params.id);
     if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
-    if (incident.assignedOfficer || ['closed', 'rejected'].includes(incident.status)) return { data: { suggestion: null } };
+    if (incident.assignedOfficer || ['closed', 'rejected'].includes(incident.status) || await isCommander(officerId)) return { data: { suggestion: null } };
     const [actors, queue] = await Promise.all([repository.listWorkflowActors(officerId), repository.listOfficerQueue(officerId)]);
     return { data: { suggestion: suggestAssignee(incident.location.localityCode, actors, queue) } };
   });
@@ -236,6 +241,7 @@ export function registerIntelligenceRoutes(context: RouteContext, model: JsonMod
     const officerId = officerIdentity(request);
     if (!officerId) return reply.code(401).send({ error: 'OFFICER_SESSION_REQUIRED', message: 'Vui lòng đăng nhập lại.' });
     if (!model) return notConfigured(reply);
+    if (await isCommander(officerId)) return reply.code(403).send({ error: 'FORBIDDEN', message: COMMANDER_READ_ONLY_MESSAGE });
     const incident = await repository.getOfficerIncident(officerId, request.params.id);
     if (!incident) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Không tìm thấy phản ánh trong địa bàn.' });
     const thread = await repository.listOfficerIncidentMessages(officerId, incident.id);

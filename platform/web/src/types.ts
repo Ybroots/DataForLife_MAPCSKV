@@ -54,6 +54,8 @@ export interface DirectoryEntry {
   roleTitle: string | null;
   phone: string;
   entryType: 'officer' | 'unit_contact';
+  /** Khu vực mà cảnh sát khu vực phụ trách (nếu đã gắn khu vực). */
+  serviceAreaName?: string | null;
 }
 
 export interface Hotline {
@@ -347,6 +349,25 @@ export interface WorkflowActor {
   actorType: 'officer' | 'supervisor';
   displayName: string;
   localityCode: string | null;
+  /** Khu vực cán bộ phụ trách; null với chỉ huy. */
+  serviceArea: { code: string; name: string } | null;
+  phone: string | null;
+  /** Địa bàn phụ trách theo quyết định phân công (tổ dân phố). */
+  beatNote: string | null;
+}
+
+export interface RatingSummary { average: number | null; count: number; lowScoreCount: number }
+
+/** Một khu vực của phường và cán bộ CSKV phụ trách, kèm đánh giá của người dân trong kỳ. */
+export interface AreaOfficerOverview {
+  serviceArea: { code: string; name: string };
+  officer: { id: string; displayName: string; phone: string | null; beatNote: string | null } | null;
+  from: string;
+  to: string;
+  incidents: { received: number; open: number; resolved: number };
+  sosReceived: number;
+  incidentRating: RatingSummary;
+  sosRating: RatingSummary;
 }
 
 export interface OfficerNotification {
