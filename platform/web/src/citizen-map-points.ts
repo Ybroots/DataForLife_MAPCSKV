@@ -95,7 +95,9 @@ export function buildCitizenMapPoints(area: AreaLookup | null): CitizenMapPoint[
   const contacts = officers.length ? officers : withPhone;
   const points: CitizenMapPoint[] = [];
   area.serviceAreas.forEach((zone, index) => {
-    const contact = contacts.length ? contacts[index % contacts.length] : null;
+    // Ưu tiên cán bộ được phân công đúng khu vực này (cùng nguồn với tài khoản cán bộ); chưa có phân công thì xoay vòng như trước.
+    const assigned = contacts.find((entry) => entry.serviceAreaName && entry.serviceAreaName === zone.name);
+    const contact = assigned ?? (contacts.length ? contacts[index % contacts.length] : null);
     points.push({
       id: `officer:${zone.code}`, kind: 'officer', serviceAreaCode: zone.code,
       name: `CSKV ${officers.length && contact ? contact.displayName : demoOfficerName(area.code, index)} · ${zoneLongLabel(zone)}`,

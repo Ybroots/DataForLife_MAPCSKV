@@ -65,6 +65,18 @@ describe('điểm CSKV trình diễn trên bản đồ', () => {
     expect(onlyLead.every((p) => p.phone === '0900 000 999')).toBe(true);
   });
 
+  it('pin của khu hiện đúng cán bộ được phân công cho khu đó, không theo thứ tự danh bạ', () => {
+    const zones = [zone('XH-P1', 108.4, '1', 'Khu vực Phường 1'), zone('XH-P4', 108.42, '4', 'Khu vực Phường 4')];
+    const assigned = [
+      { ...officers[0]!, displayName: 'CSKV Bốn', phone: '0900 000 004', serviceAreaName: 'Khu vực Phường 4' },
+      { ...officers[1]!, displayName: 'CSKV Một', phone: '0900 000 001', serviceAreaName: 'Khu vực Phường 1' },
+    ];
+    const points = buildCitizenMapPoints(area('24781', zones, assigned));
+    const officerOf = (code: string) => points.find((p) => p.kind === 'officer' && p.serviceAreaCode === code);
+    expect(officerOf('XH-P1')).toMatchObject({ name: expect.stringContaining('CSKV Một'), phone: '0900 000 001' });
+    expect(officerOf('XH-P4')).toMatchObject({ name: expect.stringContaining('CSKV Bốn'), phone: '0900 000 004' });
+  });
+
   it('nhãn khu vực: phường cũ và khu chia minh họa phân biệt được', () => {
     expect(zoneBadgeLabel({ code: 'XH-P10', legacyWardCode: '10' })).toBe('P.10');
     expect(zoneBadgeLabel({ code: 'XT-K3', legacyWardCode: null })).toBe('K3');
