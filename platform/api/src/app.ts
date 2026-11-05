@@ -24,6 +24,12 @@ export async function buildApp(
   },
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 30 * 1024 * 1024, trustProxy: '127.0.0.1' });
+  // Yêu cầu POST không có nội dung nhưng vẫn gắn "Content-Type: application/json" (như nút Gỡ cảnh báo của bản app đã cài) được coi là không có thân thay vì bị từ chối 400.
+  const parseJsonBody = app.getDefaultJsonParser('error', 'error');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    if (typeof body === 'string' && body.trim() === '') { done(null, undefined); return; }
+    parseJsonBody(request, body as string, done);
+  });
   await app.register(cors, { origin: options.corsOrigin, credentials: true });
   registerMapAssistant(app, repository, options.assistantPlanner, options.assistantDailyLimit);
 

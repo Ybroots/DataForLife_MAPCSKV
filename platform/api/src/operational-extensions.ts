@@ -52,7 +52,7 @@ export class OperationalExtensionsStore {
     actorId: string,
     input: Omit<PublicAlertResponse, 'id' | 'areaCode' | 'status' | 'createdAt'>,
   ): Promise<PublicAlertResponse> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     if (input.latitude !== null && input.longitude !== null) {
       const inside = await this.pool.query(
         `SELECT 1 FROM boundaries b WHERE b.locality_id=$1 AND ST_Covers(b.geom,ST_SetSRID(ST_Point($3,$2),4326)) LIMIT 1`,
@@ -80,7 +80,7 @@ export class OperationalExtensionsStore {
   }
 
   async updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const current = await this.pool.query(
       `SELECT starts_at, ends_at FROM public_alerts WHERE id = $1 AND locality_id = $2 AND status = 'published'`,
       [id, actor.locality_id],
@@ -117,7 +117,7 @@ export class OperationalExtensionsStore {
   }
 
   async cancelPublicAlert(actorId: string, id: string): Promise<void> {
-    const actor = await this.requireActor(actorId);
+    const actor = await this.requireActor(actorId, true);
     const result = await this.pool.query(
       `UPDATE public_alerts SET status = 'cancelled', updated_at = now(), updated_by = $3
        WHERE id = $1 AND locality_id = $2 AND status = 'published'`,

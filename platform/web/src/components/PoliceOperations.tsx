@@ -45,17 +45,17 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
   const activeAlerts = useMemo(() => (serviceAreaCode ? (zoneBoundary ? filterPointsInZone(allAlerts, zoneBoundary) : []) : allAlerts), [allAlerts, serviceAreaCode, zoneBoundary]);
 
   const loadAlerts = useCallback(async () => {
-    if (commander || !localityCode) return;
+    if (!localityCode) return;
     try { setActiveAlerts(await listPublicAlerts(localityCode)); } catch (error) { setNotice(errorText(error)); }
-  }, [commander, localityCode]);
+  }, [localityCode]);
 
   useEffect(() => { if (tab === 'alerts') void loadAlerts(); }, [tab, loadAlerts]);
 
   // Bấm "Sửa cảnh báo" trên bản đồ: mở tab Cảnh báo ở chế độ sửa.
   useEffect(() => {
-    if (!editRequest || commander) return;
+    if (!editRequest) return;
     setTab('alerts'); setEditingAlert(editRequest.alert); setPickerKey((key) => key + 1); setNotice('');
-  }, [editRequest, commander]);
+  }, [editRequest]);
 
   // Chỉ huy bấm một khu trên bản đồ: mở tab Khu vực.
   useEffect(() => {
@@ -115,9 +115,9 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
       <div className="operations-tabs" role="tablist" aria-label="Nhóm chức năng">
         {commander && <button role="tab" aria-selected={tab === 'areas'} className={tab === 'areas' ? 'active' : ''} onClick={() => setTab('areas')}><UserRoundCheck size={18} /> Khu vực</button>}
         <button role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'active' : ''} onClick={() => setTab('reports')}><BarChart3 size={18} /> Báo cáo</button>
+        {!commander && <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>}
+        <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
         {!commander && <>
-          <button role="tab" aria-selected={tab === 'mapdata'} className={tab === 'mapdata' ? 'active' : ''} onClick={() => setTab('mapdata')}><Database size={18} /> Bản đồ</button>
-          <button role="tab" aria-selected={tab === 'alerts'} className={tab === 'alerts' ? 'active' : ''} onClick={() => setTab('alerts')}><BellRing size={18} /> Cảnh báo</button>
           <button role="tab" aria-selected={tab === 'roadmap'} className={tab === 'roadmap' ? 'active' : ''} onClick={() => setTab('roadmap')}><RadioTower size={18} /> Sắp có</button>
         </>}
       </div>

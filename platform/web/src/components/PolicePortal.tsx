@@ -600,7 +600,7 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                 onOpenCase={selectItem}
                 areaOfficers={commander ? areaOfficers : undefined}
                 onOpenOfficer={commander ? (areaCode) => { setAreaFocus((previous) => ({ areaCode, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); } : undefined}
-                onEditAlert={commander ? undefined : (alert) => { setAlertEdit((previous) => ({ alert, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); }}
+                onEditAlert={(alert) => { setAlertEdit((previous) => ({ alert, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); }}
               />
             </Suspense>
           </section>

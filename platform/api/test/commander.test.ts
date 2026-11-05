@@ -222,15 +222,29 @@ describe('officer edits and removes a public alert', () => {
     expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === alert.id)).toBe(false);
   });
 
-  it('rejects an empty or invalid edit, and the commander cannot edit or remove', async () => {
+  it('removes an alert when the app posts with a JSON content-type but no body', async () => {
+    const a = await newApp();
+    const id = (await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: alertBody })).json().data.id as string;
+    const removed = await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: { ...officer, 'content-type': 'application/json' } });
+    expect(removed.statusCode).toBe(204);
+    const broken = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: { ...officer, 'content-type': 'application/json' }, payload: '{khong-phai-json' });
+    expect(broken.statusCode).toBe(400);
+  });
+
+  it('rejects an empty or invalid edit, and the commander can edit and remove', async () => {
     const a = await newApp();
     const id = (await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: officer, payload: alertBody })).json().data.id as string;
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: {} })).statusCode).toBe(400);
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { title: 'ngắn' } })).statusCode).toBe(400);
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { latitude: 11.9 } })).statusCode).toBe(400);
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: officer, payload: { endsAt: new Date(now - 3_600_000).toISOString() } })).statusCode).toBe(400);
-    expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: commander, payload: { title: 'Chỉ huy sửa cảnh báo' } })).statusCode).toBe(403);
-    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: commander })).statusCode).toBe(403);
+    const edited = await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, headers: commander, payload: { title: 'Chỉ huy sửa cảnh báo' } });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().data.title).toBe('Chỉ huy sửa cảnh báo');
+    expect((await a.inject({ method: 'POST', url: `/v1/officer/alerts/${id}/cancel`, headers: commander })).statusCode).toBe(204);
+    expect((await a.inject({ method: 'GET', url: '/v1/public/alerts' })).json().data.some((item: { id: string }) => item.id === id)).toBe(false);
+    const published = await a.inject({ method: 'POST', url: '/v1/officer/alerts', headers: commander, payload: alertBody });
+    expect(published.statusCode).toBe(201);
     expect((await a.inject({ method: 'PATCH', url: `/v1/officer/alerts/${id}`, payload: { title: 'Không đăng nhập' } })).statusCode).toBe(401);
   });
 });

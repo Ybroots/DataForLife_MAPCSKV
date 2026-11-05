@@ -619,14 +619,14 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async createPublicAlert(actorId: string, input: Omit<PublicAlertResponse, 'id' | 'areaCode' | 'status' | 'createdAt'>): Promise<PublicAlertResponse> {
-    const actor = this.requireActor(actorId);
+    const actor = this.requireActor(actorId, true);
     const alert: PublicAlertResponse = { ...input, id: randomUUID(), areaCode: actor.localityCode ?? demoArea.code, status: 'published', createdAt: new Date().toISOString() };
     this.alerts.unshift(alert);
     return structuredClone(alert);
   }
 
   async updatePublicAlert(actorId: string, id: string, input: UpdatePublicAlertInput): Promise<PublicAlertResponse> {
-    const actor = this.requireActor(actorId);
+    const actor = this.requireActor(actorId, true);
     const alert = this.alerts.find((item) => item.id === id && item.status === 'published' && item.areaCode === (actor.localityCode ?? demoArea.code));
     if (!alert) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
     const startsAt = input.startsAt ?? alert.startsAt;
@@ -641,7 +641,7 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
   }
 
   async cancelPublicAlert(actorId: string, id: string): Promise<void> {
-    const actor = this.requireActor(actorId);
+    const actor = this.requireActor(actorId, true);
     const alert = this.alerts.find((item) => item.id === id && item.status === 'published' && item.areaCode === (actor.localityCode ?? demoArea.code));
     if (!alert) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cảnh báo đang hiển thị.');
     alert.status = 'cancelled';

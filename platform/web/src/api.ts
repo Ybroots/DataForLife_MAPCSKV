@@ -495,7 +495,7 @@ export async function updatePublicAlert(id: string, changes: PublicAlertChanges)
 
 /** Gỡ cảnh báo đang hiển thị: người dân không còn thấy trên bản đồ. */
 export async function cancelPublicAlert(id: string): Promise<void> {
-  await request<void>(`/v1/officer/alerts/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: officerHeaders() });
+  await request<void>(`/v1/officer/alerts/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
 }
 
 export async function getOfficerStatistics(period: StatisticsPeriod, date: string): Promise<OfficerStatistics> {
@@ -594,7 +594,7 @@ export async function getAssigneeSuggestion(id: string): Promise<AssigneeSuggest
 
 export async function draftIncidentReply(id: string): Promise<IncidentReplyDraft> {
   return (await request<{ data: IncidentReplyDraft }>(`/v1/officer/incidents/${encodeURIComponent(id)}/reply-draft`, {
-    method: 'POST', headers: officerHeaders(),
+    method: 'POST',
   })).data;
 }
 

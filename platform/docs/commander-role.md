@@ -70,3 +70,7 @@ Việc đổi phân công (ví dụ chuyển Cao Đức Thanh sang P.1, Vũ Tu�
 - **Theo khu vực** và **theo cán bộ** (hồ sơ được giao cho từng người), **giờ cao điểm** và **theo thứ trong tuần** (giờ Việt Nam).
 
 File CSV và bản in/PDF của chỉ huy có thêm các bảng này. Mốc "phản hồi" của phản ánh là lần đầu cán bộ hoặc chỉ huy đổi trạng thái; của SOS là `acknowledged_at`. SOS người dân đã hủy không được tính.
+
+## Chỉ huy và cảnh báo công khai
+
+Ngoài quản lý tài khoản cán bộ, chỉ huy được **phát hành, sửa và gỡ cảnh báo công khai** của cả phường (tab Cảnh báo, và nút Sửa/Gỡ trên bản đồ trực ban). Cảnh báo là thông tin công khai chứ không phải hồ sơ nên không nằm trong giới hạn "chỉ xem". Việc tiếp nhận, phân công, nhắn tin và chuyển trạng thái phản ánh/SOS vẫn chỉ do cán bộ khu vực làm.

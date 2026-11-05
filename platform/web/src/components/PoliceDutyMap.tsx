@@ -16,7 +16,7 @@ interface PoliceDutyMapProps {
   queue: OfficerQueueItem[];
   onBackToQueue: () => void;
   onOpenCase: (item: OfficerQueueItem) => void;
-  /** Có mặt khi cán bộ được sửa/gỡ cảnh báo; chỉ huy không truyền nên chỉ xem. */
+  /** Bấm "Sửa cảnh báo" trên bản đồ: chuyển sang tab Cảnh báo ở chế độ sửa. */
   onEditAlert?: (alert: PublicAlert) => void;
   /** Chỉ chỉ huy truyền: cán bộ phụ trách từng khu (theo mã khu) để bấm vào khu thì xem được ai phụ trách. */
   areaOfficers?: Record<string, AreaOfficerBrief[]>;
