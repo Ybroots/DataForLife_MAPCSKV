@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, Printer, RefreshCw, Siren, Sparkles, Star } from 'lucide-react';
-import { ApiError, getAiStatus, getOfficerStatistics, listOfficerReportCases, summarizeReportWithAi } from '../api';
-import type { OfficerReportCase, OfficerStatistics, ReportSummary, StatisticsPeriod } from '../types';
+import { ApiError, getAiStatus, getCommanderReport, getOfficerStatistics, listOfficerReportCases, summarizeReportWithAi } from '../api';
+import type { CommanderReport, OfficerReportCase, OfficerStatistics, ReportSummary, StatisticsPeriod } from '../types';
 import { buildReportCsv, downloadTextFile, reportFileName } from '../report-export';
 import { PrintableReport } from './PrintableReport';
 import { OfficerKpiTable } from './OfficerKpiTable';
+import { CommanderReportSections } from './CommanderReportSections';
 
 const periodLabels: Record<StatisticsPeriod, string> = { day: 'Ngày', month: 'Tháng', year: 'Năm' };
 const categoryLabels: Record<string, string> = {
@@ -17,7 +18,7 @@ function todayVietnam(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 }
 
-export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { unitName?: string }) {
+export function OfficerStatisticsPanel({ unitName = 'Công an khu vực', commander = false }: { unitName?: string; commander?: boolean }) {
   const [period, setPeriod] = useState<StatisticsPeriod>('day');
   const [date, setDate] = useState(todayVietnam);
   const [data, setData] = useState<OfficerStatistics | null>(null);
@@ -29,6 +30,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
   const [aiReady, setAiReady] = useState(false);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [summarizing, setSummarizing] = useState(false);
+  const [commanderData, setCommanderData] = useState<CommanderReport | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,7 +57,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
     setExporting('csv'); setError('');
     try {
       const cases = await listOfficerReportCases(period, date);
-      downloadTextFile(reportFileName(data), buildReportCsv(data, cases, unitName));
+      downloadTextFile(reportFileName(data), buildReportCsv(data, cases, unitName, commanderData ?? undefined));
     } catch (caught) { setError(caught instanceof ApiError ? caught.message : 'Không xuất được báo cáo.'); } finally { setExporting(null); }
   };
 
@@ -79,6 +81,16 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
     return () => { cancelled = true; };
   }, [date, period, reloadKey]);
 
+  useEffect(() => {
+    if (!commander) return undefined;
+    let cancelled = false;
+    setCommanderData(null);
+    getCommanderReport(period, date)
+      .then((value) => { if (!cancelled) setCommanderData(value); })
+      .catch((caught) => { if (!cancelled) setError(caught instanceof ApiError ? caught.message : 'Không tải được báo cáo chi tiết của chỉ huy.'); });
+    return () => { cancelled = true; };
+  }, [commander, date, period, reloadKey]);
+
   const maxTrend = useMemo(() => Math.max(1, ...(data?.trend.map((item) => item.incidents + item.sos) ?? [1])), [data]);
 
   return <div className="statistics-panel">
@@ -96,7 +108,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
         <button type="button" onClick={() => void printReport()} disabled={!data || loading || exporting !== null}><Printer size={16} aria-hidden="true" /> {exporting === 'print' ? 'Đang chuẩn bị…' : 'In / lưu PDF'}</button>
       </div>}
     </div>
-    {data && printCases && <PrintableReport stats={data} cases={printCases} unitName={unitName} />}
+    {data && printCases && <PrintableReport stats={data} cases={printCases} unitName={unitName} commander={commanderData ?? undefined} />}
     {loading && <p className="workflow-empty"><RefreshCw className="spin" size={18} /> Đang tổng hợp số liệu…</p>}
     {error && <p className="inline-notice error" role="alert">{error}</p>}
     {data && !loading && <>
@@ -108,6 +120,7 @@ export function OfficerStatisticsPanel({ unitName = 'Công an khu vực' }: { un
         <article className={data.totals.overdue ? 'warning' : ''}><AlertTriangle /><span>Quá SLA</span><strong>{data.totals.overdue}</strong></article>
         <article><Star /><span>Hài lòng</span><strong>{data.totals.averageRating === null ? '—' : `${data.totals.averageRating}/5`}</strong><small>{data.totals.ratingCount} đánh giá</small></article>
       </div>
+      {commander && (commanderData ? <CommanderReportSections report={commanderData} /> : <p className="workflow-empty"><RefreshCw className="spin" size={18} /> Đang tổng hợp báo cáo chi tiết…</p>)}
       {aiReady && <section className="statistics-ai" aria-labelledby="statistics-ai-title">
         <header>
           <h4 id="statistics-ai-title">Nhận xét tổng hợp</h4>

@@ -366,6 +366,92 @@ export interface WorkflowActorResponse {
   beatNote: string | null;
 }
 
+/** Số liệu tổng hợp của một kỳ trong báo cáo chỉ huy (phản ánh và SOS; không tính SOS người dân đã hủy). */
+export interface CommanderReportTotals {
+  incidents: number;
+  sos: number;
+  resolved: number;
+  /** Hồ sơ của kỳ hiện vẫn chưa kết thúc. */
+  open: number;
+  /** Trong số đang mở: phản ánh quá 15 phút, SOS quá 5 phút kể từ lúc gửi. */
+  overdue: number;
+  firstResponseMinutes: number | null;
+  sosAcknowledgeMinutes: number | null;
+  resolutionMinutes: number | null;
+  /** Tỷ lệ hồ sơ đã có cán bộ phản hồi (0–1). */
+  respondedRate: number | null;
+  sosUnacknowledged: number;
+  sosEscalated: number;
+  /** Hồ sơ chưa xác định được khu vực phụ trách. */
+  unrouted: number;
+  averageRating: number | null;
+  ratingCount: number;
+}
+
+export interface CommanderReportAreaRow {
+  code: string;
+  name: string;
+  officers: Array<{ id: string; displayName: string }>;
+  incidents: number;
+  sos: number;
+  resolved: number;
+  open: number;
+  overdue: number;
+  firstResponseMinutes: number | null;
+  sosAcknowledgeMinutes: number | null;
+  resolutionMinutes: number | null;
+  averageRating: number | null;
+  ratingCount: number;
+  lowRatings: number;
+}
+
+export interface CommanderReportOfficerRow {
+  id: string;
+  displayName: string;
+  areaName: string | null;
+  incidents: number;
+  sos: number;
+  resolved: number;
+  open: number;
+  overdue: number;
+  firstResponseMinutes: number | null;
+  resolutionMinutes: number | null;
+  averageRating: number | null;
+  ratingCount: number;
+  lowRatings: number;
+}
+
+/** Hồ sơ đang mở đã quá hạn phản hồi tại thời điểm xem, cũ nhất trước. */
+export interface CommanderReportAttentionRow {
+  kind: 'incident' | 'sos';
+  id: string;
+  receiptCode: string;
+  status: string;
+  title: string;
+  areaName: string | null;
+  officerName: string | null;
+  createdAt: string;
+  ageMinutes: number;
+}
+
+export interface CommanderReportResponse {
+  period: StatisticsPeriod;
+  anchorDate: string;
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  current: CommanderReportTotals;
+  previous: CommanderReportTotals;
+  areas: CommanderReportAreaRow[];
+  officers: CommanderReportOfficerRow[];
+  /** Số hồ sơ theo giờ trong ngày (0–23, giờ Việt Nam). */
+  hourly: number[];
+  /** Số hồ sơ theo thứ: chỉ số 0 = thứ hai … 6 = chủ nhật. */
+  weekdays: number[];
+  attention: CommanderReportAttentionRow[];
+}
+
 /** Một khu vực và cán bộ CSKV phụ trách, kèm đánh giá của người dân trong kỳ (chỉ huy xem). */
 export interface AreaOfficerOverviewResponse {
   serviceArea: { code: string; name: string };
@@ -657,6 +743,8 @@ export interface DirectoryRepository {
   ): Promise<SosResponse>;
   listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]>;
   listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]>;
+  /** Chỉ chỉ huy: báo cáo chi tiết theo khu vực, cán bộ, giờ cao điểm và so với kỳ trước. */
+  getCommanderReport(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<CommanderReportResponse>;
   /** Chỉ chỉ huy: danh sách, sửa, đặt mật khẩu cho cán bộ cùng phường. `reservedUsernames`: tên đã dùng bởi tài khoản cấu hình ở máy chủ. */
   listManagedOfficers(actorId: string): Promise<ManagedOfficerResponse[]>;
   updateManagedOfficer(actorId: string, targetId: string, input: UpdateManagedOfficerInput, reservedUsernames?: readonly string[]): Promise<UpdateManagedOfficerResult>;

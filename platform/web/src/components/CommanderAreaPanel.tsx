@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapPin, Phone, RefreshCw, Star, UserRoundCheck } from 'lucide-react';
 import { ApiError, getAreaOfficerOverview } from '../api';
 import { CommanderOfficerAccounts } from './CommanderOfficerAccounts';
@@ -47,12 +47,25 @@ function ReviewList({ reviews }: { reviews: OfficerReview[] }) {
 }
 
 /** Chỉ huy xem từng khu vực của phường: cán bộ phụ trách, khối lượng hồ sơ và đánh giá của người dân. Xem là chính; phần “Tài khoản cán bộ” bên dưới là quyền quản lý tài khoản, không phải xử lý hồ sơ. */
-export function CommanderAreaPanel() {
+export function CommanderAreaPanel({ focus = null }: { focus?: { areaCode: string; nonce: number } | null }) {
   const [period, setPeriod] = useState<StatisticsPeriod>('month');
   const [date, setDate] = useState(todayVietnam);
   const [rows, setRows] = useState<AreaOfficerOverview[] | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [highlightCode, setHighlightCode] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  // Từ bản đồ bấm "Xem thông tin cán bộ": cuộn tới thẻ của khu đó và làm nổi bật trong chốc lát.
+  useEffect(() => {
+    if (!focus || rows === null) return;
+    const card = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-area-code]') ?? []).find((element) => element.dataset.areaCode === focus.areaCode);
+    if (!card) return;
+    card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setHighlightCode(focus.areaCode);
+    const timer = window.setTimeout(() => setHighlightCode(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [focus, rows]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,10 +88,10 @@ export function CommanderAreaPanel() {
     {error && <p className="ops-error" role="alert">{error}</p>}
     {!error && rows === null && <p className="workflow-empty" role="status">Đang tải…</p>}
     {rows !== null && rows.length === 0 && <p className="workflow-empty">Chưa có khu vực nào được cấu hình cho phường.</p>}
-    <div className="area-officer-list">
+    <div className="area-officer-list" ref={listRef}>
       {rows?.map((row) => {
         const rating = row.incidentRating;
-        return <article className="area-officer-card" key={`${row.serviceArea.code}:${row.officer?.id ?? 'none'}`}>
+        return <article className={highlightCode === row.serviceArea.code ? 'area-officer-card focused' : 'area-officer-card'} data-area-code={row.serviceArea.code} key={`${row.serviceArea.code}:${row.officer?.id ?? 'none'}`}>
           <header>
             <span className="area-name"><MapPin size={16} aria-hidden="true" />{row.serviceArea.name}</span>
             {row.officer ? <strong>{row.officer.displayName}</strong> : <strong className="area-unassigned">Chưa có cán bộ phụ trách</strong>}

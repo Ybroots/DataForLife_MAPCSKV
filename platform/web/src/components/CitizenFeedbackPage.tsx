@@ -148,7 +148,7 @@ export function CitizenFeedbackPage({ isAuthenticated, onRequireLogin }: Citizen
 
       <section className="feature-section form-section" aria-labelledby="app-rating-title">
         <h2 id="app-rating-title"><Smartphone size={20} aria-hidden="true" /> Đánh giá ứng dụng</h2>
-        {appRating && <p className="section-lead">{`Bạn đã chấm ${appRating.score}/5. Có thể chấm lại bất cứ lúc nào.`}</p>}
+        {appRating && <p className="section-lead">{`Bạn đã chấm ${appRating.score}/5.`}</p>}
         <form key={appFormKey} onSubmit={submitApp}>
           <RatingOptions name="app-rating" legend="Điểm cho ứng dụng" defaultScore={appRating?.score} />
           <label>Điều cần cải thiện

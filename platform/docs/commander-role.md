@@ -59,3 +59,14 @@ API (đều cần phiên chỉ huy):
 - `POST /v1/commander/officers/:id/password`: thân `{ password }` hoặc `{ generate: true }`; kết quả có `generatedPassword` khi tạo tự động.
 
 Việc đổi phân công (ví dụ chuyển Cao Đức Thanh sang P.1, Vũ Tuấn Huy sang P.4) làm trên giao diện bằng “Đổi khu vực”; không cần migration đổi cứng.
+
+## Báo cáo thống kê của chỉ huy
+
+`GET /v1/commander/report?period=day|month|year&date=YYYY-MM-DD` (chỉ chỉ huy, chỉ đọc, không cần migration). Màn Báo cáo của chỉ huy hiển thị thêm các phần sau ngoài báo cáo chung của địa bàn:
+
+- **So với kỳ trước**: phản ánh, SOS, đã xử lý, tỷ lệ được phản hồi, thời gian phản hồi/xác nhận SOS/xử lý trung bình, điểm hài lòng. Kỳ trước là ngày hôm trước, tháng trước hoặc năm trước.
+- **Cần chú ý**: SOS chưa có người xác nhận, SOS chuyển tuyến, hồ sơ quá hạn, khu vực chưa có cán bộ, hồ sơ chưa xác định khu vực, cán bộ bị đánh giá từ 2 sao trở xuống.
+- **Hồ sơ chờ tiếp nhận quá hạn**: phản ánh chưa tiếp nhận quá 15 phút, SOS chưa xác nhận quá 5 phút (tại thời điểm xem, 10 hồ sơ cũ nhất).
+- **Theo khu vực** và **theo cán bộ** (hồ sơ được giao cho từng người), **giờ cao điểm** và **theo thứ trong tuần** (giờ Việt Nam).
+
+File CSV và bản in/PDF của chỉ huy có thêm các bảng này. Mốc "phản hồi" của phản ánh là lần đầu cán bộ hoặc chỉ huy đổi trạng thái; của SOS là `acknowledged_at`. SOS người dân đã hủy không được tính.

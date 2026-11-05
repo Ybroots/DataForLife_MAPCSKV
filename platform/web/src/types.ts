@@ -273,6 +273,85 @@ export interface OfficerStatistics {
   kpis?: OfficerKpis;
 }
 
+/** Báo cáo chi tiết của chỉ huy: tổng quan so với kỳ trước, theo khu vực, theo cán bộ, giờ cao điểm. */
+export interface CommanderReportTotals {
+  incidents: number;
+  sos: number;
+  resolved: number;
+  open: number;
+  overdue: number;
+  firstResponseMinutes: number | null;
+  sosAcknowledgeMinutes: number | null;
+  resolutionMinutes: number | null;
+  respondedRate: number | null;
+  sosUnacknowledged: number;
+  sosEscalated: number;
+  unrouted: number;
+  averageRating: number | null;
+  ratingCount: number;
+}
+
+export interface CommanderReportAreaRow {
+  code: string;
+  name: string;
+  officers: Array<{ id: string; displayName: string }>;
+  incidents: number;
+  sos: number;
+  resolved: number;
+  open: number;
+  overdue: number;
+  firstResponseMinutes: number | null;
+  sosAcknowledgeMinutes: number | null;
+  resolutionMinutes: number | null;
+  averageRating: number | null;
+  ratingCount: number;
+  lowRatings: number;
+}
+
+export interface CommanderReportOfficerRow {
+  id: string;
+  displayName: string;
+  areaName: string | null;
+  incidents: number;
+  sos: number;
+  resolved: number;
+  open: number;
+  overdue: number;
+  firstResponseMinutes: number | null;
+  resolutionMinutes: number | null;
+  averageRating: number | null;
+  ratingCount: number;
+  lowRatings: number;
+}
+
+export interface CommanderReportAttentionRow {
+  kind: 'incident' | 'sos';
+  id: string;
+  receiptCode: string;
+  status: string;
+  title: string;
+  areaName: string | null;
+  officerName: string | null;
+  createdAt: string;
+  ageMinutes: number;
+}
+
+export interface CommanderReport {
+  period: StatisticsPeriod;
+  anchorDate: string;
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  current: CommanderReportTotals;
+  previous: CommanderReportTotals;
+  areas: CommanderReportAreaRow[];
+  officers: CommanderReportOfficerRow[];
+  hourly: number[];
+  weekdays: number[];
+  attention: CommanderReportAttentionRow[];
+}
+
 export interface OperationalMapPoint {
   id: string;
   localityCode: string;

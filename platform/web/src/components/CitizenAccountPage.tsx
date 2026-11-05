@@ -74,7 +74,6 @@ function RecoveryCodeSection() {
     {code
       ? <RecoveryCodeNotice code={code} heading="Mã khôi phục mới của bạn" intro="Mã cũ (nếu có) không còn dùng được. Hãy lưu mã mới trước khi đóng." doneLabel="Xong, ẩn mã" onDone={() => setCode(null)} />
       : <form onSubmit={(event) => void submit(event)}>
-        <p className="recovery-lead">Nhập mật khẩu hiện tại để tạo mã mới (mã cũ hết hiệu lực).</p>
         <label>Mật khẩu hiện tại<input name="currentPassword" type="password" autoComplete="current-password" required minLength={8} /></label>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? 'Đang tạo…' : 'Tạo mã khôi phục'}</button>

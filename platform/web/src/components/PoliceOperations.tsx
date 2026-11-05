@@ -23,7 +23,7 @@ function errorText(error: unknown): string {
 }
 
 /** commander: chỉ huy xem khu vực và báo cáo, không có nghiệp vụ ghi (cảnh báo, tuần tra, cuối ca, bản đồ, tài khoản dân). */
-export function PoliceOperations({ localityCode, serviceAreaCode = null, unitName, commander = false, editRequest = null }: { localityCode: string | null; serviceAreaCode?: string | null; unitName?: string; commander?: boolean; editRequest?: { alert: PublicAlert; nonce: number } | null }) {
+export function PoliceOperations({ localityCode, serviceAreaCode = null, unitName, commander = false, editRequest = null, areaFocus = null }: { localityCode: string | null; serviceAreaCode?: string | null; unitName?: string; commander?: boolean; editRequest?: { alert: PublicAlert; nonce: number } | null; areaFocus?: { areaCode: string; nonce: number } | null }) {
   const [tab, setTab] = useState<Tab>(commander ? 'areas' : 'reports');
   const [alertPoint, setAlertPoint] = useState<AlertPoint | null>(null);
   const [allAlerts, setActiveAlerts] = useState<PublicAlert[]>([]);
@@ -56,6 +56,11 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
     if (!editRequest || commander) return;
     setTab('alerts'); setEditingAlert(editRequest.alert); setPickerKey((key) => key + 1); setNotice('');
   }, [editRequest, commander]);
+
+  // Chỉ huy bấm một khu trên bản đồ: mở tab Khu vực.
+  useEffect(() => {
+    if (areaFocus && commander) setTab('areas');
+  }, [areaFocus, commander]);
 
   const startEdit = (alert: PublicAlert) => { setEditingAlert(alert); setAlertPoint(null); setPickerKey((key) => key + 1); setNotice(''); };
   const stopEdit = () => { setEditingAlert(null); setAlertPoint(null); setPickerKey((key) => key + 1); };
@@ -117,8 +122,8 @@ export function PoliceOperations({ localityCode, serviceAreaCode = null, unitNam
         </>}
       </div>
 
-      {tab === 'areas' && commander && <CommanderAreaPanel />}
-      {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} />}
+      {tab === 'areas' && commander && <CommanderAreaPanel focus={areaFocus} />}
+      {tab === 'reports' && <OfficerStatisticsPanel unitName={unitName} commander={commander} />}
       {tab === 'mapdata' && <OfficerMapDataManager zoneBoundary={serviceAreaCode ? zoneBoundary : null} />}
 
       {tab === 'alerts' && <div className="operations-stack">

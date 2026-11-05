@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BellRing, FileWarning, LocateFixed, MapPinned, Siren } from 'lucide-react';
+import { ArrowLeft, BellRing, FileWarning, LocateFixed, MapPinned, Phone, Siren, UserRoundCheck, X } from 'lucide-react';
 import * as maplibregl from '../maplibre-runtime';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -18,6 +18,15 @@ interface PoliceDutyMapProps {
   onOpenCase: (item: OfficerQueueItem) => void;
   /** Có mặt khi cán bộ được sửa/gỡ cảnh báo; chỉ huy không truyền nên chỉ xem. */
   onEditAlert?: (alert: PublicAlert) => void;
+  /** Chỉ chỉ huy truyền: cán bộ phụ trách từng khu (theo mã khu) để bấm vào khu thì xem được ai phụ trách. */
+  areaOfficers?: Record<string, AreaOfficerBrief[]>;
+  onOpenOfficer?: (areaCode: string) => void;
+}
+
+export interface AreaOfficerBrief {
+  id: string;
+  displayName: string;
+  phone: string | null;
 }
 
 type WorkDetail = Incident | SosEvent;
@@ -134,7 +143,7 @@ function popupContent(point: DutyPoint, onOpenCase: (item: OfficerQueueItem) => 
   return content;
 }
 
-export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, queue, onBackToQueue, onOpenCase, onEditAlert }: PoliceDutyMapProps) {
+export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, queue, onBackToQueue, onOpenCase, onEditAlert, areaOfficers, onOpenOfficer }: PoliceDutyMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -144,6 +153,12 @@ export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, qu
   const onOpenCaseRef = useRef(onOpenCase);
   const onEditAlertRef = useRef(onEditAlert);
   onEditAlertRef.current = onEditAlert;
+  const pickableAreas = Boolean(onOpenOfficer);
+  const pickableRef = useRef(pickableAreas);
+  pickableRef.current = pickableAreas;
+  const [pickedAreaCode, setPickedAreaCode] = useState<string | null>(null);
+  const pickAreaRef = useRef<(code: string) => void>(() => undefined);
+  pickAreaRef.current = (code) => setPickedAreaCode((current) => (current === code ? null : code));
   const [mapReady, setMapReady] = useState(false);
   const [area, setArea] = useState<AreaLookup | null>(null);
   const [points, setPoints] = useState<DutyPoint[]>([]);
@@ -211,6 +226,12 @@ export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, qu
       );
       setMapReady(true);
     });
+    map.on('click', 'duty-service-fill', (event) => {
+      const code = event.features?.[0]?.properties?.code;
+      if (typeof code === 'string') pickAreaRef.current(code);
+    });
+    map.on('mouseenter', 'duty-service-fill', () => { if (pickableRef.current) map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'duty-service-fill', () => { map.getCanvas().style.cursor = ''; });
     map.on('moveend', () => setViewRevision((revision) => revision + 1));
     map.on('resize', () => setViewRevision((revision) => revision + 1));
     map.on('error', (event) => {
@@ -340,6 +361,15 @@ export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, qu
       label.textContent = serviceArea.legacyWardCode ? `P.${serviceArea.legacyWardCode}` : serviceArea.name;
       label.title = serviceArea.isDemo ? `${serviceArea.name} — ranh tái dựng chỉ dùng tham chiếu` : serviceArea.name;
       label.style.setProperty('--service-color', serviceArea.displayColor);
+      if (pickableRef.current) {
+        label.classList.add('pickable');
+        label.setAttribute('role', 'button');
+        label.tabIndex = 0;
+        label.addEventListener('click', (event) => { event.stopPropagation(); pickAreaRef.current(serviceArea.code); });
+        label.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pickAreaRef.current(serviceArea.code); }
+        });
+      }
       return new maplibregl.Marker({ element: label })
         .setLngLat([serviceArea.center.longitude, serviceArea.center.latitude])
         .addTo(map);
@@ -505,6 +535,9 @@ export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, qu
     });
   }, [mapReady, publicAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const pickedArea = pickedAreaCode ? area?.serviceAreas.find((serviceArea) => serviceArea.code === pickedAreaCode) ?? null : null;
+  const pickedOfficers = pickedAreaCode ? areaOfficers?.[pickedAreaCode] ?? [] : [];
+
   const sosCount = points.filter((point) => point.item.kind === 'sos').length;
   const incidentCount = points.length - sosCount;
   const referenceAreaCount = area?.serviceAreas.filter((serviceArea) => serviceArea.isDemo).length ?? 0;
@@ -534,6 +567,28 @@ export function PoliceDutyMap({ active, localityCode, serviceAreaCode = null, qu
           {showCompleted ? 'Ẩn hồ sơ kết thúc' : 'Hiện hồ sơ kết thúc'}
         </button>
       </div>
+
+      {pickableAreas && pickedArea && (
+        <section className="duty-area-panel" aria-label={`Cán bộ phụ trách ${pickedArea.name}`} style={{ ['--service-color' as string]: pickedArea.displayColor }}>
+          <header>
+            <span className="duty-area-panel-title"><MapPinned size={16} aria-hidden="true" />{pickedArea.name}</span>
+            <button type="button" className="duty-area-panel-close" onClick={() => setPickedAreaCode(null)} aria-label="Đóng"><X size={17} aria-hidden="true" /></button>
+          </header>
+          {pickedOfficers.length === 0
+            ? <p className="duty-area-panel-empty">Chưa có cán bộ phụ trách</p>
+            : <ul>
+              {pickedOfficers.map((officer) => (
+                <li key={officer.id}>
+                  <strong>{officer.displayName}</strong>
+                  {officer.phone && <a href={`tel:${officer.phone}`} aria-label={`Gọi ${officer.displayName}`}><Phone size={15} aria-hidden="true" />{officer.phone}</a>}
+                </li>
+              ))}
+            </ul>}
+          <button type="button" className="duty-area-panel-open" onClick={() => onOpenOfficer?.(pickedArea.code)}>
+            <UserRoundCheck size={17} aria-hidden="true" />{pickedOfficers.length === 0 ? 'Xem khu vực' : 'Xem thông tin cán bộ'}
+          </button>
+        </section>
+      )}
 
       {(areaLoading || pointsLoading) && <div className="duty-map-loading"><span className="loader" /> {areaLoading ? 'Đang tải ranh địa bàn…' : 'Đang đồng bộ điểm nghiệp vụ…'}</div>}
       {error && <div className="duty-map-warning" role="status">{error}</div>}

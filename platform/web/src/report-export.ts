@@ -1,4 +1,5 @@
-import type { OfficerReportCase, OfficerStatistics, StatisticsPeriod } from './types';
+import type { CommanderReport, OfficerReportCase, OfficerStatistics, StatisticsPeriod } from './types';
+import { hourLabel, weekdayLabels } from './commander-report';
 
 export const periodTitles: Record<StatisticsPeriod, string> = { day: 'ngày', month: 'tháng', year: 'năm' };
 
@@ -45,8 +46,53 @@ export function reportRangeLabel(stats: OfficerStatistics): string {
   return from === last ? from : `${from} – ${last}`;
 }
 
-/** CSV có BOM UTF-8 để Excel mở đúng tiếng Việt. Gồm tổng hợp, nhóm vụ việc và danh sách hồ sơ chi tiết. */
-export function buildReportCsv(stats: OfficerStatistics, cases: OfficerReportCase[], unitName: string): string {
+/** Các phần riêng của báo cáo chỉ huy: so với kỳ trước, theo khu vực, theo cán bộ, giờ cao điểm. Số để dạng số (phút, sao) cho Excel tính được. */
+export function commanderCsvLines(report: CommanderReport): string[] {
+  const { current, previous } = report;
+  const percent = (value: number | null) => (value === null ? null : Math.round(value * 1000) / 10);
+  const lines: string[] = [];
+  lines.push(row(['SO VỚI KỲ TRƯỚC', 'Kỳ này', 'Kỳ trước']));
+  const pair = (label: string, pick: (totals: CommanderReport['current']) => number | null) => lines.push(row([label, pick(current), pick(previous)]));
+  pair('Phản ánh', (t) => t.incidents);
+  pair('SOS', (t) => t.sos);
+  pair('Đã xử lý', (t) => t.resolved);
+  pair('Đang mở', (t) => t.open);
+  pair('Quá hạn phản hồi', (t) => t.overdue);
+  pair('Tỷ lệ được phản hồi (%)', (t) => percent(t.respondedRate));
+  pair('Phản hồi phản ánh trung bình (phút)', (t) => t.firstResponseMinutes);
+  pair('Xác nhận SOS trung bình (phút)', (t) => t.sosAcknowledgeMinutes);
+  pair('Thời gian xử lý trung bình (phút)', (t) => t.resolutionMinutes);
+  pair('Điểm hài lòng trung bình', (t) => t.averageRating);
+  pair('Số lượt đánh giá', (t) => t.ratingCount);
+  pair('SOS chưa có người xác nhận', (t) => t.sosUnacknowledged);
+  pair('SOS đã chuyển tuyến', (t) => t.sosEscalated);
+  pair('Hồ sơ chưa xác định khu vực', (t) => t.unrouted);
+  lines.push('');
+  lines.push(row(['THEO KHU VỰC']));
+  lines.push(row(['Khu vực', 'Cán bộ phụ trách', 'Phản ánh', 'SOS', 'Đã xử lý', 'Đang mở', 'Quá hạn', 'Phản hồi TB (phút)', 'Xác nhận SOS TB (phút)', 'Xử lý TB (phút)', 'Hài lòng TB', 'Lượt đánh giá', 'Đánh giá từ 2 sao trở xuống']));
+  for (const area of report.areas) {
+    lines.push(row([area.name, area.officers.map((officer) => officer.displayName).join('; ') || 'Chưa có', area.incidents, area.sos, area.resolved, area.open, area.overdue,
+      area.firstResponseMinutes, area.sosAcknowledgeMinutes, area.resolutionMinutes, area.averageRating, area.ratingCount, area.lowRatings]));
+  }
+  lines.push('');
+  lines.push(row(['THEO CÁN BỘ']));
+  lines.push(row(['Cán bộ', 'Khu vực', 'Phản ánh', 'SOS', 'Đã xử lý', 'Đang mở', 'Quá hạn', 'Phản hồi TB (phút)', 'Xử lý TB (phút)', 'Hài lòng TB', 'Lượt đánh giá', 'Đánh giá từ 2 sao trở xuống']));
+  for (const officer of report.officers) {
+    lines.push(row([officer.displayName, officer.areaName ?? 'Toàn phường', officer.incidents, officer.sos, officer.resolved, officer.open, officer.overdue,
+      officer.firstResponseMinutes, officer.resolutionMinutes, officer.averageRating, officer.ratingCount, officer.lowRatings]));
+  }
+  lines.push('');
+  lines.push(row(['HỒ SƠ THEO GIỜ', 'Số hồ sơ']));
+  report.hourly.forEach((count, hour) => { if (count > 0) lines.push(row([hourLabel(hour), count])); });
+  lines.push('');
+  lines.push(row(['HỒ SƠ THEO THỨ', 'Số hồ sơ']));
+  report.weekdays.forEach((count, index) => lines.push(row([weekdayLabels[index], count])));
+  lines.push('');
+  return lines;
+}
+
+/** CSV có BOM UTF-8 để Excel mở đúng tiếng Việt. Gồm tổng hợp, nhóm vụ việc, phần của chỉ huy (nếu có) và danh sách hồ sơ chi tiết. */
+export function buildReportCsv(stats: OfficerStatistics, cases: OfficerReportCase[], unitName: string, commander?: CommanderReport): string {
   const lines: string[] = [];
   lines.push(row([`BÁO CÁO TÌNH HÌNH ĐỊA BÀN THEO ${periodTitles[stats.period].toUpperCase()}`]));
   lines.push(row(['Đơn vị', unitName]));
@@ -66,6 +112,7 @@ export function buildReportCsv(stats: OfficerStatistics, cases: OfficerReportCas
   lines.push(row(['NHÓM VỤ VIỆC', 'Số lượng']));
   for (const item of stats.categories) lines.push(row([reportCategoryLabels[item.category] ?? item.category, item.count]));
   lines.push('');
+  if (commander) lines.push(...commanderCsvLines(commander));
   lines.push(row(['DANH SÁCH HỒ SƠ']));
   lines.push(row(['STT', 'Loại', 'Mã tiếp nhận', 'Nhóm', 'Nội dung', 'Trạng thái', 'Khu vực', 'Cán bộ phụ trách', 'Gửi lúc', 'Có kết quả lúc', 'Đóng lúc', 'Thời gian xử lý', 'Đánh giá (1-5)']));
   cases.forEach((item, index) => lines.push(row([

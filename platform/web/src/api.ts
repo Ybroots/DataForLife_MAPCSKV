@@ -13,6 +13,7 @@ import type {
   LookupEnvelope,
   OfficerNotification,
   OfficerReportCase,
+  CommanderReport,
   OfficerStatistics,
   OperationalMapPoint,
   OperationalMapPointInput,
@@ -413,6 +414,11 @@ export async function listOfficerArchive(filters: { q?: string; from?: string; t
 
 export async function listOfficerReportCases(period: StatisticsPeriod, date: string): Promise<OfficerReportCase[]> {
   const payload = await request<{ data: OfficerReportCase[] }>(`/v1/officer/reports/cases?period=${period}&date=${encodeURIComponent(date)}`, { headers: officerHeaders() });
+  return payload.data;
+}
+
+export async function getCommanderReport(period: StatisticsPeriod, date: string): Promise<CommanderReport> {
+  const payload = await request<{ data: CommanderReport }>(`/v1/commander/report?period=${period}&date=${encodeURIComponent(date)}`, { headers: officerHeaders() });
   return payload.data;
 }
 

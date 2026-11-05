@@ -217,6 +217,14 @@ const INCIDENT_CATEGORY_LABELS: Record<string, string> = {
   security: 'An ninh trật tự', traffic: 'Giao thông', public_order: 'Trật tự công cộng', administrative: 'Hành chính', environment: 'Môi trường', other: 'Khác',
 };
 
+/**
+ * Ai được báo khi có SOS/phản ánh mới: chỉ huy, và cán bộ phụ trách đúng khu vực của hồ sơ.
+ * Cán bộ chưa gán khu chỉ nhận hồ sơ chưa xác định được khu vực (ngoài ranh hoặc ranh chồng nhau).
+ */
+function officerInArea(event: string): string {
+  return `(a.actor_type = 'supervisor' OR a.service_area_id = ${event}.service_area_id OR (a.service_area_id IS NULL AND ${event}.service_area_id IS NULL))`;
+}
+
 /** reminder: số thứ tự lần nhắc (1, 2) khi SOS vẫn chưa có người nhận; không có nghĩa là thông báo đầu tiên. */
 export interface OfficerPushRow { id: string; kind: 'sos' | 'incident'; receiptCode: string; category: string; localityName: string; reminder?: number }
 
@@ -299,7 +307,7 @@ export class PostgresPushStore implements PushStore {
          FROM sos_events s
          JOIN localities l ON l.id = s.locality_id
          JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
-           AND (a.service_area_id IS NULL OR a.service_area_id = s.service_area_id)
+           AND ${officerInArea('s')}
          JOIN push_devices d ON d.officer_id = a.id
          WHERE s.status IN ('triggered', 'dispatched', 'escalated')
            AND s.created_at > now() - interval '2 minutes' AND s.created_at >= d.created_at
@@ -313,7 +321,7 @@ export class PostgresPushStore implements PushStore {
          CROSS JOIN (VALUES (1, interval '2 minutes', interval '5 minutes'), (2, interval '5 minutes', interval '30 minutes')) AS rm(n, after, until)
          JOIN localities l ON l.id = s.locality_id
          JOIN workflow_actors a ON a.locality_id = s.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
-           AND (a.service_area_id IS NULL OR a.service_area_id = s.service_area_id)
+           AND ${officerInArea('s')}
          JOIN push_devices d ON d.officer_id = a.id
          WHERE s.status IN ('triggered', 'dispatched', 'escalated')
            AND s.created_at + rm.after <= now() AND s.created_at + rm.until > now()
@@ -327,7 +335,7 @@ export class PostgresPushStore implements PushStore {
          FROM incident_reports r
          JOIN localities l ON l.id = r.locality_id
          JOIN workflow_actors a ON a.locality_id = r.locality_id AND a.active AND a.actor_type IN ('officer', 'supervisor')
-           AND (a.service_area_id IS NULL OR a.service_area_id = r.service_area_id)
+           AND ${officerInArea('r')}
          JOIN push_devices d ON d.officer_id = a.id
          WHERE r.status = 'submitted'
            AND r.created_at > now() - ${DELIVERY_WINDOW} AND r.created_at >= d.created_at

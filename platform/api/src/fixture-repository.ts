@@ -36,6 +36,7 @@ import type {
   SosResponse,
   WorkflowActorResponse,
   AreaOfficerOverviewResponse,
+  CommanderReportResponse,
   CitizenAccountRecord,
   CitizenAccountEventType,
   CitizenEmailCodePurpose,
@@ -43,6 +44,7 @@ import type {
   OfficerAccountRecord,
 } from './types.js';
 import { loadPilotAreaSources, PilotArea } from './fixture-pilot-areas.js';
+import { periodBounds, previousAnchorDate } from './report-period.js';
 import { assertCaseOwnership, assertIncidentTransition, assertSosTransition, COMMANDER_READ_ONLY_MESSAGE, type IncidentStatus, type SosStatus, WorkflowError } from './workflow.js';
 import { sosTitle } from './sos-title.js';
 
@@ -822,6 +824,18 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const actor = this.requireActor(actorId, true);
     if (actor.actorType !== 'supervisor') throw new WorkflowError('FORBIDDEN', 'Chỉ chỉ huy mới xem được đánh giá theo cán bộ khu vực.');
     return [];
+  }
+
+  async getCommanderReport(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<CommanderReportResponse> {
+    this.requireFixtureCommander(actorId);
+    const { from, to } = periodBounds(period, anchorDate);
+    const previous = periodBounds(period, previousAnchorDate(period, anchorDate));
+    const totals = { incidents: 0, sos: 0, resolved: 0, open: 0, overdue: 0, firstResponseMinutes: null, sosAcknowledgeMinutes: null, resolutionMinutes: null, respondedRate: null, sosUnacknowledged: 0, sosEscalated: 0, unrouted: 0, averageRating: null, ratingCount: 0 };
+    return {
+      period, anchorDate, from, to, previousFrom: previous.from, previousTo: previous.to,
+      current: { ...totals }, previous: { ...totals }, areas: [], officers: [],
+      hourly: Array.from({ length: 24 }, () => 0), weekdays: Array.from({ length: 7 }, () => 0), attention: [],
+    };
   }
 
   private requireFixtureCommander(actorId: string): WorkflowActorResponse {

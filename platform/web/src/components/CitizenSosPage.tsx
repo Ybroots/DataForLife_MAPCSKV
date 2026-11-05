@@ -436,9 +436,9 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
                 <strong title={position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}` : undefined}>{position
                   ? accuracyM !== null ? (accuracyM <= 50 ? `Khá chính xác (sai số khoảng ${Math.round(accuracyM)} m)` : `Chưa thật chính xác (sai số khoảng ${Math.round(accuracyM)} m)`) : 'Đã nhận vị trí từ điện thoại'
                   : locating ? 'Đang xác định vị trí…' : 'Chưa nhận được vị trí'}</strong>
-                <span>{position
-                  ? accuracyM !== null && accuracyM > 50 ? 'Nếu có thể, ra nơi thoáng rồi bấm "Cập nhật".' : 'Vị trí này sẽ được gửi kèm SOS.'
-                  : 'Hãy cho phép truy cập vị trí để gửi SOS.'}</span>
+                {(!position || (accuracyM !== null && accuracyM > 50)) && <span>{position
+                  ? 'Nếu có thể, ra nơi thoáng rồi bấm "Cập nhật".'
+                  : 'Hãy cho phép truy cập vị trí để gửi SOS.'}</span>}
               </div>
               <button type="button" onClick={locate} disabled={locating} aria-label={position ? 'Cập nhật vị trí GPS hiện tại' : 'Lấy vị trí GPS hiện tại'}>
                 <LocateFixed size={17} aria-hidden="true" /> {locating ? 'Đang lấy…' : position ? 'Cập nhật' : 'Lấy vị trí'}
@@ -449,11 +449,10 @@ export function CitizenSosPage({ isAuthenticated, onRequireLogin }: CitizenSosPa
           <section className="sos-contact-panel" aria-labelledby="sos-contact-title">
             <label id="sos-contact-title" htmlFor="sos-contact-phone">Số điện thoại để cán bộ gọi lại</label>
             <input id="sos-contact-phone" name="sosContactPhone" type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={30} placeholder="Ví dụ 0912 345 678" required aria-required="true" aria-invalid={contactPhone.trim() !== '' && !validPhone(contactPhone)} />
-            <small>Cán bộ nhận SOS sẽ thấy tên tài khoản và số điện thoại này.</small>
           </section>
 
           <details className="sos-optional-details">
-            <summary><span><Siren size={19} aria-hidden="true" /><strong>Bổ sung thông tin tình huống</strong></span><small>Không bắt buộc</small></summary>
+            <summary><span><Siren size={19} aria-hidden="true" /><strong>Bổ sung thông tin tình huống</strong></span></summary>
             <div>
               <fieldset className="sos-category-grid">
                 <legend>Loại tình huống</legend>

@@ -30,6 +30,7 @@ import {
   getOfficerIncident,
   getOfficerSos,
   listOfficerArchive,
+  listManagedOfficers,
   listOfficerQueue,
   listWorkflowActors,
   transitionOfficerIncident,
@@ -64,6 +65,8 @@ type WorkDetail = Incident | SosEvent;
 const QUICK_ACK_NOTE = 'Cán bộ khu vực đã nhận tín hiệu SOS và đang liên hệ với bạn.';
 type QueueScope = 'attention' | 'mine' | 'all' | 'archive';
 type MobilePane = 'queue' | 'map' | 'detail' | 'operations';
+
+import type { AreaOfficerBrief } from './PoliceDutyMap';
 
 const PoliceDutyMap = lazy(async () => {
   const module = await import('./PoliceDutyMap');
@@ -188,7 +191,31 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
   }, [archive, currentActorId, queue, queueQuery, scope]);
   const selectedItem = useMemo(() => queue.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? archive.find((item) => `${item.kind}:${item.id}` === selectedKey) ?? null, [archive, queue, selectedKey]);
   const currentActor = actors.find((actor) => actor.id === currentActorId) ?? sessionActor;
-  const alerts = useSosAlerts(queue, lastUpdated !== null);
+  // Còi báo SOS: chỉ huy nghe mọi SOS của phường; cán bộ chỉ nghe SOS trong khu mình phụ trách (cán bộ chưa gán khu chỉ nghe SOS chưa xác định khu).
+  const alertQueue = useMemo(
+    () => (commander || currentActor?.serviceArea ? queue : queue.filter((item) => !item.serviceAreaName)),
+    [commander, currentActor?.serviceArea, queue],
+  );
+  const alerts = useSosAlerts(alertQueue, lastUpdated !== null);
+  const [areaOfficers, setAreaOfficers] = useState<Record<string, AreaOfficerBrief[]>>({});
+  const [areaFocus, setAreaFocus] = useState<{ areaCode: string; nonce: number } | null>(null);
+  // Chỉ huy: nạp cán bộ theo khu mỗi lần mở bản đồ để bấm vào khu là biết ai phụ trách (kể cả sau khi đổi khu ở tab Khu vực).
+  useEffect(() => {
+    if (!commander || mobilePane !== 'map') return;
+    let cancelled = false;
+    listManagedOfficers()
+      .then((officers) => {
+        if (cancelled) return;
+        const byArea: Record<string, AreaOfficerBrief[]> = {};
+        for (const officer of officers) {
+          if (!officer.serviceArea) continue;
+          (byArea[officer.serviceArea.code] ??= []).push({ id: officer.id, displayName: officer.displayName, phone: officer.phone });
+        }
+        setAreaOfficers(byArea);
+      })
+      .catch(() => { /* bản đồ vẫn dùng được; bấm khu sẽ báo chưa có cán bộ */ });
+    return () => { cancelled = true; };
+  }, [commander, mobilePane]);
   const [alertEdit, setAlertEdit] = useState<{ alert: PublicAlert; nonce: number } | null>(null);
   const [pushDenied, setPushDenied] = useState(false);
   const [pushOpen, setPushOpen] = useState<Extract<PushTarget, { type: 'officer' }> | null>(null);
@@ -571,12 +598,14 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                 queue={queue}
                 onBackToQueue={() => setMobilePane('queue')}
                 onOpenCase={selectItem}
+                areaOfficers={commander ? areaOfficers : undefined}
+                onOpenOfficer={commander ? (areaCode) => { setAreaFocus((previous) => ({ areaCode, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); } : undefined}
                 onEditAlert={commander ? undefined : (alert) => { setAlertEdit((previous) => ({ alert, nonce: (previous?.nonce ?? 0) + 1 })); setMobilePane('operations'); }}
               />
             </Suspense>
           </section>
 
-          <PoliceOperations localityCode={currentActor?.localityCode ?? null} serviceAreaCode={commander ? null : currentActor?.serviceArea?.code ?? null} unitName={currentActor?.displayName} commander={commander} editRequest={alertEdit} />
+          <PoliceOperations localityCode={currentActor?.localityCode ?? null} serviceAreaCode={commander ? null : currentActor?.serviceArea?.code ?? null} unitName={currentActor?.displayName} commander={commander} editRequest={alertEdit} areaFocus={areaFocus} />
         </div>
       </main>
 

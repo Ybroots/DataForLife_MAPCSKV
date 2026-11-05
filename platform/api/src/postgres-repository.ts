@@ -3,6 +3,7 @@ import { PostgresWorkflowStore } from './postgres-workflows.js';
 import { OperationalExtensionsStore } from './operational-extensions.js';
 import { CitizenNotificationStore } from './citizen-notifications.js';
 import { IntelligenceStore } from './intelligence-store.js';
+import { CommanderReportStore } from './commander-report-store.js';
 import { OfficerAccountAdminStore } from './officer-account-admin.js';
 import type {
   AppRatingResponse,
@@ -48,6 +49,7 @@ import type {
   StationResponse,
   WorkflowActorResponse,
   AreaOfficerOverviewResponse,
+  CommanderReportResponse,
   CitizenAccountRecord,
   CitizenAccountEventType,
   CitizenEmailCodePurpose,
@@ -88,6 +90,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
   private readonly citizenNotifications: CitizenNotificationStore;
   private readonly intelligence: IntelligenceStore;
   private readonly officerAdmin: OfficerAccountAdminStore;
+  private readonly commanderReports: CommanderReportStore;
 
   constructor(databaseUrl: string) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 10 });
@@ -96,6 +99,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     this.citizenNotifications = new CitizenNotificationStore(this.pool);
     this.intelligence = new IntelligenceStore(this.pool);
     this.officerAdmin = new OfficerAccountAdminStore(this.pool);
+    this.commanderReports = new CommanderReportStore(this.pool);
   }
 
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage> {
@@ -598,6 +602,10 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
 
   listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]> {
     return this.intelligence.listAreaOfficerOverview(actorId, from, to);
+  }
+
+  getCommanderReport(actorId: string, period: StatisticsPeriod, anchorDate: string): Promise<CommanderReportResponse> {
+    return this.commanderReports.report(actorId, period, anchorDate);
   }
 
   listManagedOfficers(actorId: string): Promise<ManagedOfficerResponse[]> {
