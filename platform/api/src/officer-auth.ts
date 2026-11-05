@@ -68,9 +68,22 @@ function readOfficerSession(token: string | undefined, secret: string, now: numb
   }
 }
 
+/**
+ * Chỉ huy đổi tên đăng nhập hoặc mật khẩu của cán bộ: mọi phiên cấp trước thời điểm đó hết hiệu lực.
+ * Lưu trong bộ nhớ của tiến trình như danh sách thu hồi phiên: mất khi API khởi động lại (phiên chỉ sống tối đa 8 giờ).
+ */
+const sessionsRevokedAt = new Map<string, number>();
+
+export function revokeOfficerSessions(actorId: string, now = Date.now()): void {
+  sessionsRevokedAt.set(actorId, now);
+}
+
 export function verifyOfficerSession(token: string | undefined, secret: string, now = Date.now()): string | null {
   const session = readOfficerSession(token, secret, now);
-  return session && !isSessionNonceRevoked(session.nonce, now) ? session.actorId : null;
+  if (!session || isSessionNonceRevoked(session.nonce, now)) return null;
+  const revokedAt = sessionsRevokedAt.get(session.actorId);
+  const issuedAt = session.expiresAt - SESSION_TTL_SECONDS * 1_000;
+  return revokedAt !== undefined && issuedAt <= revokedAt ? null : session.actorId;
 }
 
 /** Đăng xuất: phiên này không còn dùng được dù cookie bị sao chép trước đó. */

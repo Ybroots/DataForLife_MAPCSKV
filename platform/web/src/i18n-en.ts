@@ -251,7 +251,6 @@ export const EN_TEXT: Readonly<Record<string, string>> = {
   'Mã khôi phục': 'Recovery code',
   'Đặt lại mật khẩu': 'Reset password',
   'Quay lại đăng nhập': 'Back to sign in',
-  'Mã 6 số sẽ gửi tới email đã xác minh của tài khoản.': 'A 6-digit code will be sent to the account’s verified email.',
   'Gửi mã qua email': 'Email me a code',
   'Đã gửi lại mã.': 'Code sent again.',
   'Nếu số điện thoại': 'If phone number',

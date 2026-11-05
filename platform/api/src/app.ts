@@ -67,7 +67,7 @@ export async function buildApp(
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof WorkflowError) {
-      const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' || error.code === 'NO_DUTY_OFFICER' ? 409 : 400;
+      const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : error.code === 'INVALID_TRANSITION' || error.code === 'NO_DUTY_OFFICER' || error.code === 'CONFLICT' ? 409 : 400;
       return reply.code(status).send({ error: error.code, message: error.message });
     }
     // Lỗi do người gọi (JSON hỏng, sai Content-Type, body quá lớn...): trả 4xx rõ ràng thay vì 500.

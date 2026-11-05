@@ -44,7 +44,6 @@ export function OfficerKpiTable({ kpis }: { kpis: OfficerKpis }) {
   return (
     <section className="kpi-table" aria-labelledby="kpi-table-title">
       <h4 id="kpi-table-title">Bộ chỉ số đo lường</h4>
-      <p>Tính tự động từ dữ liệu vận hành trong kỳ đã chọn. “—” là chưa có dữ liệu.</p>
       {rows.map((row) => (
         <div className="kpi-group" key={row.group}>
           <h5>{row.group}</h5>

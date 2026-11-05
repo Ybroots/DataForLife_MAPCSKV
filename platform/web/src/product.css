@@ -154,12 +154,12 @@ input, textarea, select { accent-color: var(--color-primary); }
 .legal-responsibility-note summary strong { color: var(--color-ink); }
 
 /* Existing login composition retained, using the same light surfaces as the app. */
-.login-screen, .police-login-screen, .citizen-login-gate { background: var(--color-canvas); color: var(--color-ink); height: 100dvh; }
+.login-screen, .police-login-screen, .citizen-login-gate { background: var(--color-canvas); color: var(--color-ink); height: 100vh; height: 100dvh; }
 .login-screen-inner { gap: 20px; }
 .login-brand, .officer-login-header, .citizen-inline-login-header, .police-login-brand { color: var(--color-ink); }
 .login-brand-logo img { width: 64px; height: 64px; border-radius: 10px; box-shadow: none; }
 .login-brand-text span, .login-role-heading, .role-card-body span, .role-card-arrow,
-.login-divider span, .vneid-notice, .login-footer p, .officer-login-lead, .officer-login-header p,
+.login-divider span, .vneid-notice, .login-footer p, .officer-login-header p,
 .officer-password-field, .officer-login-form label, .officer-password-wrap > button,
 .citizen-inline-login-header p, .police-login-brand small { color: var(--color-muted); }
 .login-role-heading { text-transform: none; letter-spacing: 0; font-size: 14px; }
@@ -1056,7 +1056,6 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 
 /* Chỉ huy: danh sách khu vực và đánh giá cán bộ */
 .commander-areas { display: grid; gap: 14px; max-width: 980px; margin: 0 auto; }
-.commander-note { margin: 0; color: var(--color-muted); font-size: .9rem; }
 .area-officer-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .area-officer-card { display: grid; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
 .area-officer-card header { display: grid; gap: 4px; min-width: 0; }
@@ -1089,7 +1088,6 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 .police-profile-card strong { overflow-wrap: anywhere; }
 .police-profile-card span { color: var(--color-muted); overflow-wrap: anywhere; }
 .police-profile-card a { color: inherit; font-weight: 600; }
-.readonly-note { margin: 0; padding: 10px 12px; border: 1px dashed var(--color-line); border-radius: 8px; color: var(--color-muted); font-size: .88rem; }
 .contact-copy .contact-area { margin: 2px 0 0; color: var(--color-muted); font-size: .8rem; font-weight: 600; }
 
 .alert-manage-list { display: grid; gap: 8px; }
@@ -1130,3 +1128,29 @@ html[data-native="android"] .police-portal :is(input, textarea, select) { max-wi
 .sos-hold-button:disabled::before, .sos-hold-button:disabled::after { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .sos-hold-button::before, .sos-hold-button::after { animation: none; opacity: 0; } .sos-hold-button { transition: none; } }
 @media (max-width: 480px) { .sos-hold-button { width: clamp(164px, 52vw, 190px); } .sos-hold-core svg { width: 38px; height: 38px; padding: 6px; } }
+
+/* Chỉ huy quản lý tài khoản cán bộ */
+.officer-accounts { display: grid; gap: 10px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--color-line); }
+.officer-accounts h3 { margin: 0; }
+.officer-account-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.officer-account-row { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.officer-account-summary { display: grid; gap: 3px; min-width: 0; font-size: .9rem; }
+.officer-account-summary strong, .officer-account-summary code { overflow-wrap: anywhere; }
+.officer-account-area { display: inline-flex; align-items: center; gap: 5px; color: var(--color-muted); font-size: .85rem; }
+.officer-account-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.officer-account-actions button, .officer-account-form button, .officer-generated-password button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); color: inherit; font: inherit; font-size: .85rem; cursor: pointer; }
+.officer-account-actions button.active { border-color: currentColor; font-weight: 600; }
+.officer-account-form { display: grid; gap: 8px; min-width: 0; }
+.officer-account-form form { display: grid; gap: 8px; }
+.officer-account-form label { display: grid; gap: 4px; font-size: .85rem; }
+.officer-account-form input, .officer-account-form select { min-height: 40px; padding: 0 10px; border: 1px solid var(--color-line); border-radius: 8px; font: inherit; background: var(--color-surface); color: inherit; min-width: 0; }
+.officer-account-form small { color: var(--color-muted); }
+.officer-account-form button[type="submit"] { justify-self: start; font-weight: 600; }
+.officer-generated-password { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--color-line); border-radius: 8px; }
+.officer-generated-password code { font-size: 1.1rem; letter-spacing: .06em; overflow-wrap: anywhere; user-select: all; }
+.officer-generated-password button { justify-self: start; }
+.officer-account-notice { margin: 0; padding: 10px 12px; border-radius: 8px; background: #ecfdf3; color: #14532d; font-size: .85rem; }
+
+@media (pointer: coarse) {
+  .officer-account-actions button, .officer-account-form button, .officer-account-form input, .officer-account-form select, .officer-generated-password button { min-height: 44px; }
+}

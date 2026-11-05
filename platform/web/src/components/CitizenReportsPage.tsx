@@ -234,7 +234,6 @@ export function CitizenReportsPage({ selectedPosition, isAuthenticated, onRequir
     else { setIncidents([]); setSelectedReceipt(null); }
   }, [isAuthenticated]);
 
-  // Tự lưu nháp sau khi người dân ngừng gõ ~0,4 giây.
   useEffect(() => {
     const timer = window.setTimeout(() => saveReportDraft({ category, summary, description, locationNote, contactPhone }), 400);
     return () => window.clearTimeout(timer);

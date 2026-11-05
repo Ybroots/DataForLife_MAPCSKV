@@ -244,7 +244,6 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
 
   useEffect(() => {
     if (scope !== 'archive') return;
-    // Gõ tìm kiếm thì chờ một nhịp để không gọi máy chủ sau mỗi phím.
     const timer = window.setTimeout(() => void loadArchive(), 250);
     return () => window.clearTimeout(timer);
   }, [scope, queueQuery, archiveFrom, archiveTo]);
@@ -512,15 +511,13 @@ export function PolicePortal({ onSignOut, sessionActor }: PolicePortalProps) {
                   <a href={`https://www.google.com/maps/search/?api=1&query=${detail.location.latitude},${detail.location.longitude}`} target="_blank" rel="noreferrer"><Navigation size={20} aria-hidden="true" /><span>Mở vị trí</span></a>
                 </div>
 
-                {commander
-                  ? <p className="readonly-note">Chỉ huy chỉ xem hồ sơ. Việc tiếp nhận và xử lý do cán bộ khu vực đảm nhiệm.</p>
-                  : <CaseActionCard
-                    kind={detail.kind}
-                    status={detail.status}
-                    caseKey={`${detail.kind}:${detail.id}`}
-                    busy={transitioning}
-                    onRun={runCaseAction}
-                  />}
+                {!commander && <CaseActionCard
+                  kind={detail.kind}
+                  status={detail.status}
+                  caseKey={`${detail.kind}:${detail.id}`}
+                  busy={transitioning}
+                  onRun={runCaseAction}
+                />}
 
                 <div className="case-stack">
                   <section className="ops-card case-overview-card">

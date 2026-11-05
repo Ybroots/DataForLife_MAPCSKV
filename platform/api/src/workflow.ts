@@ -62,7 +62,7 @@ export function assertCaseInArea(scope: string | null, caseAreaId: string | null
 
 export class WorkflowError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_TRANSITION' | 'INVALID_INPUT' | 'NO_DUTY_OFFICER',
+    readonly code: 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_TRANSITION' | 'INVALID_INPUT' | 'NO_DUTY_OFFICER' | 'CONFLICT',
     message: string,
   ) {
     super(message);

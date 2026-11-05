@@ -362,6 +362,15 @@ export interface WorkflowActor {
 
 export interface RatingSummary { average: number | null; count: number; lowScoreCount: number }
 
+/** Tài khoản cán bộ mà chỉ huy quản lý. Không bao giờ có mật khẩu. */
+export interface ManagedOfficer {
+  id: string;
+  username: string;
+  displayName: string;
+  phone: string | null;
+  serviceArea: { code: string; name: string } | null;
+}
+
 /** Một khu vực của phường và cán bộ CSKV phụ trách, kèm đánh giá của người dân trong kỳ. */
 export interface AreaOfficerOverview {
   serviceArea: { code: string; name: string };

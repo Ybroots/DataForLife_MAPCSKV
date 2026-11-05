@@ -2,7 +2,7 @@
 
 ## Mô hình
 - `workflow_actors.actor_type = 'officer'` + `service_area_id`: cán bộ chỉ xem và xử lý hồ sơ phản ánh, SOS của **khu vực mình**. Cán bộ không có khu vực vẫn thấy toàn phường (tương thích cũ).
-- `actor_type = 'supervisor'` (chỉ huy): xem toàn bộ hồ sơ, SOS, tin nhắn, báo cáo của phường; **chỉ đọc**, mọi thao tác ghi (chuyển trạng thái, nhắn tin, tải tệp, gợi ý AI, phân công) trả 403. Không có chức năng phân công.
+- `actor_type = 'supervisor'` (chỉ huy): xem toàn bộ hồ sơ, SOS, tin nhắn, báo cáo của phường; **chỉ đọc**, mọi thao tác ghi trên hồ sơ (chuyển trạng thái, nhắn tin, tải tệp, gợi ý AI, phân công) trả 403. Không có chức năng phân công hồ sơ. Quyền duy nhất ngoài việc xem là **quản lý tài khoản cán bộ** (mục dưới), không liên quan đến việc xử lý hồ sơ.
 - Hồ sơ chưa gán khu vực (`service_area_id` rỗng) chỉ chỉ huy và cán bộ không gắn khu vực thấy được.
 - Thông báo đẩy: cán bộ chỉ nhận của khu vực mình; chỉ huy nhận của toàn phường.
 
@@ -35,3 +35,27 @@ Tệp mật khẩu sinh ra phải lưu ngoài repo; đổi mật khẩu sau lầ
 ## Giao hồ sơ về đúng khu vực (migration 024)
 
 Hồ sơ phản ánh và SOS được giao vào khu vực chứa điểm gửi khi khu vực đó đã xác minh ranh giới **hoặc đã có cán bộ phụ trách** (migration 021). Ranh giới Xuân Hương vẫn là dữ liệu trình diễn nên điều kiện thứ hai là điều kiện đang dùng; khu vực chưa có cán bộ thì hồ sơ không có khu vực và chỉ chỉ huy hoặc cán bộ chưa gắn khu vực nhìn thấy. Migration 024 gán khu vực cho các hồ sơ và SOS đã gửi trước đó theo vị trí (điểm nằm đúng trên ranh giới hai khu vực được giữ nguyên).
+
+## Chỉ huy quản lý tài khoản cán bộ (migration 025)
+
+Trong tab **Khu vực**, phần “Tài khoản cán bộ” cho chỉ huy, với cán bộ **cùng phường**:
+
+| Việc | Quy tắc |
+|---|---|
+| Đổi tên đăng nhập | 3–100 ký tự, chỉ chữ thường không dấu, số, `.`, `_`, `-`; không được trùng tên đã có (kể cả tài khoản cấu hình sẵn ở máy chủ). Tên cũ được giải phóng. |
+| Đặt mật khẩu | Tự nhập (tối thiểu 8 ký tự) hoặc bấm “Tạo mật khẩu”: máy chủ sinh 12 ký tự dễ đọc (không có `1/l/I`, `0/O/o`). Mật khẩu tự tạo chỉ có trong phản hồi của đúng lần gọi đó, giao diện hiện một lần kèm nút sao chép; mật khẩu do chỉ huy nhập không bao giờ được trả lại. Không lưu mật khẩu dạng đọc được ở đâu. |
+| Đổi khu vực | Chọn khu vực bất kỳ của phường hoặc “Chưa gắn khu vực” (thấy cả phường). Hồ sơ mới đến đúng người; hồ sơ cũ giữ nguyên người đang phụ trách. |
+
+Giới hạn:
+- Chỉ chỉ huy làm được (cán bộ gọi các tuyến này nhận 403). Chỉ huy vẫn không xử lý được hồ sơ.
+- Không sửa được tài khoản chỉ huy (kể cả của mình: 403) và cán bộ phường khác (404).
+- Tài khoản cán bộ cấu hình bằng biến môi trường ở máy chủ (`API_OFFICER_USERNAME`) không nằm trong danh sách và không sửa được ở đây.
+- Mỗi thay đổi ghi vào bảng `officer_account_audit_events` (ai đổi, đổi gì, lúc nào; đổi mật khẩu chỉ ghi “đã đặt”). Ghi trong cùng giao dịch với thay đổi nên không có thay đổi nào thiếu nhật ký. Bảng `workflow_audit_events` chỉ dành cho hồ sơ/SOS nên không dùng được cho việc này.
+- Đổi tên đăng nhập hoặc mật khẩu thì mọi phiên đăng nhập đang có của cán bộ đó bị vô hiệu. Danh sách này nằm trong bộ nhớ của API nên mất khi API khởi động lại (phiên cán bộ sống tối đa 8 giờ), giống cách thu hồi phiên khi đăng xuất. Đổi khu vực không đăng xuất.
+
+API (đều cần phiên chỉ huy):
+- `GET /v1/commander/officers`: danh sách `{ id, username, displayName, phone, serviceArea }`, không có mật khẩu hay bản băm.
+- `POST /v1/commander/officers/:id/update`: thân `{ username?, serviceAreaCode? }` (`serviceAreaCode: null` để bỏ gắn khu vực). Trùng tên trả 409.
+- `POST /v1/commander/officers/:id/password`: thân `{ password }` hoặc `{ generate: true }`; kết quả có `generatedPassword` khi tạo tự động.
+
+Việc đổi phân công (ví dụ chuyển Cao Đức Thanh sang P.1, Vũ Tuấn Huy sang P.4) làm trên giao diện bằng “Đổi khu vực”; không cần migration đổi cứng.

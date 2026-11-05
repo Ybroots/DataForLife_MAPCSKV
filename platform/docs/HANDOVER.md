@@ -17,7 +17,7 @@ trong thư mục `docs/` (liệt kê ở cuối). Không có mật khẩu hay kh
 |---|---|
 | `platform/api` | Fastify + PostgreSQL/PostGIS. Mỗi tệp `*-routes.ts` là một nhóm tuyến; `postgres-workflows.ts` và `operational-extensions.ts` là nơi chứa truy vấn nghiệp vụ; `fixture-repository.ts` là bản bộ nhớ dùng cho test |
 | `platform/web` | React + MapLibre. `src/components` có cả giao diện người dân và cổng cán bộ (`PolicePortal.tsx`, `CommanderAreaPanel.tsx`...). `android-native` và `scripts/build-android.ps1` đóng gói Capacitor |
-| `platform/database` | `migrations/001…024`, dữ liệu mẫu, công cụ sinh khu vực |
+| `platform/database` | `migrations/001…025`, dữ liệu mẫu, công cụ sinh khu vực |
 | `platform/ops` | nginx, systemd, sao lưu, **`deploy-update.sh`** |
 | `platform/docs` | Tài liệu nghiệp vụ và vận hành |
 | gốc repo (`App.tsx`, `src/`, `app.json`) | Ứng dụng Expo cũ, **không dùng nữa**; chỉ `map34.json` còn được platform dùng. Có thể xóa phần Expo khi chủ dự án đồng ý |
@@ -35,7 +35,7 @@ trong thư mục `docs/` (liệt kê ở cuối). Không có mật khẩu hay kh
 ## 4. Vai trò và phân quyền theo khu vực (phần dễ làm sai nhất)
 
 - `workflow_actors.actor_type`: `officer` (cán bộ khu vực) hoặc `supervisor` (chỉ huy, **chỉ xem**, mọi thao tác ghi bị từ chối).
-- `workflow_actors.service_area_id` (migration 021): khu vực cán bộ phụ trách. NULL nghĩa là thấy cả phường. Chỉ huy luôn NULL.
+- `workflow_actors.service_area_id` (migration 021): khu vực cán bộ phụ trách. NULL nghĩa là thấy cả phường. Chỉ huy luôn NULL. Chỉ huy đổi tên đăng nhập, mật khẩu và khu vực của cán bộ cùng phường ngay trên tab Khu vực (migration 025 ghi nhật ký; xem `commander-role.md`), nên không cần migration để đổi phân công.
 - Hồ sơ/SOS có `service_area_id` do `resolveLocation` gán lúc gửi. Điều kiện gán: khu vực **đã xác minh ranh giới** *hoặc* **đã có cán bộ phụ trách**
   (migration 024 thêm vế sau). Lý do: ranh giới Xuân Hương vẫn là dữ liệu trình diễn (`is_demo = true`). Điểm nằm đúng trên ranh giới hai khu vực, hoặc khu vực chưa có cán bộ, thì hồ sơ **không có khu vực**
   và chỉ chỉ huy hoặc cán bộ chưa gắn khu vực thấy.
@@ -45,7 +45,7 @@ trong thư mục `docs/` (liệt kê ở cuối). Không có mật khẩu hay kh
 
 ## 5. Cơ sở dữ liệu và migration
 
-- Migration đánh số `001`–`024`, **chạy lại nhiều lần an toàn**. `db:setup-demo` dựng CSDL demo mới; `db:migrate` chỉ cho bản sao dữ liệu thật.
+- Migration đánh số `001`–`025`, **chạy lại nhiều lần an toàn**. `db:setup-demo` dựng CSDL demo mới; `db:migrate` chỉ cho bản sao dữ liệu thật.
 - `ops/deploy-update.sh` áp dụng `015`–`019` và `02x`. **Bản trong `/root` trên VPS phải được chép từ repo** (`cp platform/ops/deploy-update.sh /root/`) mỗi khi script đổi; bản cũ chỉ áp tới `020`
   và đã từng làm thiếu cột `service_area_id` (đăng nhập cán bộ trả 500).
 - Nếu nghi ngờ thiếu migration: `psql "$DB_URL" -f platform/database/migrations/0NN_….sql` (lấy `DATABASE_URL` từ `platform/.env`).
@@ -55,8 +55,7 @@ trong thư mục `docs/` (liệt kê ở cuối). Không có mật khẩu hay kh
 
 - Cán bộ: `canbo01`–`canbo05` (gắn khu vực P.1, P.2, P.3, P.4, P.10), chỉ huy: `chihuy01`. Tạo bằng
   `npm run accounts:provision-officers -- --credentials-output=<đường dẫn tuyệt đối ngoài repo>` (chạy trên VPS, từ `platform/api`). Công cụ **bỏ qua** tài khoản đã có và không đổi mật khẩu.
-- Quên mật khẩu cán bộ: không có công cụ riêng; đặt lại bằng một lệnh `UPDATE officer_accounts SET password_hash = …` với `hashPassword` của `api/src/password.ts`
-  (mật khẩu sinh ngẫu nhiên nên chọn ký tự không dễ nhầm như `1/l/I`, `0/O`).
+- Quên mật khẩu cán bộ: chỉ huy đặt lại trong tab Khu vực (tự nhập hoặc “Tạo mật khẩu”). Chỉ khi không có chỉ huy dùng được mới phải đặt bằng `UPDATE officer_accounts SET password_hash = …` với `hashPassword` của `api/src/password.ts`.
 - Người dân tự đăng ký bằng số điện thoại; tên đăng nhập chính là số điện thoại.
 - **Không bao giờ commit** mật khẩu, tệp `.env`, `google-services.json` hay khóa FCM.
 - Giới hạn thử sai: nginx chặn khoảng 10 lần/phút mỗi IP ở tuyến đăng nhập (trả 429, thông điệp "thao tác quá nhanh"); API còn khóa riêng sau 5 lần sai cho cặp tài khoản + IP.

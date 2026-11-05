@@ -253,6 +253,8 @@ export function MapPane({ area, overview, onAreaSelect, selectedPosition, onCoor
       bearing: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.bearing : 0,
       pitch: lastCamera && restoredAreaRef.current !== undefined ? lastCamera.pitch : 0,
       attributionControl: false,
+      // Màn hình mật độ rất cao (3–4x) vẽ nặng với điện thoại yếu: 2x là đủ nét cho bản đồ.
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       style: createPublicMapStyle(),
     });
     // A worker or tile request can stall without a MapLibre error event.

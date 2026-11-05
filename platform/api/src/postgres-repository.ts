@@ -3,13 +3,17 @@ import { PostgresWorkflowStore } from './postgres-workflows.js';
 import { OperationalExtensionsStore } from './operational-extensions.js';
 import { CitizenNotificationStore } from './citizen-notifications.js';
 import { IntelligenceStore } from './intelligence-store.js';
+import { OfficerAccountAdminStore } from './officer-account-admin.js';
 import type {
   AppRatingResponse,
   CitizenNotificationPage,
   DuplicateCandidateResponse,
   IncidentAiReviewResponse,
   IncidentSuggestion,
+  ManagedOfficerResponse,
   NotificationQuery,
+  UpdateManagedOfficerInput,
+  UpdateManagedOfficerResult,
 } from './types.js';
 import type {
   AreaLookupResponse,
@@ -83,6 +87,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
   private readonly operations: OperationalExtensionsStore;
   private readonly citizenNotifications: CitizenNotificationStore;
   private readonly intelligence: IntelligenceStore;
+  private readonly officerAdmin: OfficerAccountAdminStore;
 
   constructor(databaseUrl: string) {
     this.pool = new Pool({ connectionString: databaseUrl, max: 10 });
@@ -90,6 +95,7 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
     this.operations = new OperationalExtensionsStore(this.pool);
     this.citizenNotifications = new CitizenNotificationStore(this.pool);
     this.intelligence = new IntelligenceStore(this.pool);
+    this.officerAdmin = new OfficerAccountAdminStore(this.pool);
   }
 
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage> {
@@ -592,6 +598,18 @@ export class PostgresDirectoryRepository implements DirectoryRepository {
 
   listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]> {
     return this.intelligence.listAreaOfficerOverview(actorId, from, to);
+  }
+
+  listManagedOfficers(actorId: string): Promise<ManagedOfficerResponse[]> {
+    return this.officerAdmin.list(actorId);
+  }
+
+  updateManagedOfficer(actorId: string, targetId: string, input: UpdateManagedOfficerInput, reservedUsernames: readonly string[] = []): Promise<UpdateManagedOfficerResult> {
+    return this.officerAdmin.update(actorId, targetId, input, reservedUsernames);
+  }
+
+  setManagedOfficerPasswordHash(actorId: string, targetId: string, passwordHash: string): Promise<ManagedOfficerResponse> {
+    return this.officerAdmin.setPassword(actorId, targetId, passwordHash);
   }
 
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {

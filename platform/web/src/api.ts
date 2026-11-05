@@ -24,6 +24,7 @@ import type {
   SosStatus,
   WorkflowActor,
   AreaOfficerOverview,
+  ManagedOfficer,
   WorkflowMeta,
   StatisticsPeriod,
   MapAssistantStatus,
@@ -418,6 +419,27 @@ export async function listOfficerReportCases(period: StatisticsPeriod, date: str
 export async function getAreaOfficerOverview(period: StatisticsPeriod, date: string): Promise<AreaOfficerOverview[]> {
   const payload = await request<{ data: AreaOfficerOverview[] }>(`/v1/commander/area-officers?period=${period}&date=${encodeURIComponent(date)}`, { headers: officerHeaders() });
   return payload.data;
+}
+
+export async function listManagedOfficers(): Promise<ManagedOfficer[]> {
+  const payload = await request<{ data: ManagedOfficer[] }>('/v1/commander/officers', { headers: officerHeaders() });
+  return payload.data;
+}
+
+/** `serviceAreaCode`: null để bỏ gắn khu vực (cán bộ thấy cả phường); bỏ trống thì giữ nguyên. */
+export async function updateManagedOfficer(id: string, changes: { username?: string; serviceAreaCode?: string | null }): Promise<ManagedOfficer> {
+  const payload = await request<{ data: ManagedOfficer }>(`/v1/commander/officers/${encodeURIComponent(id)}/update`, {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify(changes),
+  });
+  return payload.data;
+}
+
+/** Đặt mật khẩu do chỉ huy nhập, hoặc để hệ thống tạo (`generate`): mật khẩu tạo ra chỉ có trong kết quả này. */
+export async function setManagedOfficerPassword(id: string, how: { password: string } | { generate: true }): Promise<{ officer: ManagedOfficer; generatedPassword: string | null }> {
+  const payload = await request<{ data: ManagedOfficer; generatedPassword?: string }>(`/v1/commander/officers/${encodeURIComponent(id)}/password`, {
+    method: 'POST', headers: officerHeaders(), body: JSON.stringify(how),
+  });
+  return { officer: payload.data, generatedPassword: payload.generatedPassword ?? null };
 }
 
 export async function listWorkflowActors(): Promise<{ data: WorkflowActor[]; meta: WorkflowMeta }> {

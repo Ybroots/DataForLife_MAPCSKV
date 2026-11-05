@@ -153,7 +153,6 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
                 </div>
                 <div className="vneid-body">
                   <strong>Đăng nhập hoặc đăng ký</strong>
-                  <span>Dùng số điện thoại và mật khẩu của hệ thống</span>
                 </div>
                 <ArrowRight size={19} aria-hidden="true" />
               </button>
@@ -278,8 +277,6 @@ export function LoginScreen({ onEnterAsCitizen, onCitizenLoginSuccess, onOfficer
                 <h2>Đăng nhập CSKV</h2>
               </div>
             </div>
-
-            <p className="officer-login-lead">Chỉ cán bộ đã đăng nhập mới có thể xem hàng đợi SOS và phản ánh của địa bàn.</p>
 
             <form className="officer-login-form" onSubmit={submit} noValidate>
               <label htmlFor="ls-username">Tên đăng nhập

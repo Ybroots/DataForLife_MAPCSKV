@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { notificationTitle, paginateNotifications } from './citizen-notifications.js';
-import type { CitizenNotification, CitizenNotificationPage, NotificationQuery } from './types.js';
+import type { CitizenNotification, CitizenNotificationPage, ManagedOfficerResponse, NotificationQuery, UpdateManagedOfficerInput, UpdateManagedOfficerResult } from './types.js';
 import { haversineMeters, rankDuplicates, type DuplicateCaseInput } from './incident-intelligence.js';
 import type {
   AppRatingResponse,
@@ -110,9 +110,31 @@ function publicSos(item: SosResponse): SosResponse {
 export class FixtureDirectoryRepository implements DirectoryRepository {
   readonly sourceName = 'fixture' as const;
   /** `pilotAreas`: dùng ba địa bàn trình diễn (Xuân Hương, Xuân Trường, Lâm Viên) có khu vực bên trong thay cho địa bàn minh họa đơn. */
-  constructor(options: { pilotAreas?: boolean } = {}) {
+  constructor(options: { pilotAreas?: boolean; managedOfficers?: boolean } = {}) {
     this.pilots = options.pilotAreas ? loadPilotAreaSources().map((source) => new PilotArea(source)) : [];
+    if (options.managedOfficers) this.seedManagedOfficers();
   }
+
+  /** Dữ liệu thử cho phần chỉ huy quản lý tài khoản: hai cán bộ trong phường, một cán bộ phường khác. Mật khẩu chưa đặt (chưa đăng nhập được). */
+  private seedManagedOfficers(): void {
+    const unusable = 'scrypt-v1$unset';
+    const seeds = [
+      { id: 'officer-cskv-01', username: 'canbo01', displayName: 'Cán bộ Một', locality: 'DEMO-DA-LAT', area: this.fixtureAreas[0] ?? null },
+      { id: 'officer-cskv-02', username: 'canbo02', displayName: 'Cán bộ Hai', locality: 'DEMO-DA-LAT', area: this.fixtureAreas[1] ?? null },
+      { id: 'officer-other-ward', username: 'canbo99', displayName: 'Cán bộ phường khác', locality: 'DEMO-OTHER', area: null },
+    ];
+    for (const seed of seeds) {
+      this.actors.push({ id: seed.id, actorType: 'officer', displayName: seed.displayName, localityCode: seed.locality, serviceArea: seed.area ? { ...seed.area } : null, phone: null, beatNote: null });
+      this.officerAccounts.set(seed.username, { actorId: seed.id, username: seed.username, passwordHash: unusable });
+    }
+  }
+
+  private readonly fixtureAreas = [
+    { code: 'XH-P1', name: 'Khu vực Phường 1' },
+    { code: 'XH-P2', name: 'Khu vực Phường 2' },
+    { code: 'XH-P3', name: 'Khu vực Phường 3' },
+  ];
+  readonly officerAccountAudit: Array<{ targetId: string; actorId: string; action: string; before: unknown; after: unknown }> = [];
   private readonly pilots: PilotArea[];
 
   async getAreaOverview(): Promise<AreaOverview> {
@@ -800,6 +822,67 @@ export class FixtureDirectoryRepository implements DirectoryRepository {
     const actor = this.requireActor(actorId, true);
     if (actor.actorType !== 'supervisor') throw new WorkflowError('FORBIDDEN', 'Chỉ chỉ huy mới xem được đánh giá theo cán bộ khu vực.');
     return [];
+  }
+
+  private requireFixtureCommander(actorId: string): WorkflowActorResponse {
+    const actor = this.requireActor(actorId, true);
+    if (actor.actorType !== 'supervisor') throw new WorkflowError('FORBIDDEN', 'Chỉ chỉ huy mới quản lý được tài khoản cán bộ.');
+    return actor;
+  }
+
+  private managedTarget(commander: WorkflowActorResponse, targetId: string): { actor: WorkflowActorResponse; account: OfficerAccountRecord } {
+    const actor = this.actors.find((candidate) => candidate.id === targetId);
+    if (!actor || actor.localityCode !== commander.localityCode) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cán bộ trong phường.');
+    if (actor.actorType !== 'officer') throw new WorkflowError('FORBIDDEN', 'Không sửa được tài khoản chỉ huy.');
+    const account = [...this.officerAccounts.values()].find((candidate) => candidate.actorId === targetId);
+    if (!account) throw new WorkflowError('NOT_FOUND', 'Không tìm thấy cán bộ trong phường.');
+    return { actor, account };
+  }
+
+  private managedView(actor: WorkflowActorResponse, account: OfficerAccountRecord): ManagedOfficerResponse {
+    return { id: actor.id, username: account.username, displayName: actor.displayName, phone: actor.phone, serviceArea: actor.serviceArea ? { ...actor.serviceArea } : null };
+  }
+
+  async listManagedOfficers(actorId: string): Promise<ManagedOfficerResponse[]> {
+    const commander = this.requireFixtureCommander(actorId);
+    return this.actors
+      .filter((actor) => actor.actorType === 'officer' && actor.localityCode === commander.localityCode)
+      .flatMap((actor) => {
+        const account = [...this.officerAccounts.values()].find((candidate) => candidate.actorId === actor.id);
+        return account ? [this.managedView(actor, account)] : [];
+      });
+  }
+
+  async updateManagedOfficer(actorId: string, targetId: string, input: UpdateManagedOfficerInput, reservedUsernames: readonly string[] = []): Promise<UpdateManagedOfficerResult> {
+    const commander = this.requireFixtureCommander(actorId);
+    const { actor, account } = this.managedTarget(commander, targetId);
+    let current = account;
+    let usernameChanged = false;
+    if (input.username !== undefined && input.username !== account.username) {
+      const taken = reservedUsernames.includes(input.username)
+        || [...this.officerAccounts.values()].some((candidate) => candidate.actorId !== targetId && candidate.username === input.username);
+      if (taken) throw new WorkflowError('CONFLICT', 'Tên đăng nhập này đã có người dùng.');
+      this.officerAccounts.delete(account.username);
+      current = { ...account, username: input.username };
+      this.officerAccounts.set(current.username, current);
+      this.officerAccountAudit.push({ targetId, actorId: commander.id, action: 'username_changed', before: { username: account.username }, after: { username: input.username } });
+      usernameChanged = true;
+    }
+    if (input.serviceAreaCode !== undefined && input.serviceAreaCode !== (actor.serviceArea?.code ?? null)) {
+      const area = input.serviceAreaCode === null ? null : this.fixtureAreas.find((candidate) => candidate.code === input.serviceAreaCode) ?? null;
+      if (input.serviceAreaCode !== null && !area) throw new WorkflowError('INVALID_INPUT', 'Khu vực không thuộc phường này.');
+      this.officerAccountAudit.push({ targetId, actorId: commander.id, action: 'service_area_changed', before: { areaCode: actor.serviceArea?.code ?? null }, after: { areaCode: input.serviceAreaCode } });
+      actor.serviceArea = area ? { ...area } : null;
+    }
+    return { officer: this.managedView(actor, current), usernameChanged };
+  }
+
+  async setManagedOfficerPasswordHash(actorId: string, targetId: string, passwordHash: string): Promise<ManagedOfficerResponse> {
+    const commander = this.requireFixtureCommander(actorId);
+    const { actor, account } = this.managedTarget(commander, targetId);
+    this.officerAccounts.set(account.username, { ...account, passwordHash });
+    this.officerAccountAudit.push({ targetId, actorId: commander.id, action: 'password_set', before: null, after: null });
+    return this.managedView(actor, account);
   }
 
   async listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]> {

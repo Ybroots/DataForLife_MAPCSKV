@@ -382,6 +382,26 @@ export interface AreaOfficerOverviewResponse {
   recentReviews: OfficerReviewResponse[];
 }
 
+/** Tài khoản cán bộ mà chỉ huy quản lý (tên đăng nhập, khu vực). Không bao giờ có mật khẩu hay bản băm. */
+export interface ManagedOfficerResponse {
+  id: string;
+  username: string;
+  displayName: string;
+  phone: string | null;
+  serviceArea: { code: string; name: string } | null;
+}
+
+/** `serviceAreaCode`: mã khu vực, hoặc null để bỏ gắn khu vực (cán bộ thấy cả phường). Bỏ trống thì giữ nguyên. */
+export interface UpdateManagedOfficerInput {
+  username?: string;
+  serviceAreaCode?: string | null;
+}
+
+export interface UpdateManagedOfficerResult {
+  officer: ManagedOfficerResponse;
+  usernameChanged: boolean;
+}
+
 export interface OfficerReviewResponse {
   kind: 'incident' | 'sos';
   score: number;
@@ -637,6 +657,10 @@ export interface DirectoryRepository {
   ): Promise<SosResponse>;
   listWorkflowActors(actorId: string): Promise<WorkflowActorResponse[]>;
   listAreaOfficerOverview(actorId: string, from: string, to: string): Promise<AreaOfficerOverviewResponse[]>;
+  /** Chỉ chỉ huy: danh sách, sửa, đặt mật khẩu cho cán bộ cùng phường. `reservedUsernames`: tên đã dùng bởi tài khoản cấu hình ở máy chủ. */
+  listManagedOfficers(actorId: string): Promise<ManagedOfficerResponse[]>;
+  updateManagedOfficer(actorId: string, targetId: string, input: UpdateManagedOfficerInput, reservedUsernames?: readonly string[]): Promise<UpdateManagedOfficerResult>;
+  setManagedOfficerPasswordHash(actorId: string, targetId: string, passwordHash: string): Promise<ManagedOfficerResponse>;
   listOfficerNotifications(actorId: string): Promise<OfficerNotificationResponse[]>;
   listCitizenNotifications(citizenId: string, query: NotificationQuery): Promise<CitizenNotificationPage>;
   findIncidentDuplicates(actorId: string, incidentId: string): Promise<DuplicateCandidateResponse[]>;

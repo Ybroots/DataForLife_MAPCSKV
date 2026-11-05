@@ -51,8 +51,6 @@ function PoliceLoginCard({ onSuccess, onCancel, showClose = true }: PoliceLoginC
         )}
       </header>
 
-      <p className="police-login-lead">Chỉ cán bộ đã đăng nhập mới có thể xem hàng đợi SOS và phản ánh của địa bàn.</p>
-
       <form className="police-login-form" onSubmit={submit} noValidate>
         <label htmlFor="police-username">Tên đăng nhập
           <input

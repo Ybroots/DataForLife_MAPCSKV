@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Phone, RefreshCw, Star, UserRoundCheck } from 'lucide-react';
 import { ApiError, getAreaOfficerOverview } from '../api';
+import { CommanderOfficerAccounts } from './CommanderOfficerAccounts';
 import type { AreaOfficerOverview, OfficerReview, RatingSummary, StatisticsPeriod } from '../types';
 
 const periodLabels: Record<StatisticsPeriod, string> = { day: 'Ngày', month: 'Tháng', year: 'Năm' };
@@ -45,7 +46,7 @@ function ReviewList({ reviews }: { reviews: OfficerReview[] }) {
   </details>;
 }
 
-/** Chỉ huy xem từng khu vực của phường: cán bộ phụ trách, khối lượng hồ sơ và đánh giá của người dân. Chỉ đọc, không phân công. */
+/** Chỉ huy xem từng khu vực của phường: cán bộ phụ trách, khối lượng hồ sơ và đánh giá của người dân. Xem là chính; phần “Tài khoản cán bộ” bên dưới là quyền quản lý tài khoản, không phải xử lý hồ sơ. */
 export function CommanderAreaPanel() {
   const [period, setPeriod] = useState<StatisticsPeriod>('month');
   const [date, setDate] = useState(todayVietnam);
@@ -64,7 +65,6 @@ export function CommanderAreaPanel() {
 
   return <div className="commander-areas">
     <div className="operations-intro"><UserRoundCheck size={24} /><div><h3>Cán bộ khu vực</h3></div></div>
-    <p className="commander-note">Mỗi cán bộ chỉ xử lý hồ sơ trong khu vực mình phụ trách. Điểm hài lòng tính theo cán bộ đang phụ trách hồ sơ.</p>
     <div className="report-controls">
       <div className="report-period" role="tablist" aria-label="Kỳ xem">
         {(Object.keys(periodLabels) as StatisticsPeriod[]).map((item) => <button key={item} type="button" role="tab" aria-selected={period === item} className={period === item ? 'active' : ''} onClick={() => setPeriod(item)}>{periodLabels[item]}</button>)}
@@ -101,5 +101,9 @@ export function CommanderAreaPanel() {
         </article>;
       })}
     </div>
+    <CommanderOfficerAccounts
+      areas={(rows ?? []).map((row) => row.serviceArea)}
+      onChanged={() => setReloadKey((value) => value + 1)}
+    />
   </div>;
 }

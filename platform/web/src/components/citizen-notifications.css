@@ -2,7 +2,7 @@
 .citizen-notification-bell:hover { background: rgba(255,255,255,.24); }
 .citizen-notification-count { position: absolute; top: -5px; right: -5px; min-width: 20px; padding: 2px 4px; border: 2px solid var(--color-primary); border-radius: 12px; color: var(--color-primary-deep); background: #fff; font-size: 10px; font-weight: 900; line-height: 14px; }
 .citizen-notification-backdrop { position: fixed; inset: 0; z-index: 220; display: flex; justify-content: flex-end; background: rgba(32,12,18,.45); }
-.citizen-notification-inbox { width: min(460px,100%); height: 100dvh; display: flex; flex-direction: column; min-height: 0; color: var(--color-ink); background: var(--color-surface,#fffdfc); box-shadow: -12px 0 40px rgba(32,12,18,.16); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); animation: citizen-inbox-in 200ms ease-out; }
+.citizen-notification-inbox { width: min(460px,100%); height: 100vh; height: 100dvh; display: flex; flex-direction: column; min-height: 0; color: var(--color-ink); background: var(--color-surface,#fffdfc); box-shadow: -12px 0 40px rgba(32,12,18,.16); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); animation: citizen-inbox-in 200ms ease-out; }
 .citizen-notification-inbox > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 20px 16px; border-bottom: 3px solid var(--color-primary); }
 .citizen-notification-inbox h2 { margin: 4px 0 0; font-family: 'Be Vietnam Pro','Segoe UI',sans-serif; font-size: 24px; }
 .citizen-notification-inbox header span { font-size: 11px; letter-spacing: .08em; font-weight: 800; color: var(--color-primary-deep); }

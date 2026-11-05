@@ -176,7 +176,6 @@ function EmailResetForm({ initialPhone, variant, onBack, onDone }: ResetFormProp
   if (step === 'request') {
     return (
       <form className={formClass} onSubmit={(event) => void request(event)} noValidate>
-        <p className="recovery-lead">Mã 6 số sẽ gửi tới email đã xác minh của tài khoản.</p>
         <label htmlFor="forgot-email-phone">Số điện thoại
           <input id="forgot-email-phone" name="username" type="tel" inputMode="numeric" autoComplete="tel" maxLength={10} placeholder="0912345678" value={phone} onChange={(event) => { setPhone(event.target.value.replace(/[^0-9 ]/g, '')); setError(''); }} />
         </label>

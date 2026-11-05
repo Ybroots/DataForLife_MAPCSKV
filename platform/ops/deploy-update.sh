@@ -3,7 +3,7 @@
 # Dùng (root): bash deploy-update.sh <nhánh> <mã commit 40 ký tự>
 #   ví dụ:      bash /root/deploy-update.sh dataforlife 0123456789abcdef0123456789abcdef01234567
 # Việc của script: kiểm tra -> sao lưu (CSDL, web, API, .env, nginx) -> kéo mã (chỉ fast-forward) -> typecheck/test/build
-#   -> áp dụng migration 015-020 (an toàn khi chạy lại) -> khởi động lại API -> đăng web mới (index.html sau cùng) -> kiểm tra.
+#   -> áp dụng migration 015-029 (an toàn khi chạy lại) -> khởi động lại API -> đăng web mới (index.html sau cùng) -> kiểm tra.
 # Hỏng bước nào trước khi đăng web thì dừng, không đổi gì trên site đang chạy. KHÔNG nạp dữ liệu mẫu trình diễn.
 set -Eeuo pipefail
 umask 027
@@ -89,7 +89,7 @@ as_app "$NODE/npm" --prefix "$REPO/platform" test
 as_app "$NODE/npm" --prefix "$REPO/platform" run build
 [[ -s "$REPO/platform/web/dist/index.html" && -d "$REPO/platform/web/dist/assets" && -f "$REPO/platform/api/dist/server.js" ]]
 
-echo "== 6/8 Migration 015-020 (an toan khi chay lai; chay bang tai khoan ung dung de dung chu so huu bang)"
+echo "== 6/8 Migration 015-029 (an toan khi chay lai; chay bang tai khoan ung dung de dung chu so huu bang)"
 DB_URL="$(grep -m1 '^DATABASE_URL=' "$ENV_FILE" | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')"
 [[ -n "$DB_URL" ]]
 for f in "$REPO"/platform/database/migrations/01[5-9]_*.sql "$REPO"/platform/database/migrations/02[0-9]_*.sql; do
